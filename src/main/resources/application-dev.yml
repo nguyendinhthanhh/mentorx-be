@@ -1,0 +1,44 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/mentorx_dev
+    username: mentorx_dev
+    password: mentorx_dev_pass
+    
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  mail:
+    host: localhost
+    port: 1025 # MailHog for local testing
+    username: 
+    password: 
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+
+jwt:
+  secret: dev-secret-key-for-development-only-not-secure
+  access-token-expiry: 3600000 # 1 hour for development
+
+app:
+  cors:
+    allowed-origins: http://localhost:3000,http://localhost:3001,http://localhost:5173
+  
+  file:
+    upload-dir: ./uploads-dev
+
+logging:
+  level:
+    com.mentorx.api: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.springframework.web: DEBUG

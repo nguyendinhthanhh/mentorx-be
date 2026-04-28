@@ -1,0 +1,13 @@
+package com.mentorx.api.common.enums;
+
+public enum NotificationType {
+    JOB_PROPOSAL,
+    JOB_ACCEPTED,
+    MILESTONE_SUBMITTED,
+    MILESTONE_APPROVED,
+    PAYMENT_RECEIVED,
+    COURSE_ENROLLMENT,
+    MESSAGE_RECEIVED,
+    SYSTEM_ANNOUNCEMENT,
+    MENTOR_APPLICATION_STATUS
+}
