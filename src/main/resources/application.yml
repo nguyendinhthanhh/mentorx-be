@@ -83,7 +83,7 @@ spring:
       - match-scores
 
 jwt:
-  secret: ${JWT_SECRET:mySecretKey123456789012345678901234567890}
+  secret: ${JWT_SECRET:CHANGE_THIS_JWT_SECRET_IN_PRODUCTION_MINIMUM_32_CHARACTERS}
   access-token-expiry: 900000 # 15 minutes
   refresh-token-expiry: 604800000 # 7 days
   issuer: mentorx-api

@@ -6,12 +6,12 @@ services:
     image: postgres:15-alpine
     container_name: mentorx-postgres
     environment:
-      POSTGRES_DB: mentorx_db
-      POSTGRES_USER: mentorx_user
-      POSTGRES_PASSWORD: mentorx_pass
+      POSTGRES_DB: ${POSTGRES_DB:-mentorx_db}
+      POSTGRES_USER: ${POSTGRES_USER:-mentorx_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-please_change_this_password}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -19,7 +19,7 @@ services:
       - mentorx-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mentorx_user -d mentorx_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mentorx_user} -d ${POSTGRES_DB:-mentorx_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -49,15 +49,15 @@ services:
     container_name: mentorx-backend
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      DB_URL: jdbc:postgresql://postgres:5432/mentorx_db
-      DB_USERNAME: mentorx_user
-      DB_PASSWORD: mentorx_pass
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-mentorx_db}
+      DB_USERNAME: ${POSTGRES_USER:-mentorx_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-please_change_this_password}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      JWT_SECRET: ${JWT_SECRET:-your-jwt-secret-key-here}
-      WALLET_SECRET_KEY: ${WALLET_SECRET_KEY:-your-wallet-secret-key-here}
+      JWT_SECRET: ${JWT_SECRET}
+      WALLET_SECRET_KEY: ${WALLET_SECRET_KEY}
     ports:
-      - "8080:8080"
+      - "${APP_PORT:-8080}:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -78,11 +78,11 @@ services:
     image: dpage/pgadmin4:latest
     container_name: mentorx-pgadmin
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@mentorx.com
-      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@mentorx.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-please_change_this_password}
       PGADMIN_CONFIG_SERVER_MODE: 'False'
     ports:
-      - "5050:80"
+      - "${PGADMIN_PORT:-5050}:80"
     depends_on:
       - postgres
     networks:
