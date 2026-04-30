@@ -3,12 +3,14 @@ package com.mentorx.api.common.enums;
 public enum TxnType {
     DEPOSIT,
     WITHDRAWAL,
-    TRANSFER,
     JOB_PAYMENT,
     JOB_RELEASE,
+    JOB_REFUND,
     COURSE_PURCHASE,
-    COURSE_PAYMENT,
-    REFUND,
+    COURSE_REFUND,
     PLATFORM_FEE,
-    MENTOR_PAYOUT
+    WITHDRAWAL_FEE,
+    BONUS_CREDIT,
+    PENALTY_DEDUCTION,
+    ADJUSTMENT
 }

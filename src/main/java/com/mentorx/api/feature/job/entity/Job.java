@@ -5,12 +5,22 @@ import com.mentorx.api.common.enums.BudgetType;
 import com.mentorx.api.common.enums.JobStatus;
 import com.mentorx.api.common.enums.JobType;
 import com.mentorx.api.feature.user.entity.User;
-import jakarta.persistence.*;
-import lombok.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Entity
 @Table(name = "jobs")
@@ -25,53 +35,54 @@ public class Job extends BaseEntity {
     @JoinColumn(name = "client_id", nullable = false)
     private User client;
 
-    @Column(nullable = false, length = 200)
-    private String title;
-
-    @Column(columnDefinition = "TEXT")
-    private String description;
+    @Column(name = "category_id")
+    private Integer categoryId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "job_type", nullable = false)
     private JobType jobType;
 
+    @Column(nullable = false, length = 255)
+    private String title;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String description;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "budget_type", nullable = false)
     private BudgetType budgetType;
 
-    @Column(name = "budget_amount", precision = 10, scale = 2)
-    private BigDecimal budgetAmount;
+    @Column(name = "budget_min_mxc", precision = 12, scale = 2)
+    private BigDecimal budgetMinMxc;
 
-    @Column(name = "hourly_rate_min", precision = 10, scale = 2)
-    private BigDecimal hourlyRateMin;
+    @Column(name = "budget_max_mxc", precision = 12, scale = 2)
+    private BigDecimal budgetMaxMxc;
 
-    @Column(name = "hourly_rate_max", precision = 10, scale = 2)
-    private BigDecimal hourlyRateMax;
+    @Column(name = "hourly_rate_mxc", precision = 12, scale = 2)
+    private BigDecimal hourlyRateMxc;
 
-    @Column(name = "estimated_hours")
-    private Integer estimatedHours;
+    @Column(name = "estimated_hours", precision = 6, scale = 2)
+    private BigDecimal estimatedHours;
 
-    @Column(name = "skills_required", columnDefinition = "TEXT")
-    private String skillsRequired;
-
-    @Column(name = "experience_level", length = 50)
-    private String experienceLevel;
-
-    @Column(name = "deadline")
-    private LocalDateTime deadline;
+    @Column(name = "deadline_at")
+    private LocalDateTime deadlineAt;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     @Builder.Default
+    @Column(nullable = false)
     private JobStatus status = JobStatus.DRAFT;
 
-    @Column(name = "is_featured", nullable = false)
     @Builder.Default
+    @Column(name = "is_featured", nullable = false)
     private Boolean isFeatured = false;
 
-    @Column(name = "is_urgent", nullable = false)
     @Builder.Default
-    private Boolean isUrgent = false;
+    @Column(name = "view_count", nullable = false)
+    private Integer viewCount = 0;
+
+    @Builder.Default
+    @Column(name = "proposal_count", nullable = false)
+    private Integer proposalCount = 0;
 
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
@@ -79,37 +90,6 @@ public class Job extends BaseEntity {
     @Column(name = "closed_at")
     private LocalDateTime closedAt;
 
-    @Column(name = "category", length = 100)
-    private String category;
-
-    @Column(name = "subcategory", length = 100)
-    private String subcategory;
-
-    @Column(name = "location", length = 200)
-    private String location;
-
-    @Column(name = "is_remote", nullable = false)
-    @Builder.Default
-    private Boolean isRemote = true;
-
-    @Column(name = "attachments", columnDefinition = "TEXT")
-    private String attachments; // JSON array of file URLs
-
-    @Column(name = "view_count", nullable = false)
-    @Builder.Default
-    private Integer viewCount = 0;
-
-    @Column(name = "proposal_count", nullable = false)
-    @Builder.Default
-    private Integer proposalCount = 0;
-
-    // Relationships
-    @OneToMany(mappedBy = "job", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<JobProposal> proposals;
-
-    @OneToMany(mappedBy = "job", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<JobContract> contracts;
-
-    @OneToMany(mappedBy = "job", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<JobView> jobViews;
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 }

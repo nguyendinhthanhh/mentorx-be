@@ -1,0 +1,93 @@
+package com.mentorx.api.feature.notification.enums;
+
+/**
+ * Enum representing different types of notifications
+ * 
+ * @author MentorX Development Team
+ * @since 1.0.0
+ */
+public enum NotificationType {
+    // Job & Contract Notifications
+    NEW_JOB_MATCH,
+    JOB_APPLICATION_RECEIVED,
+    JOB_APPLICATION_ACCEPTED,
+    JOB_APPLICATION_REJECTED,
+    CONTRACT_CREATED,
+    CONTRACT_SIGNED,
+    CONTRACT_STARTED,
+    CONTRACT_COMPLETED,
+    CONTRACT_CANCELLED,
+    MILESTONE_COMPLETED,
+    MILESTONE_APPROVED,
+    MILESTONE_REJECTED,
+    
+    // Payment Notifications
+    PAYMENT_RECEIVED,
+    PAYMENT_SENT,
+    PAYMENT_PENDING,
+    PAYMENT_FAILED,
+    REFUND_ISSUED,
+    REFUND_RECEIVED,
+    ESCROW_RELEASED,
+    WALLET_LOW_BALANCE,
+    
+    // Course Notifications
+    COURSE_ENROLLED,
+    COURSE_STARTED,
+    COURSE_COMPLETED,
+    NEW_LESSON_AVAILABLE,
+    COURSE_UPDATED,
+    ASSIGNMENT_DUE,
+    CERTIFICATE_EARNED,
+    
+    // Chat & Communication
+    NEW_MESSAGE,
+    MENTION_IN_MESSAGE,
+    CHAT_ROOM_INVITATION,
+    QUICK_SUPPORT_REQUEST,
+    QUICK_SUPPORT_MATCHED,
+    
+    // Review & Reputation
+    NEW_REVIEW_RECEIVED,
+    REVIEW_RESPONSE_POSTED,
+    REPUTATION_MILESTONE,
+    BADGE_EARNED,
+    
+    // Moderation & Disputes
+    CONTENT_REPORTED,
+    CONTENT_REMOVED,
+    ACCOUNT_WARNING,
+    ACCOUNT_SUSPENDED,
+    DISPUTE_OPENED,
+    DISPUTE_RESPONSE_REQUIRED,
+    DISPUTE_RESOLVED,
+    
+    // Matching & Recommendations
+    NEW_MENTOR_RECOMMENDATION,
+    FEATURED_OPPORTUNITY,
+    TRENDING_CATEGORY,
+    
+    // System Notifications
+    SYSTEM_ANNOUNCEMENT,
+    MAINTENANCE_SCHEDULED,
+    FEATURE_UPDATE,
+    SECURITY_ALERT,
+    ACCOUNT_VERIFICATION,
+    PASSWORD_CHANGED,
+    EMAIL_CHANGED,
+    
+    // Reminders
+    DEADLINE_REMINDER,
+    MEETING_REMINDER,
+    FOLLOW_UP_REMINDER,
+    INACTIVE_ACCOUNT_REMINDER,
+    
+    // Social
+    NEW_FOLLOWER,
+    PROFILE_VIEWED,
+    CONNECTION_REQUEST,
+    
+    // Other
+    CUSTOM,
+    GENERAL
+}

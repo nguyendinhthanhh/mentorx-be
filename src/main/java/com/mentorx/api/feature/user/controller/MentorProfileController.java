@@ -32,7 +32,7 @@ public class MentorProfileController {
 
     @PostMapping("/{userId}/profile")
     @Operation(summary = "Create mentor profile", description = "Create a mentor profile for a user")
-    @PreAuthorize("@userService.getUserById(#userId).id == authentication.name")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<MentorProfileResponse>> createMentorProfile(
             @Parameter(description = "User ID") @PathVariable UUID userId,
             @Valid @RequestBody MentorProfileRequest request) {
@@ -51,7 +51,7 @@ public class MentorProfileController {
 
     @PutMapping("/{userId}/profile")
     @Operation(summary = "Update mentor profile", description = "Update mentor profile information")
-    @PreAuthorize("hasRole('ADMIN') or @userService.getUserById(#userId).id == authentication.name")
+    @PreAuthorize("hasRole('ADMIN') or isAuthenticated()")
     public ResponseEntity<ApiResponse<MentorProfileResponse>> updateMentorProfile(
             @Parameter(description = "User ID") @PathVariable UUID userId,
             @Valid @RequestBody MentorProfileRequest request) {
@@ -61,7 +61,7 @@ public class MentorProfileController {
 
     @DeleteMapping("/{userId}/profile")
     @Operation(summary = "Delete mentor profile", description = "Delete mentor profile")
-    @PreAuthorize("hasRole('ADMIN') or @userService.getUserById(#userId).id == authentication.name")
+    @PreAuthorize("hasRole('ADMIN') or isAuthenticated()")
     public ResponseEntity<ApiResponse<Void>> deleteMentorProfile(
             @Parameter(description = "User ID") @PathVariable UUID userId) {
         mentorProfileService.deleteMentorProfile(userId);

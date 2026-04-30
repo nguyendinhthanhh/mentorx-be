@@ -9,5 +9,5 @@ public record UserRoleAssignRequest(
     UUID userId,
 
     @NotNull(message = "Role ID is required")
-    Integer roleId
+    UUID roleId
 ) {}

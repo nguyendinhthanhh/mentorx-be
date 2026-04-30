@@ -12,5 +12,5 @@ import java.util.UUID;
 @EqualsAndHashCode
 public class UserRoleId implements Serializable {
     private UUID userId;
-    private Integer roleId;
+    private UUID roleId;
 }

@@ -5,6 +5,8 @@ import com.mentorx.api.auth.dto.request.RefreshTokenRequest;
 import com.mentorx.api.auth.dto.request.RegisterRequest;
 import com.mentorx.api.auth.dto.response.AuthResponse;
 
+import java.util.UUID;
+
 public interface AuthService {
 
     AuthResponse register(RegisterRequest request);
@@ -15,7 +17,7 @@ public interface AuthService {
 
     void logout(String refreshToken);
 
-    void logoutAll(Long userId);
+    void logoutAll(UUID userId);
 
     AuthResponse handleOAuth2Success(String email, String firstName, String lastName, 
                                    String provider, String providerId);
@@ -28,9 +30,9 @@ public interface AuthService {
 
     void verifyEmail(String token);
 
-    void enable2FA(Long userId);
+    void enable2FA(UUID userId);
 
-    void disable2FA(Long userId);
+    void disable2FA(UUID userId);
 
-    boolean verify2FA(Long userId, String code);
+    boolean verify2FA(UUID userId, String code);
 }

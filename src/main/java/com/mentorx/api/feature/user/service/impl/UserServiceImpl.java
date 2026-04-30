@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Slf4j
-@Service
+@Service("userService")
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class UserServiceImpl implements UserService {

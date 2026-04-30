@@ -5,5 +5,5 @@ public enum WalletAccountType {
     USER_PENDING,
     ESCROW,
     PLATFORM_REVENUE,
-    PLATFORM_FEES
+    PLATFORM_FLOAT
 }

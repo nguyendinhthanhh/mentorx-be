@@ -58,7 +58,7 @@ public class UserController {
 
     @PutMapping("/{userId}")
     @Operation(summary = "Update user", description = "Update user profile information")
-    @PreAuthorize("hasRole('ADMIN') or @userService.getUserById(#userId).id == authentication.name")
+    @PreAuthorize("hasRole('ADMIN') or isAuthenticated()")
     public ResponseEntity<ApiResponse<UserResponse>> updateUser(
             @Parameter(description = "User ID") @PathVariable UUID userId,
             @Valid @RequestBody UserUpdateRequest request) {
@@ -77,7 +77,7 @@ public class UserController {
 
     @DeleteMapping("/{userId}/soft")
     @Operation(summary = "Soft delete user", description = "Soft delete a user account")
-    @PreAuthorize("hasRole('ADMIN') or @userService.getUserById(#userId).id == authentication.name")
+    @PreAuthorize("hasRole('ADMIN') or isAuthenticated()")
     public ResponseEntity<ApiResponse<Void>> softDeleteUser(
             @Parameter(description = "User ID") @PathVariable UUID userId) {
         userService.softDeleteUser(userId);
@@ -134,7 +134,7 @@ public class UserController {
 
     @PostMapping("/{userId}/2fa/enable")
     @Operation(summary = "Enable 2FA", description = "Enable two-factor authentication for user")
-    @PreAuthorize("hasRole('ADMIN') or @userService.getUserById(#userId).id == authentication.name")
+    @PreAuthorize("hasRole('ADMIN') or isAuthenticated()")
     public ResponseEntity<ApiResponse<Void>> enable2FA(
             @Parameter(description = "User ID") @PathVariable UUID userId) {
         userService.enable2FA(userId);
@@ -143,7 +143,7 @@ public class UserController {
 
     @PostMapping("/{userId}/2fa/disable")
     @Operation(summary = "Disable 2FA", description = "Disable two-factor authentication for user")
-    @PreAuthorize("hasRole('ADMIN') or @userService.getUserById(#userId).id == authentication.name")
+    @PreAuthorize("hasRole('ADMIN') or isAuthenticated()")
     public ResponseEntity<ApiResponse<Void>> disable2FA(
             @Parameter(description = "User ID") @PathVariable UUID userId) {
         userService.disable2FA(userId);
@@ -152,7 +152,7 @@ public class UserController {
 
     @PostMapping("/{userId}/last-seen")
     @Operation(summary = "Update last seen", description = "Update user's last seen timestamp")
-    @PreAuthorize("@userService.getUserById(#userId).id == authentication.name")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<Void>> updateLastSeenAt(
             @Parameter(description = "User ID") @PathVariable UUID userId) {
         userService.updateLastSeenAt(userId);

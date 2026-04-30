@@ -21,28 +21,9 @@ public interface WalletRepository extends JpaRepository<Wallet, UUID> {
 
     List<Wallet> findByAccountType(WalletAccountType accountType);
 
-    List<Wallet> findByIsFrozen(Boolean isFrozen);
-
-    @Query("SELECT w FROM Wallet w WHERE w.user.id = :userId AND w.isActive = true")
-    List<Wallet> findActiveWalletsByUserId(@Param("userId") UUID userId);
-
-    @Query("SELECT SUM(w.balance) FROM Wallet w WHERE w.user.id = :userId AND w.isActive = true")
-    BigDecimal getTotalBalanceByUserId(@Param("userId") UUID userId);
-
-    @Query("SELECT SUM(w.availableBalance) FROM Wallet w WHERE w.user.id = :userId AND w.isActive = true")
-    BigDecimal getAvailableBalanceByUserId(@Param("userId") UUID userId);
-
-    @Query("SELECT SUM(w.pendingBalance) FROM Wallet w WHERE w.user.id = :userId AND w.isActive = true")
-    BigDecimal getPendingBalanceByUserId(@Param("userId") UUID userId);
-
-    @Query("SELECT w FROM Wallet w WHERE w.balance != " +
-           "(SELECT COALESCE(SUM(CASE WHEN wt.direction = 'CREDIT' THEN wt.amount ELSE -wt.amount END), 0) " +
-           "FROM WalletTransaction wt WHERE wt.wallet.id = w.id AND wt.status = 'COMPLETED')")
-    List<Wallet> findWalletsRequiringReconciliation();
-
     @Query("SELECT COUNT(w) FROM Wallet w WHERE w.accountType = :accountType")
     long countByAccountType(@Param("accountType") WalletAccountType accountType);
 
-    @Query("SELECT w FROM Wallet w WHERE w.balance > :minBalance ORDER BY w.balance DESC")
-    List<Wallet> findWalletsWithBalanceGreaterThan(@Param("minBalance") BigDecimal minBalance);
+    @Query("SELECT COALESCE(SUM(w.balanceMxc), 0) FROM Wallet w WHERE w.user.id = :userId")
+    BigDecimal getTotalBalanceByUserId(@Param("userId") UUID userId);
 }

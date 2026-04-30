@@ -1,7 +1,7 @@
 package com.mentorx.api.common.enums;
 
 public enum JobType {
-    PROJECT,
-    HOURLY,
-    QUICK_SUPPORT
+    LONG_TERM_MENTORING,
+    FREELANCE_PROJECT,
+    QUICK_FIX
 }

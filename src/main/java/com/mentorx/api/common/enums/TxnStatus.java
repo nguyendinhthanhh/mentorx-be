@@ -4,5 +4,6 @@ public enum TxnStatus {
     PENDING,
     COMPLETED,
     FAILED,
-    CANCELLED
+    REVERSED,
+    FLAGGED
 }

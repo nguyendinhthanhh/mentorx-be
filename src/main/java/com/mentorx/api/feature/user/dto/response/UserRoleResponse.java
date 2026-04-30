@@ -4,7 +4,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record UserRoleResponse(
-    Integer roleId,
+    UUID roleId,
     String roleName,
     String description,
     UUID grantedBy,

@@ -1,18 +1,25 @@
 package com.mentorx.api.common.response;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+@Data
 @Builder
-public record ApiResponse<T>(
-    boolean success,
-    String message,
-    T data,
+@NoArgsConstructor
+@AllArgsConstructor
+public class ApiResponse<T> {
+    private boolean success;
+    private String message;
+    private T data;
+    
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    LocalDateTime timestamp
-) {
+    private LocalDateTime timestamp;
+    
     public static <T> ApiResponse<T> success(T data) {
         return ApiResponse.<T>builder()
             .success(true)

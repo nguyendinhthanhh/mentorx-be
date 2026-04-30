@@ -34,7 +34,7 @@ public class UserRoleServiceImpl implements UserRoleService {
 
     @Override
     @Transactional
-    public void assignRoleToUser(UUID userId, Integer roleId, UUID grantedBy) {
+    public void assignRoleToUser(UUID userId, UUID roleId, UUID grantedBy) {
         log.info("Assigning role {} to user {} by {}", roleId, userId, grantedBy);
 
         if (userRoleRepository.existsByUserIdAndRoleId(userId, roleId)) {
@@ -60,7 +60,7 @@ public class UserRoleServiceImpl implements UserRoleService {
 
     @Override
     @Transactional
-    public void removeRoleFromUser(UUID userId, Integer roleId) {
+    public void removeRoleFromUser(UUID userId, UUID roleId) {
         log.info("Removing role {} from user {}", roleId, userId);
 
         if (!userRoleRepository.existsByUserIdAndRoleId(userId, roleId)) {
@@ -98,7 +98,7 @@ public class UserRoleServiceImpl implements UserRoleService {
     }
 
     @Override
-    public RoleResponse getRoleById(Integer roleId) {
+    public RoleResponse getRoleById(UUID roleId) {
         Role role = findRoleById(roleId);
         RoleResponse response = userMapper.toRoleResponse(role);
         long userCount = userRoleRepository.countUsersByRoleId(roleId);
@@ -156,7 +156,7 @@ public class UserRoleServiceImpl implements UserRoleService {
     }
 
     @Override
-    public long countUsersWithRole(Integer roleId) {
+    public long countUsersWithRole(UUID roleId) {
         return userRoleRepository.countUsersByRoleId(roleId);
     }
 
@@ -165,7 +165,7 @@ public class UserRoleServiceImpl implements UserRoleService {
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
     }
 
-    private Role findRoleById(Integer roleId) {
+    private Role findRoleById(UUID roleId) {
         return roleRepository.findById(roleId)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Role not found"));
     }

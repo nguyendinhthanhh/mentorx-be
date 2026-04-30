@@ -29,34 +29,31 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
     @Query("SELECT wt FROM WalletTransaction wt WHERE wt.wallet.user.id = :userId AND wt.txnType = :txnType ORDER BY wt.createdAt DESC")
     Page<WalletTransaction> findByWalletUserIdAndTxnType(@Param("userId") UUID userId, @Param("txnType") TxnType txnType, Pageable pageable);
 
-    List<WalletTransaction> findByStatus(TxnStatus status);
+    List<WalletTransaction> findByTxnStatus(TxnStatus status);
 
     List<WalletTransaction> findByTxnType(TxnType txnType);
 
     @Query("SELECT wt FROM WalletTransaction wt WHERE wt.referenceId = :referenceId AND wt.referenceType = :referenceType")
     List<WalletTransaction> findByReferenceIdAndType(@Param("referenceId") UUID referenceId, @Param("referenceType") String referenceType);
 
-    @Query("SELECT wt FROM WalletTransaction wt WHERE wt.wallet.id = :walletId AND wt.status = :status ORDER BY wt.createdAt DESC")
+    @Query("SELECT wt FROM WalletTransaction wt WHERE wt.wallet.id = :walletId AND wt.txnStatus = :status ORDER BY wt.createdAt DESC")
     List<WalletTransaction> findByWalletIdAndStatus(@Param("walletId") UUID walletId, @Param("status") TxnStatus status);
 
     @Query("SELECT wt FROM WalletTransaction wt WHERE wt.createdAt BETWEEN :startDate AND :endDate ORDER BY wt.createdAt DESC")
     List<WalletTransaction> findTransactionsBetweenDates(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
-    @Query("SELECT COUNT(wt) FROM WalletTransaction wt WHERE wt.wallet.user.id = :userId AND wt.txnType = :txnType AND wt.status = 'COMPLETED'")
+    @Query("SELECT COUNT(wt) FROM WalletTransaction wt WHERE wt.wallet.user.id = :userId AND wt.txnType = :txnType AND wt.txnStatus = 'COMPLETED'")
     long countByUserIdAndTxnType(@Param("userId") UUID userId, @Param("txnType") TxnType txnType);
 
-    @Query("SELECT SUM(wt.amount) FROM WalletTransaction wt WHERE wt.wallet.user.id = :userId AND wt.txnType = :txnType AND wt.status = 'COMPLETED'")
+    @Query("SELECT SUM(wt.amountMxc) FROM WalletTransaction wt WHERE wt.wallet.user.id = :userId AND wt.txnType = :txnType AND wt.txnStatus = 'COMPLETED'")
     java.math.BigDecimal sumAmountByUserIdAndTxnType(@Param("userId") UUID userId, @Param("txnType") TxnType txnType);
 
     @Query("SELECT wt FROM WalletTransaction wt WHERE wt.wallet.id = :walletId ORDER BY wt.createdAt ASC")
     List<WalletTransaction> findByWalletIdOrderByCreatedAt(@Param("walletId") UUID walletId);
 
-    @Query("SELECT wt FROM WalletTransaction wt WHERE wt.status = 'PENDING' AND wt.createdAt < :cutoffDate")
+    @Query("SELECT wt FROM WalletTransaction wt WHERE wt.txnStatus = 'PENDING' AND wt.createdAt < :cutoffDate")
     List<WalletTransaction> findPendingTransactionsOlderThan(@Param("cutoffDate") LocalDateTime cutoffDate);
 
-    @Query("SELECT wt.txnType, COUNT(wt) as txnCount FROM WalletTransaction wt WHERE wt.status = 'COMPLETED' GROUP BY wt.txnType ORDER BY txnCount DESC")
+    @Query("SELECT wt.txnType, COUNT(wt) as txnCount FROM WalletTransaction wt WHERE wt.txnStatus = 'COMPLETED' GROUP BY wt.txnType ORDER BY txnCount DESC")
     List<Object[]> getTransactionTypeStats();
-
-    @Query("SELECT wt FROM WalletTransaction wt WHERE wt.externalTxnId = :externalTxnId")
-    List<WalletTransaction> findByExternalTxnId(@Param("externalTxnId") String externalTxnId);
 }

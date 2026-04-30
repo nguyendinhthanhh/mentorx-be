@@ -8,15 +8,15 @@ import java.util.UUID;
 
 public interface UserRoleService {
 
-    void assignRoleToUser(UUID userId, Integer roleId, UUID grantedBy);
+    void assignRoleToUser(UUID userId, UUID roleId, UUID grantedBy);
 
-    void removeRoleFromUser(UUID userId, Integer roleId);
+    void removeRoleFromUser(UUID userId, UUID roleId);
 
     List<UserRoleResponse> getUserRoles(UUID userId);
 
     List<RoleResponse> getAllRoles();
 
-    RoleResponse getRoleById(Integer roleId);
+    RoleResponse getRoleById(UUID roleId);
 
     RoleResponse getRoleByName(String roleName);
 
@@ -26,5 +26,5 @@ public interface UserRoleService {
 
     List<UUID> getUsersWithRole(String roleName);
 
-    long countUsersWithRole(Integer roleId);
+    long countUsersWithRole(UUID roleId);
 }

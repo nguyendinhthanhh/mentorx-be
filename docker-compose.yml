@@ -1,101 +1,83 @@
-version: '3.8'
-
 services:
-  # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
     container_name: mentorx-postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-mentorx_db}
-      POSTGRES_USER: ${POSTGRES_USER:-mentorx_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-please_change_this_password}
-      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-12345}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - mentorx-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mentorx_user} -d ${POSTGRES_DB:-mentorx_db}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # Redis for caching
   redis:
     image: redis:7-alpine
     container_name: mentorx-redis
     ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
+      - "${REDIS_PORT:-6379}:6379"
     networks:
       - mentorx-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
-      timeout: 3s
+      timeout: 5s
       retries: 5
 
-  # MentorX Backend Application
-  mentorx-app:
+  app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: mentorx-backend
+    container_name: mentorx-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: docker
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-mentorx_db}
-      DB_USERNAME: ${POSTGRES_USER:-mentorx_user}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-please_change_this_password}
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-12345}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       JWT_SECRET: ${JWT_SECRET}
       WALLET_SECRET_KEY: ${WALLET_SECRET_KEY}
     ports:
       - "${APP_PORT:-8080}:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     networks:
       - mentorx-network
+    volumes:
+      - app_uploads:/app/uploads
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
 
-  # pgAdmin for database management (optional)
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: mentorx-pgadmin
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@mentorx.local}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-please_change_this_password}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
       PGADMIN_CONFIG_SERVER_MODE: 'False'
     ports:
       - "${PGADMIN_PORT:-5050}:80"
-    depends_on:
-      - postgres
     networks:
       - mentorx-network
+    depends_on:
+      - postgres
     restart: unless-stopped
-    profiles:
-      - tools
 
 volumes:
   postgres_data:
-    driver: local
-  redis_data:
-    driver: local
+  app_uploads:
 
 networks:
   mentorx-network:

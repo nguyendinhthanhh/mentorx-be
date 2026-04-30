@@ -88,5 +88,5 @@ public class User extends BaseEntity {
     private List<UserRole> userRoles;
 
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private com.mentorx.api.feature.mentor.entity.MentorProfile mentorProfile;
+    private MentorProfile mentorProfile;
 }

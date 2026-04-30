@@ -11,14 +11,8 @@ public record WalletResponse(
         UUID userId,
         String userFullName,
         WalletAccountType accountType,
-        BigDecimal balance,
-        BigDecimal pendingBalance,
-        BigDecimal availableBalance,
-        String lastTransactionHash,
-        Boolean isActive,
-        Boolean isFrozen,
-        LocalDateTime frozenAt,
-        String frozenReason,
+        BigDecimal balanceMxc,
+        String ledgerHash,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {

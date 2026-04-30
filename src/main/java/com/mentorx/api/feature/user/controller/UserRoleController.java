@@ -12,7 +12,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -31,8 +30,7 @@ public class UserRoleController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> assignRoleToUser(
             @Valid @RequestBody UserRoleAssignRequest request,
-            Authentication authentication) {
-        UUID grantedBy = UUID.fromString(authentication.getName());
+            @RequestParam UUID grantedBy) {
         userRoleService.assignRoleToUser(request.userId(), request.roleId(), grantedBy);
         return ResponseEntity.ok(ApiResponse.success("Role assigned successfully", null));
     }
@@ -42,14 +40,14 @@ public class UserRoleController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> removeRoleFromUser(
             @Parameter(description = "User ID") @RequestParam UUID userId,
-            @Parameter(description = "Role ID") @RequestParam Integer roleId) {
+            @Parameter(description = "Role ID") @RequestParam UUID roleId) {
         userRoleService.removeRoleFromUser(userId, roleId);
         return ResponseEntity.ok(ApiResponse.success("Role removed successfully", null));
     }
 
     @GetMapping("/user/{userId}")
     @Operation(summary = "Get user roles", description = "Get all roles assigned to a user")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR') or @userService.getUserById(#userId).id == authentication.name")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR') or isAuthenticated()")
     public ResponseEntity<ApiResponse<List<UserRoleResponse>>> getUserRoles(
             @Parameter(description = "User ID") @PathVariable UUID userId) {
         List<UserRoleResponse> roles = userRoleService.getUserRoles(userId);
@@ -68,7 +66,7 @@ public class UserRoleController {
     @Operation(summary = "Get role by ID", description = "Get role information by ID")
     @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
     public ResponseEntity<ApiResponse<RoleResponse>> getRoleById(
-            @Parameter(description = "Role ID") @PathVariable Integer roleId) {
+            @Parameter(description = "Role ID") @PathVariable UUID roleId) {
         RoleResponse role = userRoleService.getRoleById(roleId);
         return ResponseEntity.ok(ApiResponse.success(role));
     }
@@ -84,7 +82,7 @@ public class UserRoleController {
 
     @GetMapping("/check/{userId}/role/{roleName}")
     @Operation(summary = "Check if user has role", description = "Check if a user has a specific role")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR') or @userService.getUserById(#userId).id == authentication.name")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR') or isAuthenticated()")
     public ResponseEntity<ApiResponse<Boolean>> hasRole(
             @Parameter(description = "User ID") @PathVariable UUID userId,
             @Parameter(description = "Role name") @PathVariable String roleName) {
@@ -105,7 +103,7 @@ public class UserRoleController {
     @Operation(summary = "Count users with role", description = "Count users with a specific role")
     @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
     public ResponseEntity<ApiResponse<Long>> countUsersWithRole(
-            @Parameter(description = "Role ID") @PathVariable Integer roleId) {
+            @Parameter(description = "Role ID") @PathVariable UUID roleId) {
         long count = userRoleService.countUsersWithRole(roleId);
         return ResponseEntity.ok(ApiResponse.success(count));
     }

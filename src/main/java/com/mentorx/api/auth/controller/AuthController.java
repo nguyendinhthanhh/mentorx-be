@@ -15,6 +15,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -55,7 +57,7 @@ public class AuthController {
     @Operation(summary = "Logout from all devices", description = "Revoke all refresh tokens for the user")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<Void>> logoutAll(
-            @Parameter(description = "User ID") @RequestParam Long userId) {
+            @Parameter(description = "User ID") @RequestParam UUID userId) {
         authService.logoutAll(userId);
         return ResponseEntity.ok(ApiResponse.success("Logged out from all devices", null));
     }
@@ -97,7 +99,7 @@ public class AuthController {
     @Operation(summary = "Enable 2FA", description = "Enable two-factor authentication")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<Void>> enable2FA(
-            @Parameter(description = "User ID") @RequestParam Long userId) {
+            @Parameter(description = "User ID") @RequestParam UUID userId) {
         authService.enable2FA(userId);
         return ResponseEntity.ok(ApiResponse.success("2FA enabled successfully", null));
     }
@@ -106,7 +108,7 @@ public class AuthController {
     @Operation(summary = "Disable 2FA", description = "Disable two-factor authentication")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<Void>> disable2FA(
-            @Parameter(description = "User ID") @RequestParam Long userId) {
+            @Parameter(description = "User ID") @RequestParam UUID userId) {
         authService.disable2FA(userId);
         return ResponseEntity.ok(ApiResponse.success("2FA disabled successfully", null));
     }
@@ -115,7 +117,7 @@ public class AuthController {
     @Operation(summary = "Verify 2FA code", description = "Verify two-factor authentication code")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<Boolean>> verify2FA(
-            @Parameter(description = "User ID") @RequestParam Long userId,
+            @Parameter(description = "User ID") @RequestParam UUID userId,
             @Parameter(description = "2FA code") @RequestParam String code) {
         boolean isValid = authService.verify2FA(userId, code);
         return ResponseEntity.ok(ApiResponse.success("2FA verification completed", isValid));

@@ -1,8 +1,7 @@
 package com.mentorx.api.common.enums;
 
 public enum PaymentGateway {
+    VNPAY,
     STRIPE,
-    PAYPAL,
-    RAZORPAY,
-    BANK_TRANSFER
+    MANUAL
 }

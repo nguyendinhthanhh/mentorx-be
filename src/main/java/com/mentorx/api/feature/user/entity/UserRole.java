@@ -23,7 +23,7 @@ public class UserRole {
 
     @Id
     @Column(name = "role_id")
-    private Integer roleId;
+    private UUID roleId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", insertable = false, updatable = false)
