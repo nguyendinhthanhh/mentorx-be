@@ -52,8 +52,8 @@ jobs:
       run: mvn clean test
       env:
         DB_URL: jdbc:postgresql://localhost:5432/mentorx_test
-        DB_USERNAME: test_user
-        DB_PASSWORD: test_password
+        POSTGRES_USER: test_user
+        POSTGRES_PASSWORD: test_password
         JWT_SECRET: test-jwt-secret-key-for-testing-purposes-only
         WALLET_SECRET_KEY: test-wallet-secret-key
 
