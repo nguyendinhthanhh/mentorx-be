@@ -60,14 +60,6 @@ jobs:
         JWT_SECRET: test-jwt-secret-key-for-testing-purposes-only
         WALLET_SECRET_KEY: test-wallet-secret-key
 
-    - name: Generate test report
-      uses: dorny/test-reporter@v1
-      if: success() || failure()
-      with:
-        name: Maven Tests
-        path: target/surefire-reports/*.xml
-        reporter: java-junit
-
     - name: Upload test results
       uses: actions/upload-artifact@v4
       if: always()
