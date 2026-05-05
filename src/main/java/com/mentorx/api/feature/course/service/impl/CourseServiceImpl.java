@@ -32,21 +32,21 @@ public class CourseServiceImpl implements CourseService {
     @Override
     @Transactional
     public CourseResponse create(CourseCreateRequest request) {
-        User instructor = userRepository.findById(request.instructorId())
+        User instructor = userRepository.findById(request.getInstructorId())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
         Course course = Course.builder()
                 .instructor(instructor)
-                .categoryId(request.categoryId())
-                .title(request.title())
-                .slug(request.slug())
-                .description(request.description())
-                .thumbnailUrl(request.thumbnailUrl())
-                .priceMxc(request.priceMxc() != null ? request.priceMxc() : BigDecimal.ZERO)
-                .language(request.language() != null ? request.language() : com.mentorx.api.common.enums.SupportedLanguage.vi)
-                .level(request.level())
-                .isCertificate(Boolean.TRUE.equals(request.isCertificate()))
-                .previewVideoUrl(request.previewVideoUrl())
+                .categoryId(request.getCategoryId())
+                .title(request.getTitle())
+                .slug(request.getSlug())
+                .description(request.getDescription())
+                .thumbnailUrl(request.getThumbnailUrl())
+                .priceMxc(request.getPriceMxc() != null ? request.getPriceMxc() : BigDecimal.ZERO)
+                .language(request.getLanguage() != null ? request.getLanguage() : com.mentorx.api.common.enums.SupportedLanguage.vi)
+                .level(request.getLevel())
+                .isCertificate(Boolean.TRUE.equals(request.getIsCertificate()))
+                .previewVideoUrl(request.getPreviewVideoUrl())
                 .status(CourseStatus.DRAFT)
                 .build();
         return toResponse(courseRepository.save(course));
@@ -61,18 +61,18 @@ public class CourseServiceImpl implements CourseService {
     @Transactional
     public CourseResponse update(UUID courseId, CourseUpdateRequest request) {
         Course course = findCourse(courseId);
-        if (request.categoryId() != null) course.setCategoryId(request.categoryId());
-        if (request.title() != null) course.setTitle(request.title());
-        if (request.description() != null) course.setDescription(request.description());
-        if (request.thumbnailUrl() != null) course.setThumbnailUrl(request.thumbnailUrl());
-        if (request.priceMxc() != null) course.setPriceMxc(request.priceMxc());
-        if (request.language() != null) course.setLanguage(request.language());
-        if (request.level() != null) course.setLevel(request.level());
-        if (request.isCertificate() != null) course.setIsCertificate(request.isCertificate());
-        if (request.previewVideoUrl() != null) course.setPreviewVideoUrl(request.previewVideoUrl());
-        if (request.status() != null) {
-            course.setStatus(request.status());
-            if (request.status() == CourseStatus.PUBLISHED && course.getPublishedAt() == null) {
+        if (request.getCategoryId() != null) course.setCategoryId(request.getCategoryId());
+        if (request.getTitle() != null) course.setTitle(request.getTitle());
+        if (request.getDescription() != null) course.setDescription(request.getDescription());
+        if (request.getThumbnailUrl() != null) course.setThumbnailUrl(request.getThumbnailUrl());
+        if (request.getPriceMxc() != null) course.setPriceMxc(request.getPriceMxc());
+        if (request.getLanguage() != null) course.setLanguage(request.getLanguage());
+        if (request.getLevel() != null) course.setLevel(request.getLevel());
+        if (request.getIsCertificate() != null) course.setIsCertificate(request.getIsCertificate());
+        if (request.getPreviewVideoUrl() != null) course.setPreviewVideoUrl(request.getPreviewVideoUrl());
+        if (request.getStatus() != null) {
+            course.setStatus(request.getStatus());
+            if (request.getStatus() == CourseStatus.PUBLISHED && course.getPublishedAt() == null) {
                 course.setPublishedAt(LocalDateTime.now());
             }
         }
@@ -107,30 +107,32 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private CourseResponse toResponse(Course course) {
-        return new CourseResponse(
-                course.getId(),
-                course.getInstructor().getId(),
-                course.getInstructor().getFullName(),
-                course.getCategoryId(),
-                course.getTitle(),
-                course.getSlug(),
-                course.getDescription(),
-                course.getThumbnailUrl(),
-                course.getPriceMxc(),
-                course.getStatus(),
-                course.getLanguage(),
-                course.getLevel(),
-                course.getTotalDurationMin(),
-                course.getTotalLessons(),
-                course.getTotalEnrollments(),
-                course.getAverageRating(),
-                course.getTotalReviews(),
-                course.getIsCertificate(),
-                course.getPreviewVideoUrl(),
-                course.getRejectionReason(),
-                course.getPublishedAt(),
-                course.getCreatedAt(),
-                course.getUpdatedAt()
-        );
+        return CourseResponse.builder()
+                .id(course.getId())
+                .instructorId(course.getInstructor().getId())
+                .instructorName(course.getInstructor().getFullName())
+                .categoryId(course.getCategoryId())
+                .title(course.getTitle())
+                .slug(course.getSlug())
+                .description(course.getDescription())
+                .thumbnailUrl(course.getThumbnailUrl())
+                .priceMxc(course.getPriceMxc())
+                .status(course.getStatus())
+                .language(course.getLanguage())
+                .level(course.getLevel())
+                .totalDurationMin(course.getTotalDurationMin())
+                .totalLessons(course.getTotalLessons())
+                .totalEnrollments(course.getTotalEnrollments())
+                .averageRating(course.getAverageRating())
+                .totalReviews(course.getTotalReviews())
+                .isCertificate(course.getIsCertificate())
+                .previewVideoUrl(course.getPreviewVideoUrl())
+                .rejectionReason(course.getRejectionReason())
+                .publishedAt(course.getPublishedAt())
+                .reviewedBy(course.getReviewedBy() != null ? course.getReviewedBy().getId() : null)
+                .createdAt(course.getCreatedAt())
+                .updatedAt(course.getUpdatedAt())
+                .deletedAt(course.getDeletedAt())
+                .build();
     }
 }

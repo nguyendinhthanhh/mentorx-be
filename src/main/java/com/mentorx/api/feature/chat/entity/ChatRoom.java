@@ -96,7 +96,7 @@ public class ChatRoom extends BaseEntity {
      * Reference to related entity (job_id, course_id, contract_id, etc.)
      */
     @Column(name = "reference_id")
-    private Long referenceId;
+    private java.util.UUID referenceId;
 
     /**
      * Type of the referenced entity
@@ -115,7 +115,7 @@ public class ChatRoom extends BaseEntity {
      * ID of the last message sent
      */
     @Column(name = "last_message_id")
-    private Long lastMessageId;
+    private java.util.UUID lastMessageId;
 
     /**
      * Preview of the last message
@@ -134,7 +134,7 @@ public class ChatRoom extends BaseEntity {
      * ID of user who sent the last message
      */
     @Column(name = "last_message_sender_id")
-    private Long lastMessageSenderId;
+    private java.util.UUID lastMessageSenderId;
 
     /**
      * Total number of messages in this room

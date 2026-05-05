@@ -58,7 +58,7 @@ public class Review extends BaseEntity {
      */
     @NotNull
     @Column(name = "target_id", nullable = false)
-    private Long targetId;
+    private java.util.UUID targetId;
 
     /**
      * Overall rating (1-5 stars)
@@ -204,7 +204,7 @@ public class Review extends BaseEntity {
      * ID of admin who moderated this review
      */
     @Column(name = "moderated_by_admin_id")
-    private Long moderatedByAdminId;
+    private java.util.UUID moderatedByAdminId;
 
     /**
      * Moderation notes
@@ -244,7 +244,7 @@ public class Review extends BaseEntity {
      * Reference to the contract/transaction this review is for
      */
     @Column(name = "contract_id")
-    private Long contractId;
+    private java.util.UUID contractId;
 
     /**
      * When the reviewed service was completed
@@ -289,7 +289,7 @@ public class Review extends BaseEntity {
      * ID of user who posted the response
      */
     @Column(name = "response_by_user_id")
-    private Long responseByUserId;
+    private java.util.UUID responseByUserId;
 
     /**
      * Calculates helpfulness ratio

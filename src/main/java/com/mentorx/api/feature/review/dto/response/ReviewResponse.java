@@ -1,0 +1,48 @@
+package com.mentorx.api.feature.review.dto.response;
+
+import com.mentorx.api.feature.review.enums.ReviewTargetType;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+public record ReviewResponse(
+        UUID id,
+        UUID reviewerId,
+        String reviewerName,
+        ReviewTargetType targetType,
+        UUID targetId,
+        BigDecimal overallRating,
+        BigDecimal communicationRating,
+        BigDecimal qualityRating,
+        BigDecimal timelinessRating,
+        BigDecimal professionalismRating,
+        BigDecimal valueRating,
+        String reviewText,
+        String reviewTitle,
+        String pros,
+        String cons,
+        Boolean isVerified,
+        LocalDateTime verifiedAt,
+        Boolean isAnonymous,
+        Boolean isPublic,
+        Boolean isFeatured,
+        Integer helpfulCount,
+        Integer notHelpfulCount,
+        Integer reportCount,
+        Boolean isModerated,
+        LocalDateTime moderatedAt,
+        String moderationNotes,
+        Boolean isHidden,
+        String hiddenReason,
+        String language,
+        UUID contractId,
+        Boolean wouldRecommend,
+        String responseText,
+        LocalDateTime responseAt,
+        UUID responseByUserId,
+        double helpfulnessRatio,
+        boolean canBeEdited,
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
+) {}

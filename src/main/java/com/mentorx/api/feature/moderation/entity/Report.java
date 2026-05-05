@@ -58,7 +58,7 @@ public class Report extends BaseEntity {
      */
     @NotNull
     @Column(name = "target_id", nullable = false)
-    private Long targetId;
+    private java.util.UUID targetId;
 
     /**
      * User who owns/created the reported content (if applicable)
@@ -153,7 +153,7 @@ public class Report extends BaseEntity {
      * ID of the original report if this is a duplicate
      */
     @Column(name = "original_report_id")
-    private Long originalReportId;
+    private java.util.UUID originalReportId;
 
     /**
      * Number of similar reports for the same target

@@ -23,8 +23,8 @@ public interface UserMapper {
     @Mapping(target = "roleId", source = "role.id")
     @Mapping(target = "roleName", source = "role.roleName")
     @Mapping(target = "description", source = "role.description")
-    @Mapping(target = "grantedBy", source = "grantedBy.id")
-    @Mapping(target = "grantedByName", source = "grantedBy.fullName")
+    @Mapping(target = "grantedBy", expression = "java(userRole.getGrantedBy() != null ? userRole.getGrantedBy().getId() : null)")
+    @Mapping(target = "grantedByName", expression = "java(userRole.getGrantedBy() != null ? userRole.getGrantedBy().getFullName() : \"System\")")
     UserRoleResponse toUserRoleResponse(UserRole userRole);
 
     @Mapping(target = "userCount", ignore = true)

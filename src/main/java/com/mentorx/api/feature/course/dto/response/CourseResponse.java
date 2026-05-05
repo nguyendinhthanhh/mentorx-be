@@ -2,33 +2,44 @@ package com.mentorx.api.feature.course.dto.response;
 
 import com.mentorx.api.common.enums.CourseStatus;
 import com.mentorx.api.common.enums.SupportedLanguage;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-public record CourseResponse(
-        UUID id,
-        UUID instructorId,
-        String instructorName,
-        Integer categoryId,
-        String title,
-        String slug,
-        String description,
-        String thumbnailUrl,
-        BigDecimal priceMxc,
-        CourseStatus status,
-        SupportedLanguage language,
-        String level,
-        Integer totalDurationMin,
-        Short totalLessons,
-        Integer totalEnrollments,
-        BigDecimal averageRating,
-        Integer totalReviews,
-        Boolean isCertificate,
-        String previewVideoUrl,
-        String rejectionReason,
-        LocalDateTime publishedAt,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt
-) {}
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class CourseResponse {
+
+    private UUID id;
+    private UUID instructorId;
+    private String instructorName;
+    private Integer categoryId;
+    private String title;
+    private String slug;
+    private String description;
+    private String thumbnailUrl;
+    private BigDecimal priceMxc;
+    private CourseStatus status;
+    private SupportedLanguage language;
+    private String level;
+    private Integer totalDurationMin;
+    private Short totalLessons;
+    private Integer totalEnrollments;
+    private BigDecimal averageRating;
+    private Integer totalReviews;
+    private Boolean isCertificate;
+    private String previewVideoUrl;
+    private String rejectionReason;
+    private LocalDateTime publishedAt;
+    private UUID reviewedBy;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    private LocalDateTime deletedAt;
+}

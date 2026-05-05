@@ -75,7 +75,7 @@ public class ReviewReport extends BaseEntity {
      * ID of admin who reviewed this report
      */
     @Column(name = "reviewed_by_admin_id")
-    private Long reviewedByAdminId;
+    private java.util.UUID reviewedByAdminId;
 
     /**
      * Action taken on the report
@@ -119,7 +119,7 @@ public class ReviewReport extends BaseEntity {
      * ID of the original report if this is a duplicate
      */
     @Column(name = "original_report_id")
-    private Long originalReportId;
+    private java.util.UUID originalReportId;
 
     /**
      * IP address of the reporter
@@ -152,7 +152,7 @@ public class ReviewReport extends BaseEntity {
     /**
      * Marks the report as resolved
      */
-    public void resolve(Long adminId, String action, String notes, boolean upheld) {
+    public void resolve(java.util.UUID adminId, String action, String notes, boolean upheld) {
         this.status = "RESOLVED";
         this.resolvedAt = LocalDateTime.now();
         this.reviewedAt = LocalDateTime.now();
@@ -165,7 +165,7 @@ public class ReviewReport extends BaseEntity {
     /**
      * Marks the report as dismissed
      */
-    public void dismiss(Long adminId, String notes) {
+    public void dismiss(java.util.UUID adminId, String notes) {
         this.status = "DISMISSED";
         this.resolvedAt = LocalDateTime.now();
         this.reviewedAt = LocalDateTime.now();

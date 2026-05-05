@@ -10,5 +10,12 @@ import java.util.Optional;
 @Repository
 public interface SkillRepository extends JpaRepository<Skill, Integer> {
     Optional<Skill> findBySlug(String slug);
+    
     List<Skill> findByIsActiveTrueOrderBySlugAsc();
+    
+    List<Skill> findByIsActiveTrueOrderByLabelEnAsc();
+    
+    List<Skill> findByLabelEnContainingIgnoreCaseOrLabelViContainingIgnoreCase(String labelEn, String labelVi);
+    
+    boolean existsBySlug(String slug);
 }

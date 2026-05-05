@@ -105,7 +105,7 @@ public class UserBlock extends BaseEntity {
      * ID of the report (if any)
      */
     @Column(name = "report_id")
-    private Long reportId;
+    private java.util.UUID reportId;
 
     /**
      * Whether this is a mutual block

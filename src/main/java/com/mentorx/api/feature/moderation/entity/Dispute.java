@@ -63,13 +63,13 @@ public class Dispute extends BaseEntity {
      * Contract this dispute is related to
      */
     @Column(name = "contract_id")
-    private Long contractId;
+    private java.util.UUID contractId;
 
     /**
      * Job this dispute is related to
      */
     @Column(name = "job_id")
-    private Long jobId;
+    private java.util.UUID jobId;
 
     /**
      * Title of the dispute
@@ -204,7 +204,7 @@ public class Dispute extends BaseEntity {
      * Escrow record ID
      */
     @Column(name = "escrow_record_id")
-    private Long escrowRecordId;
+    private java.util.UUID escrowRecordId;
 
     /**
      * Evidence items for this dispute

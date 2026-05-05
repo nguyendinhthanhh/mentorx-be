@@ -81,7 +81,7 @@ public class ChatRoomMember extends BaseEntity {
      * ID of the last message the user has read
      */
     @Column(name = "last_read_message_id")
-    private Long lastReadMessageId;
+    private java.util.UUID lastReadMessageId;
 
     /**
      * When the user last read messages in this room
@@ -234,7 +234,7 @@ public class ChatRoomMember extends BaseEntity {
     /**
      * Marks messages as read up to a certain message ID
      */
-    public void markAsRead(Long messageId) {
+    public void markAsRead(java.util.UUID messageId) {
         this.lastReadMessageId = messageId;
         this.lastReadAt = LocalDateTime.now();
         this.unreadCount = 0;

@@ -93,8 +93,8 @@ jwt:
 app:
   database:
     initialize-on-startup: ${DB_INITIALIZE_ON_STARTUP:true}
-    run-sample-data: ${DB_RUN_SAMPLE_DATA:true}
-    seed-data: false
+    run-sample-data: ${DB_RUN_SAMPLE_DATA:false}
+    seed-data: true
     schema-script: ${DB_SCHEMA_SCRIPT:classpath:db/data/init-schema.sql}
     sample-data-script: ${DB_SAMPLE_DATA_SCRIPT:classpath:db/data/sample-data.sql}
 

@@ -35,9 +35,19 @@ public enum ErrorCode {
     // Course errors
     COURSE_NOT_FOUND(HttpStatus.NOT_FOUND, "Course not found"),
     COURSE_NOT_PUBLISHED(HttpStatus.FORBIDDEN, "Course is not published"),
+    COURSE_SECTION_NOT_FOUND(HttpStatus.NOT_FOUND, "Course section not found"),
+    SECTION_ORDER_EXISTS(HttpStatus.BAD_REQUEST, "Section order already exists for this course"),
     LESSON_NOT_FOUND(HttpStatus.NOT_FOUND, "Lesson not found"),
+    LESSON_ORDER_EXISTS(HttpStatus.BAD_REQUEST, "Lesson order already exists for this section"),
     ENROLLMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "Enrollment not found"),
     ALREADY_ENROLLED(HttpStatus.CONFLICT, "Already enrolled in this course"),
+    LESSON_PROGRESS_NOT_FOUND(HttpStatus.NOT_FOUND, "Lesson progress not found"),
+    COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "Comment not found"),
+    COMMENT_DELETED(HttpStatus.NOT_FOUND, "Comment has been deleted"),
+    COMMENT_UPDATE_FORBIDDEN(HttpStatus.FORBIDDEN, "You can only update your own comments"),
+    COMMENT_DELETE_FORBIDDEN(HttpStatus.FORBIDDEN, "You can only delete your own comments"),
+    CART_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "Cart item not found"),
+    COURSE_ALREADY_IN_CART(HttpStatus.BAD_REQUEST, "Course is already in cart"),
     
     // Wallet errors
     WALLET_NOT_FOUND(HttpStatus.NOT_FOUND, "Wallet not found"),
@@ -57,15 +67,18 @@ public enum ErrorCode {
     UNAUTHORIZED_CHAT_ACCESS(HttpStatus.FORBIDDEN, "Unauthorized access to chat"),
     USER_BLOCKED(HttpStatus.FORBIDDEN, "User is blocked"),
     
-    // Dispute errors
+    // Dispute & Report errors
     DISPUTE_NOT_FOUND(HttpStatus.NOT_FOUND, "Dispute not found"),
     DISPUTE_ALREADY_EXISTS(HttpStatus.CONFLICT, "Dispute already exists for this contract"),
     INVALID_DISPUTE_STATUS(HttpStatus.BAD_REQUEST, "Invalid dispute status"),
+    REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "Report not found"),
     
     // Review errors
     REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "Review not found"),
     REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "Review already exists"),
     CANNOT_REVIEW_SELF(HttpStatus.BAD_REQUEST, "Cannot review yourself"),
+    REVIEW_CANNOT_BE_EDITED(HttpStatus.FORBIDDEN, "Review cannot be edited at this time"),
+    REVIEW_REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "Review report not found"),
     
     // Notification errors
     NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "Notification not found"),

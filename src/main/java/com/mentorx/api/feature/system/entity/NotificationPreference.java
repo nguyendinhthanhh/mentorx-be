@@ -9,6 +9,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -39,9 +41,11 @@ public class NotificationPreference {
     private Boolean inAppEnabled = true;
 
     @Column(name = "email_type_settings", nullable = false, columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String emailTypeSettings;
 
     @Column(name = "push_type_settings", nullable = false, columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String pushTypeSettings;
 
     @Column(name = "updated_at", nullable = false)

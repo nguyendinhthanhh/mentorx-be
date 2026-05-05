@@ -71,7 +71,7 @@ public class Notification extends BaseEntity {
      * Reference to related entity
      */
     @Column(name = "reference_id")
-    private Long referenceId;
+    private java.util.UUID referenceId;
 
     /**
      * Type of the referenced entity

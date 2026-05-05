@@ -1,0 +1,49 @@
+package com.mentorx.api.feature.job.dto.response;
+
+import com.mentorx.api.feature.job.enums.ContractStatus;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+public record ContractResponse(
+        UUID id,
+        UUID jobId,
+        String jobTitle,
+        UUID proposalId,
+        UUID clientId,
+        String clientName,
+        UUID mentorId,
+        String mentorName,
+        ContractStatus status,
+        String title,
+        String description,
+        BigDecimal totalAmount,
+        BigDecimal hourlyRate,
+        LocalDate startDate,
+        LocalDate endDate,
+        LocalDate actualStartDate,
+        LocalDate actualCompletionDate,
+        String termsAndConditions,
+        String paymentTerms,
+        String deliverables,
+        LocalDateTime clientSignedAt,
+        LocalDateTime mentorSignedAt,
+        LocalDateTime activatedAt,
+        LocalDateTime completedAt,
+        LocalDateTime cancelledAt,
+        Integer milestoneCount,
+        Integer completedMilestoneCount,
+        BigDecimal amountPaid,
+        BigDecimal amountInEscrow,
+        Boolean fundsInEscrow,
+        Integer progressPercentage,
+        Boolean isRenewable,
+        Boolean autoRenewal,
+        String renewalTerms,
+        Boolean ndaRequired,
+        Boolean ndaSigned,
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
+) {}
