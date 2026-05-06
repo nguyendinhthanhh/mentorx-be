@@ -107,7 +107,12 @@ public enum ErrorCode {
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error"),
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "Access denied"),
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "Resource not found"),
-    BAD_REQUEST(HttpStatus.BAD_REQUEST, "Bad request");
+    BAD_REQUEST(HttpStatus.BAD_REQUEST, "Bad request"),
+
+    // Onboarding
+    ONBOARDING_INVALID_STEP(HttpStatus.BAD_REQUEST, "Invalid onboarding step or order"),
+    ONBOARDING_NOT_READY(HttpStatus.BAD_REQUEST, "Onboarding flow is not ready to finalize"),
+    ONBOARDING_ALREADY_COMPLETED(HttpStatus.CONFLICT, "Onboarding has already been completed");
 
     private final HttpStatus status;
     private final String message;

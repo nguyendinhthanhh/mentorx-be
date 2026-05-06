@@ -234,6 +234,7 @@ public class DatabaseSeeder implements CommandLineRunner {
                 .mentorStatus(mentorStatus)
                 .preferredLanguage(SupportedLanguage.vi)
                 .profileIsPublic(true)
+                .isOnboarded(true)
                 .build();
         return userRepository.save(user);
     }

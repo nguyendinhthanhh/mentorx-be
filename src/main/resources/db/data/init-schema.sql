@@ -72,6 +72,8 @@ CREATE TABLE users (
     totp_secret         VARCHAR(255),
     profile_is_public   BOOLEAN NOT NULL DEFAULT TRUE,
     last_seen_at        TIMESTAMPTZ,
+    onboarding_state    JSONB,
+    is_onboarded        BOOLEAN NOT NULL DEFAULT FALSE,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at          TIMESTAMPTZ

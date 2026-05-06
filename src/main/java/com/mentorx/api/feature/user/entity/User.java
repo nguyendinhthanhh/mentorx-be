@@ -4,8 +4,11 @@ import com.mentorx.api.common.entity.BaseEntity;
 import com.mentorx.api.common.enums.MentorStatus;
 import com.mentorx.api.common.enums.SupportedLanguage;
 import com.mentorx.api.common.enums.UserStatus;
+import com.mentorx.api.feature.user.onboarding.model.OnboardingJsonState;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -79,6 +82,14 @@ public class User extends BaseEntity {
 
     @Column(name = "last_seen_at")
     private LocalDateTime lastSeenAt;
+
+    @Column(name = "onboarding_state", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private OnboardingJsonState onboardingState;
+
+    @Column(name = "is_onboarded", nullable = false)
+    @Builder.Default
+    private Boolean isOnboarded = false;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;

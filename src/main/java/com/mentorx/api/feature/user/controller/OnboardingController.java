@@ -1,56 +1,50 @@
 package com.mentorx.api.feature.user.controller;
 
 import com.mentorx.api.common.response.ApiResponse;
-import com.mentorx.api.feature.user.service.OnboardingService;
+import com.mentorx.api.feature.user.onboarding.dto.request.BaseStepRequest;
+import com.mentorx.api.feature.user.onboarding.dto.response.OnboardingCompleteResponse;
+import com.mentorx.api.feature.user.onboarding.dto.response.OnboardingProgressResponse;
+import com.mentorx.api.feature.user.onboarding.dto.response.OnboardingStepResponse;
+import com.mentorx.api.feature.user.onboarding.service.OnboardingCompleteService;
+import com.mentorx.api.feature.user.onboarding.service.OnboardingFlowService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/onboarding")
 @RequiredArgsConstructor
 public class OnboardingController {
 
-    private final OnboardingService onboardingService;
+    private final OnboardingFlowService onboardingFlowService;
+    private final OnboardingCompleteService onboardingCompleteService;
 
-    @PostMapping("/role")
-    public ResponseEntity<ApiResponse<Object>> completeRole(@RequestBody Map<String, String> request) {
-        System.out.println("DEBUG: OnboardingController.completeRole called with " + request);
-        String role = request.get("roleChoice");
-        return ResponseEntity.ok(ApiResponse.success("Role saved", onboardingService.completeRole(role)));
+    @GetMapping("/progress")
+    public ResponseEntity<ApiResponse<OnboardingProgressResponse>> getProgress() {
+        return ResponseEntity.ok(ApiResponse.success(onboardingFlowService.getProgress()));
     }
 
-    @PostMapping("/categories")
-    public ResponseEntity<ApiResponse<Object>> completeCategories(@RequestBody Map<String, Object> request) {
-        List<Integer> categoryIds = (List<Integer>) request.get("categoryIds");
-        return ResponseEntity.ok(ApiResponse.success("Categories saved", onboardingService.completeInterests(categoryIds)));
+    @PostMapping("/step")
+    public ResponseEntity<ApiResponse<OnboardingStepResponse>> processStep(
+            @Valid @RequestBody BaseStepRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Step processed", onboardingFlowService.processStep(request)));
     }
 
-    @PostMapping("/skills")
-    public ResponseEntity<ApiResponse<Object>> completeSkills(@RequestBody Map<String, Object> request) {
-        List<Map<String, Object>> skills = (List<Map<String, Object>>) request.get("skills");
-        return ResponseEntity.ok(ApiResponse.success("Skills saved", onboardingService.completeSkills(skills)));
+    @PostMapping("/complete")
+    public ResponseEntity<ApiResponse<OnboardingCompleteResponse>> complete() {
+        return ResponseEntity.ok(ApiResponse.success("Onboarding finalized", onboardingCompleteService.complete()));
     }
 
-    @PostMapping("/preferences")
-    public ResponseEntity<ApiResponse<Object>> completePreferences(@RequestBody Map<String, Object> request) {
-        return ResponseEntity.ok(ApiResponse.success("Preferences saved", onboardingService.completePreferences(request)));
-    }
-
-    @PostMapping("/goals")
-    public ResponseEntity<ApiResponse<Object>> completeGoals(@RequestBody Map<String, Object> request) {
-        String learningGoals = (String) request.get("learningGoals");
-        // Convert single goal to list for service layer
-        List<String> goals = learningGoals != null ? List.of(learningGoals) : List.of();
-        return ResponseEntity.ok(ApiResponse.success("Goals saved", onboardingService.completeGoals(goals)));
-    }
-
-    @PostMapping("/profile")
-    public ResponseEntity<ApiResponse<Object>> completeProfile(@RequestBody Map<String, Object> request) {
-        return ResponseEntity.ok(ApiResponse.success("Profile saved", onboardingService.completeProfile(request)));
+    @PostMapping("/skip")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> skip() {
+        onboardingFlowService.skip();
+        return ResponseEntity.ok(ApiResponse.success("Onboarding skipped", Map.of("skipped", true)));
     }
 }
