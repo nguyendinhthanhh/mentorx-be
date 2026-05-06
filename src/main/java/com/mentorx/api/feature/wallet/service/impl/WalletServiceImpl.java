@@ -18,6 +18,10 @@ import com.mentorx.api.feature.wallet.entity.WalletTransaction;
 import com.mentorx.api.feature.wallet.mapper.WalletMapper;
 import com.mentorx.api.feature.wallet.repository.WalletRepository;
 import com.mentorx.api.feature.wallet.repository.WalletTransactionRepository;
+import com.mentorx.api.feature.wallet.entity.DepositOrder;
+import com.mentorx.api.common.enums.WithdrawalStatus;
+import com.mentorx.api.feature.wallet.repository.DepositOrderRepository;
+import com.mentorx.api.feature.wallet.repository.WithdrawalRequestRepository;
 import com.mentorx.api.feature.wallet.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +45,8 @@ public class WalletServiceImpl implements WalletService {
     private final WalletTransactionRepository transactionRepository;
     private final UserRepository userRepository;
     private final WalletMapper walletMapper;
+    private final DepositOrderRepository depositOrderRepository;
+    private final WithdrawalRequestRepository withdrawalRequestRepository;
 
     @Value("${app.wallet.secret-key}")
     private String walletSecretKey;
@@ -266,34 +272,215 @@ public class WalletServiceImpl implements WalletService {
 
     @Override
     @Transactional
-    public void processJobPayment(UUID clientId, UUID mentorId, BigDecimal amount, UUID jobId) {
-        escrowPayment(clientId, mentorId, amount, jobId, "job", "Job payment");
-    }
-
-    @Override
-    @Transactional
-    public void processJobRelease(UUID mentorId, BigDecimal amount, UUID jobId) {
-        Wallet pending = getOrCreateUserWallet(mentorId, WalletAccountType.USER_PENDING);
-        Wallet available = getOrCreateUserWallet(mentorId, WalletAccountType.USER_AVAILABLE);
-        processDoubleEntryTransaction(pending.getId(), available.getId(), amount, TxnType.JOB_RELEASE, jobId, "job", "Job release");
-    }
-
-    @Override
-    @Transactional
-    public void processCoursePayment(UUID studentId, UUID mentorId, BigDecimal amount, UUID courseId) {
-        Wallet fromWallet = getOrCreateUserWallet(studentId, WalletAccountType.USER_AVAILABLE);
-        Wallet toWallet = getOrCreateUserWallet(mentorId, WalletAccountType.USER_AVAILABLE);
-        processDoubleEntryTransaction(fromWallet.getId(), toWallet.getId(), amount, TxnType.COURSE_PURCHASE, courseId, "course", "Course purchase");
-    }
-
-    @Override
-    @Transactional
-    public void processRefund(UUID userId, BigDecimal amount, UUID referenceId, String referenceType) {
-        Wallet wallet = getOrCreateUserWallet(userId, WalletAccountType.USER_AVAILABLE);
+    public void depositCallback(DepositOrder order) {
+        if (order.getTxnStatus() != com.mentorx.api.common.enums.TxnStatus.PENDING) return;
+        
+        Wallet platformFloat = getSystemWallet(WalletAccountType.PLATFORM_FLOAT);
+        Wallet userAvailable = getOrCreateUserWallet(order.getUser().getId(), WalletAccountType.USER_AVAILABLE);
+        
         UUID groupId = UUID.randomUUID();
-        WalletTransaction tx = credit(wallet, groupId, TxnType.COURSE_REFUND, amount, referenceId, referenceType, "Refund");
-        walletRepository.save(wallet);
-        transactionRepository.save(tx);
+        
+        platformFloat.addToBalance(order.getMxcAmount());
+        WalletTransaction t1 = createTransaction(platformFloat, groupId, TxnType.DEPOSIT, LedgerDirection.DEBIT, order.getMxcAmount(), order.getId(), "deposit", "Deposit from " + order.getGateway());
+        
+        userAvailable.addToBalance(order.getMxcAmount());
+        WalletTransaction t2 = createTransaction(userAvailable, groupId, TxnType.DEPOSIT, LedgerDirection.CREDIT, order.getMxcAmount(), order.getId(), "deposit", "Deposit to user");
+        
+        order.setTxnStatus(com.mentorx.api.common.enums.TxnStatus.COMPLETED);
+        walletRepository.save(platformFloat);
+        walletRepository.save(userAvailable);
+        transactionRepository.save(t1);
+        transactionRepository.save(t2);
+        depositOrderRepository.save(order);
+    }
+
+    @Override
+    @Transactional
+    public void processJobPayment(UUID clientId, UUID contractId, BigDecimal totalAmountMxc) {
+        Wallet clientWallet = getOrCreateUserWallet(clientId, WalletAccountType.USER_AVAILABLE);
+        Wallet escrowWallet = getSystemWallet(WalletAccountType.ESCROW);
+        processDoubleEntryTransaction(clientWallet.getId(), escrowWallet.getId(), totalAmountMxc, TxnType.JOB_PAYMENT, contractId, "contract", "Lock escrow for contract");
+    }
+
+    @Override
+    @Transactional
+    public void releaseMilestone(UUID contractId, UUID milestoneId, BigDecimal amount, BigDecimal platformFee, UUID mentorId) {
+        Wallet escrowWallet = getSystemWallet(WalletAccountType.ESCROW);
+        Wallet platformRevenue = getSystemWallet(WalletAccountType.PLATFORM_REVENUE);
+        Wallet mentorPending = getOrCreateUserWallet(mentorId, WalletAccountType.USER_PENDING);
+        
+        UUID groupId = UUID.randomUUID();
+        BigDecimal netAmount = amount.subtract(platformFee);
+        
+        escrowWallet.subtractFromBalance(amount);
+        WalletTransaction t1 = createTransaction(escrowWallet, groupId, TxnType.JOB_RELEASE, LedgerDirection.DEBIT, amount, milestoneId, "milestone", "Release milestone");
+        transactionRepository.save(t1);
+        walletRepository.save(escrowWallet);
+        
+        if (platformFee.compareTo(BigDecimal.ZERO) > 0) {
+            platformRevenue.addToBalance(platformFee);
+            WalletTransaction t2 = createTransaction(platformRevenue, groupId, TxnType.PLATFORM_FEE, LedgerDirection.CREDIT, platformFee, milestoneId, "milestone", "Platform fee for milestone");
+            transactionRepository.save(t2);
+            walletRepository.save(platformRevenue);
+        }
+        
+        mentorPending.addToBalance(netAmount);
+        WalletTransaction t3 = createTransaction(mentorPending, groupId, TxnType.JOB_RELEASE, LedgerDirection.CREDIT, netAmount, milestoneId, "milestone", "Mentor net amount");
+        transactionRepository.save(t3);
+        walletRepository.save(mentorPending);
+    }
+
+    @Override
+    @Transactional
+    public void processCoursePurchase(UUID studentId, UUID courseId, UUID instructorId, BigDecimal amount, BigDecimal platformFee) {
+        Wallet studentWallet = getOrCreateUserWallet(studentId, WalletAccountType.USER_AVAILABLE);
+        Wallet platformRevenue = getSystemWallet(WalletAccountType.PLATFORM_REVENUE);
+        Wallet instructorPending = getOrCreateUserWallet(instructorId, WalletAccountType.USER_PENDING);
+        
+        UUID groupId = UUID.randomUUID();
+        BigDecimal netAmount = amount.subtract(platformFee);
+        
+        studentWallet.subtractFromBalance(amount);
+        WalletTransaction t1 = createTransaction(studentWallet, groupId, TxnType.COURSE_PURCHASE, LedgerDirection.DEBIT, amount, courseId, "course", "Course purchase");
+        transactionRepository.save(t1);
+        walletRepository.save(studentWallet);
+        
+        if (platformFee.compareTo(BigDecimal.ZERO) > 0) {
+            platformRevenue.addToBalance(platformFee);
+            WalletTransaction t2 = createTransaction(platformRevenue, groupId, TxnType.PLATFORM_FEE, LedgerDirection.CREDIT, platformFee, courseId, "course", "Platform fee for course");
+            transactionRepository.save(t2);
+            walletRepository.save(platformRevenue);
+        }
+        
+        instructorPending.addToBalance(netAmount);
+        WalletTransaction t3 = createTransaction(instructorPending, groupId, TxnType.COURSE_PURCHASE, LedgerDirection.CREDIT, netAmount, courseId, "course", "Instructor net amount");
+        transactionRepository.save(t3);
+        walletRepository.save(instructorPending);
+    }
+
+    @Override
+    @Transactional
+    public com.mentorx.api.feature.wallet.entity.WithdrawalRequest requestWithdrawal(UUID userId, BigDecimal amount, BigDecimal feeAmount, String bankName, String bankAccountNo, String bankAccountName) {
+        Wallet userWallet = getOrCreateUserWallet(userId, WalletAccountType.USER_AVAILABLE);
+        Wallet platformRevenue = getSystemWallet(WalletAccountType.PLATFORM_REVENUE);
+        Wallet platformFloat = getSystemWallet(WalletAccountType.PLATFORM_FLOAT);
+        
+        if (userWallet.getBalanceMxc().compareTo(amount) < 0) {
+            throw new AppException(ErrorCode.INSUFFICIENT_BALANCE);
+        }
+        
+        BigDecimal netAmount = amount.subtract(feeAmount);
+        com.mentorx.api.feature.wallet.entity.WithdrawalRequest request = com.mentorx.api.feature.wallet.entity.WithdrawalRequest.builder()
+                .user(userWallet.getUser())
+                .mxcAmount(amount)
+                .feeMxc(feeAmount)
+                .netMxc(netAmount)
+                .bankName(bankName)
+                .bankAccountNo(bankAccountNo)
+                .bankAccountName(bankAccountName)
+                .status(WithdrawalStatus.PENDING)
+                .build();
+        
+        request = withdrawalRequestRepository.save(request);
+        UUID groupId = UUID.randomUUID();
+        
+        userWallet.subtractFromBalance(amount);
+        WalletTransaction t1 = createTransaction(userWallet, groupId, TxnType.WITHDRAWAL, LedgerDirection.DEBIT, amount, request.getId(), "withdrawal", "Withdrawal request");
+        transactionRepository.save(t1);
+        walletRepository.save(userWallet);
+        
+        if (feeAmount.compareTo(BigDecimal.ZERO) > 0) {
+            platformRevenue.addToBalance(feeAmount);
+            WalletTransaction t2 = createTransaction(platformRevenue, groupId, TxnType.WITHDRAWAL_FEE, LedgerDirection.CREDIT, feeAmount, request.getId(), "withdrawal", "Withdrawal fee");
+            transactionRepository.save(t2);
+            walletRepository.save(platformRevenue);
+        }
+        
+        platformFloat.addToBalance(netAmount);
+        WalletTransaction t3 = createTransaction(platformFloat, groupId, TxnType.WITHDRAWAL, LedgerDirection.CREDIT, netAmount, request.getId(), "withdrawal", "Pending withdrawal");
+        transactionRepository.save(t3);
+        walletRepository.save(platformFloat);
+        
+        return request;
+    }
+
+    @Override
+    @Transactional
+    public void completeWithdrawal(UUID requestId, String gatewayTxnId) {
+        com.mentorx.api.feature.wallet.entity.WithdrawalRequest request = withdrawalRequestRepository.findById(requestId)
+                .orElseThrow(() -> new AppException(ErrorCode.TRANSACTION_NOT_FOUND));
+        
+        if (request.getStatus() == WithdrawalStatus.COMPLETED) return;
+        
+        Wallet platformFloat = getSystemWallet(WalletAccountType.PLATFORM_FLOAT);
+        UUID groupId = UUID.randomUUID();
+        
+        platformFloat.subtractFromBalance(request.getNetMxc());
+        WalletTransaction t1 = createTransaction(platformFloat, groupId, TxnType.WITHDRAWAL, LedgerDirection.DEBIT, request.getNetMxc(), request.getId(), "withdrawal", "Withdrawal complete");
+        transactionRepository.save(t1);
+        walletRepository.save(platformFloat);
+        
+        request.setStatus(WithdrawalStatus.COMPLETED);
+        request.setGatewayTxnId(gatewayTxnId);
+        withdrawalRequestRepository.save(request);
+    }
+
+    @Override
+    @Transactional
+    public void processRefund(UUID contractId, UUID clientId, BigDecimal refundAmount) {
+        Wallet escrowWallet = getSystemWallet(WalletAccountType.ESCROW);
+        Wallet clientWallet = getOrCreateUserWallet(clientId, WalletAccountType.USER_AVAILABLE);
+        processDoubleEntryTransaction(escrowWallet.getId(), clientWallet.getId(), refundAmount, TxnType.JOB_REFUND, contractId, "contract", "Refund contract");
+    }
+
+    @Override
+    @Transactional
+    public void addWelcomeBonus(UUID userId, BigDecimal bonusAmount) {
+        Wallet platformFloat = getSystemWallet(WalletAccountType.PLATFORM_FLOAT);
+        Wallet userWallet = getOrCreateUserWallet(userId, WalletAccountType.USER_AVAILABLE);
+        processDoubleEntryTransaction(platformFloat.getId(), userWallet.getId(), bonusAmount, TxnType.BONUS_CREDIT, null, "bonus", "Welcome bonus");
+    }
+
+    @Override
+    @Transactional
+    public void rejectWithdrawal(UUID requestId, String reason) {
+        com.mentorx.api.feature.wallet.entity.WithdrawalRequest request = withdrawalRequestRepository.findById(requestId)
+                .orElseThrow(() -> new AppException(ErrorCode.WITHDRAWAL_NOT_FOUND));
+
+        if (request.getStatus() != com.mentorx.api.common.enums.WithdrawalStatus.PENDING 
+                && request.getStatus() != com.mentorx.api.common.enums.WithdrawalStatus.PROCESSING) {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+
+        Wallet userWallet = getOrCreateUserWallet(request.getUser().getId(), WalletAccountType.USER_AVAILABLE);
+        Wallet platformRevenue = getSystemWallet(WalletAccountType.PLATFORM_REVENUE);
+        Wallet platformFloat = getSystemWallet(WalletAccountType.PLATFORM_FLOAT);
+
+        UUID groupId = UUID.randomUUID();
+
+        // Hoàn tiền net từ platform float
+        platformFloat.subtractFromBalance(request.getNetMxc());
+        WalletTransaction t1 = createTransaction(platformFloat, groupId, TxnType.WITHDRAWAL_REFUND, LedgerDirection.DEBIT, request.getNetMxc(), request.getId(), "withdrawal", "Withdrawal reject - refund net");
+        transactionRepository.save(t1);
+        walletRepository.save(platformFloat);
+
+        // Hoàn fee từ platform revenue
+        if (request.getFeeMxc().compareTo(BigDecimal.ZERO) > 0) {
+            platformRevenue.subtractFromBalance(request.getFeeMxc());
+            WalletTransaction t2 = createTransaction(platformRevenue, groupId, TxnType.WITHDRAWAL_REFUND, LedgerDirection.DEBIT, request.getFeeMxc(), request.getId(), "withdrawal", "Withdrawal reject - refund fee");
+            transactionRepository.save(t2);
+            walletRepository.save(platformRevenue);
+        }
+
+        // Trả lại ví user
+        userWallet.addToBalance(request.getMxcAmount());
+        WalletTransaction t3 = createTransaction(userWallet, groupId, TxnType.WITHDRAWAL_REFUND, LedgerDirection.CREDIT, request.getMxcAmount(), request.getId(), "withdrawal", "Withdrawal reject - total amount");
+        transactionRepository.save(t3);
+        walletRepository.save(userWallet);
+
+        request.setStatus(com.mentorx.api.common.enums.WithdrawalStatus.CANCELLED);
+        request.setRejectionReason(reason);
+        withdrawalRequestRepository.save(request);
     }
 
     private WalletTransaction debit(Wallet wallet, UUID groupId, TxnType type, BigDecimal amount, UUID refId, String refType, String note) {
@@ -337,5 +524,10 @@ public class WalletServiceImpl implements WalletService {
             User user = userRepository.findById(userId).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
             return walletRepository.save(Wallet.builder().user(user).accountType(type).build());
         });
+    }
+
+    private Wallet getSystemWallet(WalletAccountType type) {
+        return walletRepository.findByAccountType(type).stream().findFirst()
+                .orElseGet(() -> walletRepository.save(Wallet.builder().accountType(type).build()));
     }
 }

@@ -75,6 +75,16 @@ services:
       - postgres
     restart: unless-stopped
 
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: mentorx-mailhog
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
+    networks:
+      - mentorx-network
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   app_uploads:

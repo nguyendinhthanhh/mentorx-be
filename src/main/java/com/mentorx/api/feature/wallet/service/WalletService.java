@@ -26,7 +26,7 @@ public interface WalletService {
 
     WalletTransactionResponse deposit(UUID userId, DepositRequest request);
 
-    WalletTransactionResponse withdraw(UUID userId, WithdrawalRequest request);
+    WalletTransactionResponse withdraw(UUID userId, com.mentorx.api.feature.wallet.dto.request.WithdrawalRequest request);
 
     WalletTransactionResponse transfer(UUID fromUserId, TransferRequest request);
 
@@ -67,11 +67,21 @@ public interface WalletService {
     UUID processDoubleEntryTransaction(UUID fromWalletId, UUID toWalletId, BigDecimal amount,
                                       TxnType txnType, UUID referenceId, String referenceType, String description);
 
-    void processJobPayment(UUID clientId, UUID mentorId, BigDecimal amount, UUID jobId);
+    void depositCallback(com.mentorx.api.feature.wallet.entity.DepositOrder order);
 
-    void processJobRelease(UUID mentorId, BigDecimal amount, UUID jobId);
+    void processJobPayment(UUID clientId, UUID contractId, BigDecimal totalAmountMxc);
 
-    void processCoursePayment(UUID studentId, UUID mentorId, BigDecimal amount, UUID courseId);
+    void releaseMilestone(UUID contractId, UUID milestoneId, BigDecimal amount, BigDecimal platformFee, UUID mentorId);
 
-    void processRefund(UUID userId, BigDecimal amount, UUID referenceId, String referenceType);
+    void processCoursePurchase(UUID studentId, UUID courseId, UUID instructorId, BigDecimal amount, BigDecimal platformFee);
+
+    com.mentorx.api.feature.wallet.entity.WithdrawalRequest requestWithdrawal(UUID userId, BigDecimal amount, BigDecimal feeAmount, String bankName, String bankAccountNo, String bankAccountName);
+
+    void completeWithdrawal(UUID requestId, String gatewayTxnId);
+
+    void processRefund(UUID contractId, UUID clientId, BigDecimal refundAmount);
+
+    void addWelcomeBonus(UUID userId, BigDecimal bonusAmount);
+
+    void rejectWithdrawal(UUID requestId, String reason);
 }

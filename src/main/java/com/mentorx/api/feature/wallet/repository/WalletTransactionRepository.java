@@ -56,4 +56,14 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
 
     @Query("SELECT wt.txnType, COUNT(wt) as txnCount FROM WalletTransaction wt WHERE wt.txnStatus = 'COMPLETED' GROUP BY wt.txnType ORDER BY txnCount DESC")
     List<Object[]> getTransactionTypeStats();
+
+    @Query("SELECT wt FROM WalletTransaction wt " +
+           "WHERE wt.wallet.accountType = 'USER_PENDING' " +
+           "AND wt.direction = 'CREDIT' " +
+           "AND wt.createdAt <= :cutoffTime " +
+           "AND NOT EXISTS (" +
+           "  SELECT 1 FROM WalletTransaction wt2 " +
+           "  WHERE wt2.referenceId = wt.id" +
+           ")")
+    List<WalletTransaction> findReleasablePendingTransactions(@Param("cutoffTime") LocalDateTime cutoffTime);
 }

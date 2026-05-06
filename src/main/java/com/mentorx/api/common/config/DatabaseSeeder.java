@@ -56,23 +56,41 @@ public class DatabaseSeeder implements CommandLineRunner {
             return;
         }
 
-        if (roleRepository.count() > 0) {
-            log.info("Database already contains data. Skipping seeding.");
-            return;
+        log.info("Checking database state for seeding...");
+
+        if (roleRepository.count() == 0) {
+            log.info("Seeding roles and permissions...");
+            seedRoles();
+            seedPermissions();
+            seedRolePermissions();
         }
 
-        log.info("Starting comprehensive database seeding...");
+        if (platformSettingRepository.count() == 0) {
+            log.info("Seeding platform settings...");
+            seedPlatformSettings();
+        }
 
-        seedRoles();
-        seedPermissions();
-        seedRolePermissions();
-        seedPlatformSettings();
-        seedSkills();
-        seedCategories();
-        seedSystemWallets();
-        seedUsers();
+        if (skillRepository.count() == 0) {
+            log.info("Seeding skills...");
+            seedSkills();
+        }
 
-        log.info("Database seeding completed successfully.");
+        if (categoryRepository.count() == 0) {
+            log.info("Seeding categories...");
+            seedCategories();
+        }
+
+        if (walletRepository.count() == 0) {
+            log.info("Seeding system wallets...");
+            seedSystemWallets();
+        }
+
+        if (userRepository.count() == 0) {
+            log.info("Seeding sample users...");
+            seedUsers();
+        }
+
+        log.info("Database seeding check completed.");
     }
 
     private void seedRoles() {

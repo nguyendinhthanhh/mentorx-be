@@ -24,6 +24,9 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
+        boolean isEnabled = user.getStatus() == com.mentorx.api.common.enums.UserStatus.ACTIVE || 
+                           user.getStatus() == com.mentorx.api.common.enums.UserStatus.PENDING;
+
         return org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())
                 .password(user.getPasswordHash())
@@ -31,7 +34,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 .accountExpired(false)
                 .accountLocked(false)
                 .credentialsExpired(false)
-                .disabled(user.getStatus() != com.mentorx.api.common.enums.UserStatus.ACTIVE)
+                .disabled(!isEnabled)
                 .build();
     }
 }

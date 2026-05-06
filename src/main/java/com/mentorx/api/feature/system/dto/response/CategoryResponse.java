@@ -8,6 +8,8 @@ import java.time.LocalDateTime;
 @Builder
 public record CategoryResponse(
     Integer id,
+    Integer categoryId, // Alias for id to match frontend
+    String name,      // Alias for labelEn/Vi to match frontend
     String slug,
     String labelVi,
     String labelEn,
@@ -15,6 +17,7 @@ public record CategoryResponse(
     String labelJa,
     String iconUrl,
     Integer parentId,
+    Integer parentCategoryId, // Alias for parentId to match frontend
     String parentName,
     Boolean isActive,
     Short displayOrder,

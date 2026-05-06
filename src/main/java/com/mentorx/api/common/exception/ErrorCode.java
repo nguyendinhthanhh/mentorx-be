@@ -59,7 +59,15 @@ public enum ErrorCode {
     TRANSACTION_NOT_FOUND(HttpStatus.NOT_FOUND, "Transaction not found"),
     INVALID_TRANSACTION_TYPE(HttpStatus.BAD_REQUEST, "Invalid transaction type"),
     WITHDRAWAL_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "Withdrawal limit exceeded"),
+    WITHDRAWAL_PENDING_EXISTS(HttpStatus.CONFLICT, "A pending withdrawal request already exists"),
+    WITHDRAWAL_NOT_FOUND(HttpStatus.NOT_FOUND, "Withdrawal request not found"),
     INVALID_PAYMENT_METHOD(HttpStatus.BAD_REQUEST, "Invalid payment method"),
+    DEPOSIT_ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "Deposit order not found"),
+    DEPOSIT_ALREADY_PROCESSED(HttpStatus.CONFLICT, "Deposit order already processed"),
+    ESCROW_NOT_FOUND(HttpStatus.NOT_FOUND, "Escrow record not found"),
+    ESCROW_ALREADY_RELEASED(HttpStatus.CONFLICT, "Escrow has already been released"),
+    ESCROW_ALREADY_REFUNDED(HttpStatus.CONFLICT, "Escrow has already been refunded"),
+    ESCROW_INSUFFICIENT_BALANCE(HttpStatus.BAD_REQUEST, "Insufficient escrow balance for this operation"),
     
     // Chat errors
     CHAT_ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "Chat room not found"),

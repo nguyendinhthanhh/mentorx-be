@@ -13,6 +13,9 @@ public interface SystemMapper {
     @Mapping(target = "createdAt", ignore = true)
     Category toCategory(CategoryRequest request);
 
+    @Mapping(target = "categoryId", source = "id")
+    @Mapping(target = "parentCategoryId", source = "parentId")
+    @Mapping(target = "name", source = "labelEn") // Default to English name for the name field
     @Mapping(target = "parentName", expression = "java(getParentCategoryName(entity))")
     CategoryResponse toCategoryResponse(Category entity);
 

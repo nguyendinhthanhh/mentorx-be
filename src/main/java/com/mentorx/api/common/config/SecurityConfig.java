@@ -50,6 +50,15 @@ public class SecurityConfig {
     private static final String[] PUBLIC_URLS = {
         "/api/auth/**",
         "/api/public/**",
+        "/api/onboarding/**",
+        "/api/v1/onboarding/**",
+        "/api/notifications/**",
+        "/api/v1/notifications/**",
+        "/api/v1/public/**",
+        "/api/mentors/**",
+        "/api/courses/**",
+        "/api/system/**",
+        "/api/users/search/**",
         "/oauth2/**",
         "/swagger-ui/**",
         "/v3/api-docs/**",
@@ -81,7 +90,19 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOriginPatterns(Arrays.asList(allowedOrigins.split(",")));
         configuration.setAllowedMethods(Arrays.asList(allowedMethods.split(",")));
-        configuration.setAllowedHeaders(List.of(allowedHeaders));
+        configuration.setAllowedHeaders(Arrays.asList(
+            "Authorization",
+            "Content-Type",
+            "X-Requested-With",
+            "Accept",
+            "Origin",
+            "Access-Control-Request-Method",
+            "Access-Control-Request-Headers"
+        ));
+        configuration.setExposedHeaders(Arrays.asList(
+            "Access-Control-Allow-Origin",
+            "Access-Control-Allow-Credentials"
+        ));
         configuration.setAllowCredentials(allowCredentials);
         configuration.setMaxAge(3600L);
 
