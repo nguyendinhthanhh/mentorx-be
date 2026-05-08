@@ -53,7 +53,6 @@ public class SecurityConfig {
         "/api/notifications/**",
         "/api/v1/notifications/**",
         "/api/v1/public/**",
-        "/api/v1/home/**",
         "/api/mentors/**",
         "/api/courses/**",
         "/api/system/**",
