@@ -53,8 +53,11 @@ public class SecurityConfig {
         "/api/notifications/**",
         "/api/v1/notifications/**",
         "/api/v1/public/**",
+        "/api/v1/feed/**",
+        "/api/v1/course-lessons/**",
         "/api/mentors/**",
         "/api/courses/**",
+        "/api/jobs/**",
         "/api/system/**",
         "/api/users/search/**",
         "/oauth2/**",
@@ -100,7 +103,8 @@ public class SecurityConfig {
         ));
         configuration.setExposedHeaders(Arrays.asList(
             "Access-Control-Allow-Origin",
-            "Access-Control-Allow-Credentials"
+            "Access-Control-Allow-Credentials",
+            "Content-Disposition"
         ));
         configuration.setAllowCredentials(allowCredentials);
         configuration.setMaxAge(3600L);
