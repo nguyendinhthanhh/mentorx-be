@@ -76,13 +76,32 @@ spring:
       thread-name-prefix: mentorx-scheduler-
 
   cache:
-    type: simple
+    type: simple  # Use simple in-memory cache by default (Redis when "redis" profile is active)
     cache-names:
       - users
       - mentors
       - jobs
       - courses
       - match-scores
+      - feed-items
+  
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 2
+          max-wait: -1ms
+
+cache:
+  feed:
+    ttl-hours: 1 # Feed cache TTL in hours
 
 jwt:
   secret: ${JWT_SECRET:CHANGE_THIS_JWT_SECRET_IN_PRODUCTION_MINIMUM_32_CHARACTERS}
@@ -124,6 +143,9 @@ app:
     behavior-decay-half-life-days: 30
 
 management:
+  health:
+    redis:
+      enabled: false
   endpoints:
     web:
       exposure:

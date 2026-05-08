@@ -6,6 +6,8 @@ import java.util.UUID;
 
 public record MentorProfileResponse(
     UUID id,
+    UUID userId,
+    UserResponse user,
     String headline,
     BigDecimal hourlyRateMxc,
     Short yearsOfExperience,

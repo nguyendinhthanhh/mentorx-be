@@ -10,6 +10,7 @@ import com.mentorx.api.auth.service.AuthService;
 import com.mentorx.api.common.enums.MentorStatus;
 import com.mentorx.api.common.enums.SupportedLanguage;
 import com.mentorx.api.common.enums.UserStatus;
+import com.mentorx.api.common.enums.WalletAccountType;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.common.security.JwtUtil;
@@ -18,6 +19,7 @@ import com.mentorx.api.feature.user.dto.response.UserResponse;
 import com.mentorx.api.feature.user.entity.User;
 import com.mentorx.api.feature.user.mapper.UserMapper;
 import com.mentorx.api.feature.user.repository.UserRepository;
+import com.mentorx.api.feature.wallet.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,6 +41,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final UserMapper userMapper;
+    private final WalletService walletService;
 
     @Value("${jwt.refresh-token-expiry}")
     private Long refreshTokenExpiryMs;
@@ -61,6 +64,17 @@ public class AuthServiceImpl implements AuthService {
                 .preferredLanguage(SupportedLanguage.vi)
                 .build();
         user = userRepository.save(user);
+
+        // Create wallets for new user
+        try {
+            walletService.createWallet(user.getId(), WalletAccountType.USER_AVAILABLE);
+            walletService.createWallet(user.getId(), WalletAccountType.USER_PENDING);
+            walletService.createWallet(user.getId(), WalletAccountType.ESCROW);
+            log.info("Created wallets for new user: {}", user.getId());
+        } catch (Exception e) {
+            log.error("Failed to create wallets for user: {}", user.getId(), e);
+            // Don't fail registration if wallet creation fails
+        }
 
         return buildAuthResponse(user);
     }
@@ -167,6 +181,18 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void verifyEmail(String token) {
         log.info("Verify email token {}", token);
+    }
+
+    @Override
+    @Transactional
+    public void devVerifyEmail(String email) {
+        User user = userRepository.findByEmailAndDeletedAtIsNull(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        user.setIsEmailVerified(true);
+        if (user.getStatus() == UserStatus.PENDING) {
+            user.setStatus(UserStatus.ACTIVE);
+        }
+        userRepository.save(user);
     }
 
     @Override

@@ -13,6 +13,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -57,6 +58,19 @@ public class JobController {
         ));
     }
 
+    @GetMapping("/admin/all")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
+    public ResponseEntity<ApiResponse<Page<JobResponse>>> getAllJobs(
+            @RequestParam(required = false) JobStatus status,
+            @RequestParam(required = false) JobType jobType,
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success(
+                jobService.getAllJobs(status, jobType, categoryId, PageRequest.of(page, size))
+        ));
+    }
+
     @GetMapping("/client/{clientId}")
     public ResponseEntity<ApiResponse<Page<JobResponse>>> getByClient(
             @PathVariable UUID clientId,
@@ -71,5 +85,13 @@ public class JobController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(ApiResponse.success(jobService.getByStatus(status, PageRequest.of(page, size))));
+    }
+
+    @PatchMapping("/{jobId}/status")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
+    public ResponseEntity<ApiResponse<JobResponse>> updateStatus(
+            @PathVariable UUID jobId,
+            @RequestParam JobStatus status) {
+        return ResponseEntity.ok(ApiResponse.success("Job status updated", jobService.updateStatus(jobId, status)));
     }
 }

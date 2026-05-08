@@ -28,6 +28,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -193,6 +194,7 @@ public class WalletController {
      * Admin approve withdrawal → chuyển khoản VND thật
      */
     @PostMapping("/admin/withdraw/{requestId}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<String>> approveWithdrawal(
             @PathVariable UUID requestId,
             @RequestParam(required = false) String gatewayTxnId) {
@@ -207,6 +209,7 @@ public class WalletController {
      * Admin reject withdrawal → hoàn tiền về USER_AVAILABLE
      */
     @PostMapping("/admin/withdraw/{requestId}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<String>> rejectWithdrawal(
             @PathVariable UUID requestId,
             @RequestParam String reason) {
@@ -251,6 +254,7 @@ public class WalletController {
     }
 
     @GetMapping("/admin/withdrawals")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<WithdrawalResponse>>> listWithdrawals() {
         List<WithdrawalRequest> requests = withdrawalRequestRepository.findAll();
         return ResponseEntity.ok(ApiResponse.success(walletMapper.toWithdrawalResponseList(requests)));
@@ -274,6 +278,7 @@ public class WalletController {
      * Tặng bonus MXC cho user (Admin)
      */
     @PostMapping("/admin/bonus")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<String>> giveBonus(
             @RequestParam UUID userId,
             @RequestParam BigDecimal amount) {

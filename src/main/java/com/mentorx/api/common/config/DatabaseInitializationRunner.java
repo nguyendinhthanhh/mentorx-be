@@ -43,11 +43,13 @@ public class DatabaseInitializationRunner {
         return args -> {
             if (!initializeOnStartup) {
                 log.info("Database initialization is disabled by configuration");
+                ensureOnboardingColumnsIfNeeded();
                 return;
             }
 
             if (isSchemaAlreadyCreated()) {
                 log.info("Database schema already exists, skipping schema initialization");
+                ensureOnboardingColumnsIfNeeded();
                 return;
             }
 
@@ -76,6 +78,7 @@ public class DatabaseInitializationRunner {
 
             populator.execute(Objects.requireNonNull(dataSource));
             log.info("Database initialization finished successfully");
+            ensureOnboardingColumnsIfNeeded();
         };
     }
 
@@ -87,5 +90,17 @@ public class DatabaseInitializationRunner {
                   AND table_name = 'users'
                 """, Integer.class);
         return tableCount != null && tableCount > 0;
+    }
+
+    /**
+     * Backward-compatible schema patch for existing DBs created before onboarding JSON state columns.
+     */
+    private void ensureOnboardingColumnsIfNeeded() {
+        if (!isSchemaAlreadyCreated()) {
+            return;
+        }
+        log.info("Ensuring onboarding columns exist on users table...");
+        jdbcTemplate.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_state JSONB");
+        jdbcTemplate.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_onboarded BOOLEAN NOT NULL DEFAULT FALSE");
     }
 }

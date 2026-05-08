@@ -88,6 +88,11 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
+    public Page<CourseResponse> getAllCourses(CourseStatus status, UUID instructorId, Integer categoryId, Pageable pageable) {
+        return courseRepository.findAllWithFilters(status, instructorId, categoryId, pageable).map(this::toResponse);
+    }
+
+    @Override
     public Page<CourseResponse> getPublished(Pageable pageable) {
         return courseRepository.findByStatusAndDeletedAtIsNull(CourseStatus.PUBLISHED, pageable).map(this::toResponse);
     }
@@ -100,6 +105,17 @@ public class CourseServiceImpl implements CourseService {
     @Override
     public Page<CourseResponse> getByStatus(CourseStatus status, Pageable pageable) {
         return courseRepository.findByStatusAndDeletedAtIsNull(status, pageable).map(this::toResponse);
+    }
+
+    @Override
+    @Transactional
+    public CourseResponse updateStatus(UUID courseId, CourseStatus status) {
+        Course course = findCourse(courseId);
+        course.setStatus(status);
+        if (status == CourseStatus.PUBLISHED && course.getPublishedAt() == null) {
+            course.setPublishedAt(LocalDateTime.now());
+        }
+        return toResponse(courseRepository.save(course));
     }
 
     private Course findCourse(UUID courseId) {

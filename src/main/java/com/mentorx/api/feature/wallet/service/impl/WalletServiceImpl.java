@@ -73,13 +73,43 @@ public class WalletServiceImpl implements WalletService {
     @Override
     public WalletResponse getUserWallet(UUID userId, WalletAccountType accountType) {
         Wallet wallet = walletRepository.findByUserIdAndAccountType(userId, accountType)
-                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+                .orElseGet(() -> {
+                    // Auto-create wallet if not exists
+                    log.info("Auto-creating wallet for user {} with type {}", userId, accountType);
+                    User user = userRepository.findById(userId)
+                            .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+                    return walletRepository.save(Wallet.builder()
+                            .user(user)
+                            .accountType(accountType)
+                            .build());
+                });
         return walletMapper.toWalletResponse(wallet);
     }
 
     @Override
     public List<WalletResponse> getUserWallets(UUID userId) {
-        return walletRepository.findByUserId(userId).stream().map(walletMapper::toWalletResponse).toList();
+        List<Wallet> wallets = walletRepository.findByUserId(userId);
+        
+        // Auto-create missing wallets
+        if (wallets.isEmpty() || wallets.size() < 3) {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+            
+            for (WalletAccountType type : WalletAccountType.values()) {
+                boolean exists = wallets.stream()
+                        .anyMatch(w -> w.getAccountType() == type);
+                if (!exists) {
+                    log.info("Auto-creating {} wallet for user {}", type, userId);
+                    Wallet newWallet = walletRepository.save(Wallet.builder()
+                            .user(user)
+                            .accountType(type)
+                            .build());
+                    wallets.add(newWallet);
+                }
+            }
+        }
+        
+        return wallets.stream().map(walletMapper::toWalletResponse).toList();
     }
 
     @Override

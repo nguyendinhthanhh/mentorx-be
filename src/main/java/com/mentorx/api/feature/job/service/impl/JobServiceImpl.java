@@ -97,6 +97,11 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
+    public Page<JobResponse> getAllJobs(JobStatus status, JobType jobType, Integer categoryId, Pageable pageable) {
+        return jobRepository.findAllWithFilters(status, jobType, categoryId, pageable).map(this::toResponse);
+    }
+
+    @Override
     public Page<JobResponse> getByClient(UUID clientId, Pageable pageable) {
         return jobRepository.findByClientId(clientId, pageable).map(this::toResponse);
     }
@@ -104,6 +109,20 @@ public class JobServiceImpl implements JobService {
     @Override
     public Page<JobResponse> getByStatus(JobStatus status, Pageable pageable) {
         return jobRepository.findByStatus(status, pageable).map(this::toResponse);
+    }
+
+    @Override
+    @Transactional
+    public JobResponse updateStatus(UUID jobId, JobStatus status) {
+        Job job = findJob(jobId);
+        job.setStatus(status);
+        if (status == JobStatus.OPEN && job.getPublishedAt() == null) {
+            job.setPublishedAt(LocalDateTime.now());
+        }
+        if (status == JobStatus.CLOSED || status == JobStatus.CANCELLED) {
+            job.setClosedAt(LocalDateTime.now());
+        }
+        return toResponse(jobRepository.save(job));
     }
 
     private Job findJob(UUID jobId) {

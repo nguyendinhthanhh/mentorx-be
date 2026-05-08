@@ -12,6 +12,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -45,6 +46,19 @@ public class CourseController {
         return ResponseEntity.ok(ApiResponse.success("Course deleted", null));
     }
 
+    @GetMapping("/admin/all")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
+    public ResponseEntity<ApiResponse<Page<CourseResponse>>> getAllCourses(
+            @RequestParam(required = false) CourseStatus status,
+            @RequestParam(required = false) UUID instructorId,
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success(
+                courseService.getAllCourses(status, instructorId, categoryId, PageRequest.of(page, size))
+        ));
+    }
+
     @GetMapping("/published")
     public ResponseEntity<ApiResponse<Page<CourseResponse>>> getPublished(
             @RequestParam(defaultValue = "0") int page,
@@ -66,5 +80,13 @@ public class CourseController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(ApiResponse.success(courseService.getByStatus(status, PageRequest.of(page, size))));
+    }
+
+    @PatchMapping("/{courseId}/status")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
+    public ResponseEntity<ApiResponse<CourseResponse>> updateStatus(
+            @PathVariable UUID courseId,
+            @RequestParam CourseStatus status) {
+        return ResponseEntity.ok(ApiResponse.success("Course status updated", courseService.updateStatus(courseId, status)));
     }
 }

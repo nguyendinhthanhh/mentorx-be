@@ -7,6 +7,7 @@ import com.mentorx.api.feature.user.dto.request.MentorProfileRequest;
 import com.mentorx.api.feature.user.dto.response.MentorProfileResponse;
 import com.mentorx.api.feature.user.entity.MentorProfile;
 import com.mentorx.api.feature.user.entity.User;
+import com.mentorx.api.feature.user.mapper.UserMapper;
 import com.mentorx.api.feature.user.repository.MentorProfileRepository;
 import com.mentorx.api.feature.user.repository.UserRepository;
 import com.mentorx.api.feature.user.service.MentorProfileService;
@@ -30,6 +31,7 @@ public class MentorProfileServiceImpl implements MentorProfileService {
 
     private final MentorProfileRepository mentorProfileRepository;
     private final UserRepository userRepository;
+    private final UserMapper userMapper;
 
     @Override
     @Transactional
@@ -181,6 +183,8 @@ public class MentorProfileServiceImpl implements MentorProfileService {
     private MentorProfileResponse toResponse(MentorProfile profile) {
         return new MentorProfileResponse(
                 profile.getId(),
+                profile.getUser().getId(),
+                userMapper.toUserResponse(profile.getUser()),
                 profile.getHeadline(),
                 profile.getHourlyRateMxc(),
                 profile.getYearsOfExperience(),

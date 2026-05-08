@@ -12,7 +12,7 @@ public enum ErrorCode {
     USER_ALREADY_EXISTS(HttpStatus.CONFLICT, "User already exists"),
     USER_INACTIVE(HttpStatus.FORBIDDEN, "User account is inactive"),
     USER_SUSPENDED(HttpStatus.FORBIDDEN, "User account is suspended"),
-    INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "Invalid credentials"),
+    INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "Incorrect email or password. Please try again."),
     
     // Mentor errors
     MENTOR_NOT_FOUND(HttpStatus.NOT_FOUND, "Mentor not found"),
@@ -49,9 +49,22 @@ public enum ErrorCode {
     CART_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "Cart item not found"),
     COURSE_ALREADY_IN_CART(HttpStatus.BAD_REQUEST, "Course is already in cart"),
     
+    // Mentor Services errors
+    PACKAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "Mentor package not found"),
+    AVAILABILITY_NOT_FOUND(HttpStatus.NOT_FOUND, "Availability slot not found"),
+    AVAILABILITY_OVERLAP(HttpStatus.CONFLICT, "Availability slot overlaps with existing slot"),
+    INVALID_TIME_RANGE(HttpStatus.BAD_REQUEST, "Invalid time range: start time must be before end time"),
+    BLOCKED_DATE_NOT_FOUND(HttpStatus.NOT_FOUND, "Blocked date not found"),
+    DATE_ALREADY_BLOCKED(HttpStatus.CONFLICT, "Date is already blocked"),
+
+
+
     // Wallet errors
     WALLET_NOT_FOUND(HttpStatus.NOT_FOUND, "Wallet not found"),
     WALLET_ALREADY_EXISTS(HttpStatus.CONFLICT, "Wallet already exists"),
+    BANK_ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "Bank account not found"),
+    BANK_ACCOUNT_ALREADY_EXISTS(HttpStatus.CONFLICT, "Bank account already exists"),
+    DEFAULT_BANK_ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "Default bank account not found"),
     WALLET_FROZEN(HttpStatus.FORBIDDEN, "Wallet is frozen"),
     INSUFFICIENT_BALANCE(HttpStatus.BAD_REQUEST, "Insufficient MXC balance"),
     INVALID_TRANSACTION_AMOUNT(HttpStatus.BAD_REQUEST, "Invalid transaction amount"),

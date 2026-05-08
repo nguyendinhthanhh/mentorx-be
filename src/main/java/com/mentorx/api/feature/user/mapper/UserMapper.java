@@ -8,14 +8,15 @@ import com.mentorx.api.feature.user.entity.User;
 import com.mentorx.api.feature.user.entity.UserRole;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.ReportingPolicy;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface UserMapper {
 
     @Mapping(target = "roles", source = "userRoles")
-    @Mapping(target = "mentorProfile", ignore = true) // Ignore for now to avoid circular dependency
+    @Mapping(target = "mentorProfile", ignore = true)
     UserResponse toUserResponse(User user);
 
     List<UserResponse> toUserResponseList(List<User> users);
@@ -23,8 +24,9 @@ public interface UserMapper {
     @Mapping(target = "roleId", source = "role.id")
     @Mapping(target = "roleName", source = "role.roleName")
     @Mapping(target = "description", source = "role.description")
-    @Mapping(target = "grantedBy", expression = "java(userRole.getGrantedBy() != null ? userRole.getGrantedBy().getId() : null)")
+    @Mapping(target = "grantedBy", source = "grantedBy.id")
     @Mapping(target = "grantedByName", expression = "java(userRole.getGrantedBy() != null ? userRole.getGrantedBy().getFullName() : \"System\")")
+    @Mapping(target = "grantedAt", source = "grantedAt")
     UserRoleResponse toUserRoleResponse(UserRole userRole);
 
     @Mapping(target = "userCount", ignore = true)

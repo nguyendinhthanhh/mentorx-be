@@ -24,6 +24,7 @@ public record UserResponse(
     MentorStatus mentorStatus,
     Boolean is2faEnabled,
     Boolean profileIsPublic,
+    Boolean isOnboarded,
     LocalDateTime lastSeenAt,
     LocalDateTime createdAt,
     LocalDateTime updatedAt,

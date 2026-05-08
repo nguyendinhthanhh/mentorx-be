@@ -6,9 +6,11 @@ import com.mentorx.api.common.enums.UserStatus;
 import com.mentorx.api.common.enums.WalletAccountType;
 import com.mentorx.api.feature.system.entity.*;
 import com.mentorx.api.feature.system.repository.*;
+import com.mentorx.api.feature.user.entity.MentorProfile;
 import com.mentorx.api.feature.user.entity.Role;
 import com.mentorx.api.feature.user.entity.User;
 import com.mentorx.api.feature.user.entity.UserRole;
+import com.mentorx.api.feature.user.repository.MentorProfileRepository;
 import com.mentorx.api.feature.user.repository.RoleRepository;
 import com.mentorx.api.feature.user.repository.UserRepository;
 import com.mentorx.api.feature.user.repository.UserRoleRepository;
@@ -36,6 +38,7 @@ public class DatabaseSeeder implements CommandLineRunner {
     private final RoleRepository roleRepository;
     private final UserRepository userRepository;
     private final UserRoleRepository userRoleRepository;
+    private final MentorProfileRepository mentorProfileRepository;
     private final CategoryRepository categoryRepository;
     private final PermissionRepository permissionRepository;
     private final RolePermissionRepository rolePermissionRepository;
@@ -89,6 +92,11 @@ public class DatabaseSeeder implements CommandLineRunner {
             log.info("Seeding sample users...");
             seedUsers();
         }
+
+        if (mentorProfileRepository.count() == 0) {
+            log.info("Seeding sample mentor profiles...");
+        }
+        seedMentorProfiles();
 
         log.info("Database seeding check completed.");
     }
@@ -239,8 +247,104 @@ public class DatabaseSeeder implements CommandLineRunner {
         return userRepository.save(user);
     }
 
+    private void seedMentorProfiles() {
+        User approver = userRepository.findByEmail("admin@mentorx.demo").orElse(null);
+
+        seedMentorProfile(new MentorProfileSeed(
+                "mentor1@mentorx.demo",
+                "Nguyen Van An",
+                "An Nguyen",
+                "Senior Java and Spring Boot mentor",
+                "FULL_TIME",
+                new BigDecimal("450.00"),
+                (short) 8,
+                new BigDecimal("4.90"),
+                42,
+                true
+        ), approver);
+
+        seedMentorProfile(new MentorProfileSeed(
+                "mentor2@mentorx.demo",
+                "Tran Thi Binh",
+                "Binh Tran",
+                "Product design and UI/UX mentor",
+                "PART_TIME",
+                new BigDecimal("380.00"),
+                (short) 6,
+                new BigDecimal("4.80"),
+                31,
+                true
+        ), approver);
+
+        seedMentorProfile(new MentorProfileSeed(
+                "mentor3@mentorx.demo",
+                "Le Minh Khoa",
+                "Khoa Le",
+                "Data science and machine learning mentor",
+                "FLEXIBLE",
+                new BigDecimal("520.00"),
+                (short) 7,
+                new BigDecimal("4.70"),
+                27,
+                false
+        ), approver);
+    }
+
+    private void seedMentorProfile(MentorProfileSeed seed, User approver) {
+        User user = userRepository.findByEmail(seed.email())
+                .orElseGet(() -> createUser(seed.email(), seed.fullName(), seed.displayName(), UserStatus.ACTIVE, true, MentorStatus.APPROVED));
+
+        user.setStatus(UserStatus.ACTIVE);
+        user.setFullName(seed.fullName());
+        user.setDisplayName(seed.displayName());
+        user.setIsEmailVerified(true);
+        user.setIsMentor(true);
+        user.setMentorStatus(MentorStatus.APPROVED);
+        user.setProfileIsPublic(true);
+        user.setIsOnboarded(true);
+        userRepository.save(user);
+
+        assignRoleToUserIfMissing(user, "MENTOR");
+        assignRoleToUserIfMissing(user, "USER");
+        setupUserAccountIfMissing(user);
+
+        if (mentorProfileRepository.findByUserId(user.getId()).isPresent()) {
+            return;
+        }
+
+        mentorProfileRepository.save(MentorProfile.builder()
+                .user(user)
+                .headline(seed.headline())
+                .availability(seed.availability())
+                .hourlyRateMxc(seed.hourlyRateMxc())
+                .yearsOfExperience(seed.yearsOfExperience())
+                .responseTimeHours((short) 12)
+                .totalJobsDone(seed.totalReviews())
+                .successRate(new BigDecimal("98.00"))
+                .averageRating(seed.averageRating())
+                .totalReviews(seed.totalReviews())
+                .isFeatured(seed.featured())
+                .portfolioUrl("https://mentorx.local/portfolio/" + seed.displayName().toLowerCase().replace(" ", "-"))
+                .approvedBy(approver)
+                .approvedAt(LocalDateTime.now())
+                .build());
+    }
+
     private void assignRoleToUser(User user, String roleName) {
         Role role = roleRepository.findByRoleName(roleName).orElseThrow();
+        userRoleRepository.save(UserRole.builder()
+                .userId(user.getId())
+                .roleId(role.getId())
+                .grantedAt(LocalDateTime.now())
+                .build());
+    }
+
+    private void assignRoleToUserIfMissing(User user, String roleName) {
+        Role role = roleRepository.findByRoleName(roleName).orElseThrow();
+        if (userRoleRepository.existsByUserIdAndRoleId(user.getId(), role.getId())) {
+            return;
+        }
+
         userRoleRepository.save(UserRole.builder()
                 .userId(user.getId())
                 .roleId(role.getId())
@@ -264,4 +368,47 @@ public class DatabaseSeeder implements CommandLineRunner {
                 .updatedAt(LocalDateTime.now())
                 .build());
     }
+
+    private void setupUserAccountIfMissing(User user) {
+        if (walletRepository.findByUserIdAndAccountType(user.getId(), WalletAccountType.USER_AVAILABLE).isEmpty()) {
+            walletRepository.save(Wallet.builder()
+                    .user(user)
+                    .accountType(WalletAccountType.USER_AVAILABLE)
+                    .balanceMxc(new BigDecimal("1000.00"))
+                    .build());
+        }
+
+        if (walletRepository.findByUserIdAndAccountType(user.getId(), WalletAccountType.USER_PENDING).isEmpty()) {
+            walletRepository.save(Wallet.builder()
+                    .user(user)
+                    .accountType(WalletAccountType.USER_PENDING)
+                    .balanceMxc(BigDecimal.ZERO)
+                    .build());
+        }
+
+        if (!notificationPreferenceRepository.existsByUserId(user.getId())) {
+            notificationPreferenceRepository.save(NotificationPreference.builder()
+                    .userId(user.getId())
+                    .emailEnabled(true)
+                    .pushEnabled(true)
+                    .inAppEnabled(true)
+                    .emailTypeSettings("{}")
+                    .pushTypeSettings("{}")
+                    .updatedAt(LocalDateTime.now())
+                    .build());
+        }
+    }
+
+    private record MentorProfileSeed(
+            String email,
+            String fullName,
+            String displayName,
+            String headline,
+            String availability,
+            BigDecimal hourlyRateMxc,
+            Short yearsOfExperience,
+            BigDecimal averageRating,
+            Integer totalReviews,
+            Boolean featured
+    ) {}
 }

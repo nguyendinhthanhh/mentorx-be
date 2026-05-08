@@ -20,9 +20,15 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AppException.class)
     public ResponseEntity<ApiResponse<Object>> handleAppException(AppException ex) {
-        log.error("Application exception: {}", ex.getMessage(), ex);
+        HttpStatus status = ex.getErrorCode().getStatus();
+        if (status.is4xxClientError()) {
+            // Expected business/auth failures (e.g. invalid credentials) should not pollute logs with stacktraces.
+            log.warn("Application exception [{}]: {}", status.value(), ex.getMessage());
+        } else {
+            log.error("Application exception [{}]: {}", status.value(), ex.getMessage(), ex);
+        }
         return ResponseEntity
-            .status(ex.getErrorCode().getStatus())
+            .status(status)
             .body(ApiResponse.error(ex.getMessage()));
     }
 
@@ -36,20 +42,15 @@ public class GlobalExceptionHandler {
             errors.put(fieldName, errorMessage);
         });
         
-        log.error("Validation exception: {}", errors);
+        log.warn("Validation exception: {}", errors);
         return ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
-            .body(ApiResponse.<Map<String, String>>builder()
-                .success(false)
-                .message("Validation failed")
-                .data(errors)
-                .timestamp(java.time.LocalDateTime.now())
-                .build());
+            .body(ApiResponse.error("Validation failed", errors));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Object>> handleAccessDeniedException(AccessDeniedException ex) {
-        log.error("Access denied: {}", ex.getMessage());
+        log.warn("Access denied: {}", ex.getMessage());
         return ResponseEntity
             .status(HttpStatus.FORBIDDEN)
             .body(ApiResponse.error("Access denied"));
@@ -57,15 +58,15 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiResponse<Object>> handleBadCredentialsException(BadCredentialsException ex) {
-        log.error("Bad credentials: {}", ex.getMessage());
+        log.warn("Bad credentials");
         return ResponseEntity
             .status(HttpStatus.UNAUTHORIZED)
-            .body(ApiResponse.error("Invalid credentials"));
+            .body(ApiResponse.error("Email hoặc mật khẩu không đúng. Vui lòng thử lại."));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Object>> handleIllegalArgumentException(IllegalArgumentException ex) {
-        log.error("Illegal argument: {}", ex.getMessage());
+        log.warn("Illegal argument: {}", ex.getMessage());
         return ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
             .body(ApiResponse.error(ex.getMessage()));

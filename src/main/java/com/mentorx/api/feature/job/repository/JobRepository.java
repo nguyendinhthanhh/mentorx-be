@@ -19,6 +19,15 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
 
     Page<Job> findByStatus(JobStatus status, Pageable pageable);
 
+    @Query("SELECT j FROM Job j WHERE j.deletedAt IS NULL " +
+           "AND (:status IS NULL OR j.status = :status) " +
+           "AND (:jobType IS NULL OR j.jobType = :jobType) " +
+           "AND (:categoryId IS NULL OR j.categoryId = :categoryId)")
+    Page<Job> findAllWithFilters(@Param("status") JobStatus status,
+                                 @Param("jobType") JobType jobType,
+                                 @Param("categoryId") Integer categoryId,
+                                 Pageable pageable);
+
     @Query("SELECT j FROM Job j WHERE j.deletedAt IS NULL AND j.status = 'OPEN'")
     Page<Job> findOpen(Pageable pageable);
 

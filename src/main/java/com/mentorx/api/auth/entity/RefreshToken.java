@@ -4,9 +4,6 @@ import com.mentorx.api.feature.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
-
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -30,8 +27,8 @@ public class RefreshToken {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "device_info", columnDefinition = "jsonb")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     private String deviceInfo;
 
     @Column(name = "ip_address")

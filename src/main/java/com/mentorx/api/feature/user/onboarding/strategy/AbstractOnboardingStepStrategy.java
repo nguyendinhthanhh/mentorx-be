@@ -9,7 +9,7 @@ import com.mentorx.api.feature.user.onboarding.model.OnboardingJsonState;
 abstract class AbstractOnboardingStepStrategy implements OnboardingStepStrategy {
 
     protected void assertExpectedStep(OnboardingJsonState state, OnboardingStepEnum requested) {
-        if (state.getCurrentStep() != requested) {
+        if (state.getCurrentStep() != requested && !state.getCompletedSteps().contains(requested)) {
             throw new AppException(ErrorCode.ONBOARDING_INVALID_STEP,
                     "Expected step " + state.getCurrentStep() + " but received " + requested);
         }
