@@ -47,11 +47,11 @@ public class FeedController {
     /**
      * Get personalized mentor recommendations for the authenticated user
      * Returns mentors with match scores >= 85%, sorted by match score descending
+     * For unauthenticated users, returns empty list (fallback to general API on frontend)
      * 
      * Requirements: 11.5, 11.9, 11.10
      */
     @GetMapping("/mentors")
-    @PreAuthorize("isAuthenticated()")
     @Operation(
         summary = "Get personalized mentor recommendations",
         description = "Returns mentor recommendations based on user interests and skills with match scores >= 85%"
@@ -60,6 +60,16 @@ public class FeedController {
             @Parameter(description = "Maximum number of recommendations to return (default: 10)")
             @RequestParam(required = false, defaultValue = "10") Integer limit) {
         try {
+            // Check if user is authenticated
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated() || 
+                "anonymousUser".equals(authentication.getPrincipal())) {
+                log.info("Unauthenticated request for mentor recommendations - returning empty list");
+                return ResponseEntity.ok(
+                    ApiResponse.success("Mentor recommendations retrieved successfully (unauthenticated)", new ArrayList<>())
+                );
+            }
+            
             log.info("Getting mentor recommendations for authenticated user with limit: {}", limit);
             
             // Get current authenticated user
@@ -87,11 +97,11 @@ public class FeedController {
     /**
      * Get personalized course recommendations for the authenticated user
      * Returns courses with match scores >= 85%, filtered by skill level and interest categories
+     * For unauthenticated users, returns empty list (fallback to general API on frontend)
      * 
      * Requirements: 11.6, 11.9, 11.10
      */
     @GetMapping("/courses")
-    @PreAuthorize("isAuthenticated()")
     @Operation(
         summary = "Get personalized course recommendations",
         description = "Returns course recommendations based on user skill level and interest categories with match scores >= 85%"
@@ -100,6 +110,16 @@ public class FeedController {
             @Parameter(description = "Maximum number of recommendations to return (default: 10)")
             @RequestParam(required = false, defaultValue = "10") Integer limit) {
         try {
+            // Check if user is authenticated
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated() || 
+                "anonymousUser".equals(authentication.getPrincipal())) {
+                log.info("Unauthenticated request for course recommendations - returning empty list");
+                return ResponseEntity.ok(
+                    ApiResponse.success("Course recommendations retrieved successfully (unauthenticated)", new ArrayList<>())
+                );
+            }
+            
             log.info("Getting course recommendations for authenticated user with limit: {}", limit);
             
             // Get current authenticated user
@@ -134,7 +154,6 @@ public class FeedController {
      * Requirements: 11.7, 11.9, 11.10
      */
     @GetMapping("/knowledge")
-    @PreAuthorize("isAuthenticated()")
     @Operation(
         summary = "Get personalized knowledge content recommendations",
         description = "Returns article and post recommendations based on user skill level and interests with match scores >= 85%"
@@ -143,6 +162,16 @@ public class FeedController {
             @Parameter(description = "Maximum number of recommendations to return (default: 10)")
             @RequestParam(required = false, defaultValue = "10") Integer limit) {
         try {
+            // Check if user is authenticated
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated() || 
+                "anonymousUser".equals(authentication.getPrincipal())) {
+                log.info("Unauthenticated request for knowledge recommendations - returning empty list");
+                return ResponseEntity.ok(
+                    ApiResponse.success("Knowledge recommendations retrieved successfully (unauthenticated)", new ArrayList<>())
+                );
+            }
+            
             log.info("Getting knowledge recommendations for authenticated user with limit: {}", limit);
             
             // Get current authenticated user
@@ -170,11 +199,11 @@ public class FeedController {
     /**
      * Get personalized job recommendations for the authenticated user
      * Returns jobs with match scores >= 85%, filtered by user skills and appropriate budget range
+     * For unauthenticated users, returns empty list (fallback to general API on frontend)
      * 
      * Requirements: 11.8, 11.9, 11.10
      */
     @GetMapping("/jobs")
-    @PreAuthorize("isAuthenticated()")
     @Operation(
         summary = "Get personalized job recommendations",
         description = "Returns job recommendations based on user skills and budget range with match scores >= 85%"
@@ -183,6 +212,16 @@ public class FeedController {
             @Parameter(description = "Maximum number of recommendations to return (default: 10)")
             @RequestParam(required = false, defaultValue = "10") Integer limit) {
         try {
+            // Check if user is authenticated
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated() || 
+                "anonymousUser".equals(authentication.getPrincipal())) {
+                log.info("Unauthenticated request for job recommendations - returning empty list");
+                return ResponseEntity.ok(
+                    ApiResponse.success("Job recommendations retrieved successfully (unauthenticated)", new ArrayList<>())
+                );
+            }
+            
             log.info("Getting job recommendations for authenticated user with limit: {}", limit);
             
             // Get current authenticated user

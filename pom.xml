@@ -113,6 +113,13 @@
             <version>${springdoc.version}</version>
         </dependency>
 
+        <!-- PDF Watermarking -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>2.0.30</version>
+        </dependency>
+
         <!-- Development -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

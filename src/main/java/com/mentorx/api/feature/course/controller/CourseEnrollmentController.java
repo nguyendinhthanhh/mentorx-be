@@ -3,6 +3,10 @@ package com.mentorx.api.feature.course.controller;
 import com.mentorx.api.feature.course.dto.request.CourseEnrollmentCreateRequest;
 import com.mentorx.api.feature.course.dto.response.CourseEnrollmentResponse;
 import com.mentorx.api.feature.course.service.CourseEnrollmentService;
+import com.mentorx.api.common.exception.AppException;
+import com.mentorx.api.common.exception.ErrorCode;
+import com.mentorx.api.feature.user.entity.User;
+import com.mentorx.api.feature.user.repository.UserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -12,6 +16,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,6 +28,7 @@ import java.util.UUID;
 public class CourseEnrollmentController {
 
     private final CourseEnrollmentService enrollmentService;
+    private final UserRepository userRepository;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN')")
@@ -135,5 +141,23 @@ public class CourseEnrollmentController {
             @PathVariable UUID studentId) {
         boolean isEnrolled = enrollmentService.isStudentEnrolled(courseId, studentId);
         return ResponseEntity.ok(isEnrolled);
+    }
+
+    @GetMapping("/course/{courseId}/me/is-enrolled")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Boolean> isCurrentUserEnrolled(@PathVariable UUID courseId, Authentication authentication) {
+        User currentUser = resolveCurrentUser(authentication);
+        boolean isEnrolled = enrollmentService.isStudentEnrolled(courseId, currentUser.getId());
+        return ResponseEntity.ok(isEnrolled);
+    }
+
+    private User resolveCurrentUser(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        String email = authentication.getName();
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
     }
 }

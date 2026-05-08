@@ -18,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.UUID;
 
 @Service
@@ -143,8 +144,8 @@ public class ProposalServiceImpl implements ProposalService {
                 proposal.getProposedDeliveryDate(),
                 proposal.getProposedMilestones(),
                 proposal.getRelevantExperience(),
-                proposal.getPortfolioLinks(),
-                proposal.getAttachments(),
+                proposal.getPortfolioLinks() == null ? null : new ArrayList<>(proposal.getPortfolioLinks()),
+                proposal.getAttachments() == null ? null : new ArrayList<>(proposal.getAttachments()),
                 proposal.getQuestions(),
                 proposal.getTerms(),
                 proposal.getSubmittedAt(),
