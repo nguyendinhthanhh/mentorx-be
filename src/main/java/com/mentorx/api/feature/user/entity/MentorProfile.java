@@ -13,9 +13,13 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "mentor_profiles")
@@ -70,6 +74,88 @@ public class MentorProfile extends BaseEntity {
 
     @Column(name = "portfolio_url")
     private String portfolioUrl;
+
+    @Column(name = "video_intro_url")
+    private String videoIntroUrl;
+
+    @Column(length = 150)
+    private String location;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private List<String> languages;
+
+    @Column(name = "legal_name", length = 150)
+    private String legalName;
+
+    @Column(name = "date_of_birth")
+    private LocalDate dateOfBirth;
+
+    @Column(name = "country_of_residence", length = 100)
+    private String countryOfResidence;
+
+    @Column(name = "identity_document_type", length = 50)
+    private String identityDocumentType;
+
+    @Column(name = "identity_document_url")
+    private String identityDocumentUrl;
+
+    @Column(name = "portrait_url")
+    private String portraitUrl;
+
+    @Column(name = "phone_number", length = 30)
+    private String phoneNumber;
+
+    @Column(name = "phone_verified", nullable = false)
+    @Builder.Default
+    private Boolean phoneVerified = false;
+
+    @Column(name = "current_title", length = 150)
+    private String currentTitle;
+
+    @Column(name = "current_company", length = 150)
+    private String currentCompany;
+
+    @Column(name = "primary_domain", length = 120)
+    private String primaryDomain;
+
+    @Column(name = "linkedin_url")
+    private String linkedinUrl;
+
+    @Column(name = "github_url")
+    private String githubUrl;
+
+    @Column(name = "portfolio_evidence_url")
+    private String portfolioEvidenceUrl;
+
+    @Column(name = "certificate_url")
+    private String certificateUrl;
+
+    @Column(name = "bank_account_name", length = 150)
+    private String bankAccountName;
+
+    @Column(name = "bank_name", length = 150)
+    private String bankName;
+
+    @Column(name = "bank_account_number", length = 80)
+    private String bankAccountNumber;
+
+    @Column(name = "bank_branch", length = 150)
+    private String bankBranch;
+
+    @Column(name = "tax_id", length = 80)
+    private String taxId;
+
+    @Column(name = "mentor_agreement_accepted", nullable = false)
+    @Builder.Default
+    private Boolean mentorAgreementAccepted = false;
+
+    @Column(name = "dispute_policy_accepted", nullable = false)
+    @Builder.Default
+    private Boolean disputePolicyAccepted = false;
+
+    @Column(name = "submitted_at")
+    private LocalDateTime submittedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "approved_by")

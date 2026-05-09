@@ -3,6 +3,7 @@ package com.mentorx.api.feature.chat.dto.response;
 import com.mentorx.api.feature.chat.enums.ChatRoomType;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -16,6 +17,7 @@ public record ChatRoomResponse(
         Boolean isPrivate,
         Integer maxMembers,
         Integer memberCount,
+        Integer unreadCount,
         UUID referenceId,
         String referenceType,
         LocalDateTime lastActivityAt,
@@ -26,6 +28,7 @@ public record ChatRoomResponse(
         Long messageCount,
         Map<String, Object> roomSettings,
         String avatarUrl,
+        List<ChatRoomMemberResponse> members,
         Boolean isArchived,
         LocalDateTime archivedAt,
         LocalDateTime createdAt,

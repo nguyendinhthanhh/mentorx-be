@@ -189,6 +189,32 @@ CREATE TABLE mentor_profiles (
     is_featured         BOOLEAN NOT NULL DEFAULT FALSE,
     cv_url              TEXT,
     portfolio_url       TEXT,
+    video_intro_url     TEXT,
+    location            VARCHAR(150),
+    languages           JSONB,
+    legal_name          VARCHAR(150),
+    date_of_birth       DATE,
+    country_of_residence VARCHAR(100),
+    identity_document_type VARCHAR(50),
+    identity_document_url TEXT,
+    portrait_url        TEXT,
+    phone_number        VARCHAR(30),
+    phone_verified      BOOLEAN NOT NULL DEFAULT FALSE,
+    current_title       VARCHAR(150),
+    current_company     VARCHAR(150),
+    primary_domain      VARCHAR(120),
+    linkedin_url        TEXT,
+    github_url          TEXT,
+    portfolio_evidence_url TEXT,
+    certificate_url     TEXT,
+    bank_account_name   VARCHAR(150),
+    bank_name           VARCHAR(150),
+    bank_account_number VARCHAR(80),
+    bank_branch         VARCHAR(150),
+    tax_id              VARCHAR(80),
+    mentor_agreement_accepted BOOLEAN NOT NULL DEFAULT FALSE,
+    dispute_policy_accepted BOOLEAN NOT NULL DEFAULT FALSE,
+    submitted_at        TIMESTAMPTZ,
     approved_by         UUID REFERENCES users(id),
     approved_at         TIMESTAMPTZ,
     rejection_reason    TEXT,
@@ -196,6 +222,25 @@ CREATE TABLE mentor_profiles (
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at          TIMESTAMPTZ
 );
+
+CREATE TABLE mentor_profile_assets (
+    id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    mentor_profile_id UUID NOT NULL REFERENCES mentor_profiles(id) ON DELETE CASCADE,
+    asset_type        VARCHAR(30) NOT NULL,
+    title             VARCHAR(200) NOT NULL,
+    description       TEXT,
+    issuer            VARCHAR(150),
+    file_url          TEXT,
+    icon_url          TEXT,
+    issued_at         DATE,
+    is_featured       BOOLEAN NOT NULL DEFAULT FALSE,
+    display_order     INTEGER DEFAULT 0,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_mentor_profile_assets_profile
+    ON mentor_profile_assets(mentor_profile_id, asset_type, display_order);
 
 CREATE TABLE user_skills (
     user_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -264,6 +309,15 @@ CREATE TABLE courses (
     deleted_at         TIMESTAMPTZ
 );
 
+CREATE TABLE user_saves (
+    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    target_type VARCHAR(30) NOT NULL,
+    target_id   UUID NOT NULL,
+    saved_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_user_saves_target UNIQUE (user_id, target_type, target_id)
+);
+
 -- ============================================================
 -- SECTION 7: NOTIFICATION SYSTEM
 -- ============================================================
@@ -301,6 +355,10 @@ CREATE INDEX idx_courses_instructor_id ON courses(instructor_id);
 CREATE INDEX idx_courses_status        ON courses(status);
 CREATE INDEX idx_courses_category_id   ON courses(category_id);
 
+-- User saves
+CREATE INDEX idx_user_saves_user_type ON user_saves(user_id, target_type, saved_at DESC);
+CREATE INDEX idx_user_saves_target    ON user_saves(target_type, target_id);
+
 -- Wallets
 CREATE INDEX idx_wallet_user_type ON wallets(user_id, account_type);
 
@@ -322,6 +380,9 @@ CREATE TRIGGER trg_users_updated_at
 
 CREATE TRIGGER trg_mentor_profiles_updated_at
     BEFORE UPDATE ON mentor_profiles FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
+
+CREATE TRIGGER trg_mentor_profile_assets_updated_at
+    BEFORE UPDATE ON mentor_profile_assets FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
 
 CREATE TRIGGER trg_jobs_updated_at
     BEFORE UPDATE ON jobs FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
