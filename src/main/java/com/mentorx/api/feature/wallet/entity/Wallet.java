@@ -33,6 +33,10 @@ public class Wallet extends BaseEntity {
     @Column(name = "ledger_hash", length = 64)
     private String ledgerHash;
 
+    @Column(name = "is_active", nullable = false)
+    @Builder.Default
+    private Boolean isActive = true;
+
     // Relationships
     @OneToMany(mappedBy = "wallet", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<WalletTransaction> transactions;

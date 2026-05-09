@@ -19,5 +19,5 @@ public interface JobService {
     Page<JobResponse> getAllJobs(JobStatus status, JobType jobType, Integer categoryId, Pageable pageable);
     Page<JobResponse> getByClient(UUID clientId, Pageable pageable);
     Page<JobResponse> getByStatus(JobStatus status, Pageable pageable);
-    JobResponse updateStatus(UUID jobId, JobStatus status);
+    JobResponse updateStatus(UUID jobId, JobStatus status, String reason);
 }

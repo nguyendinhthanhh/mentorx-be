@@ -109,9 +109,12 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
-    public CourseResponse updateStatus(UUID courseId, CourseStatus status) {
+    public CourseResponse updateStatus(UUID courseId, CourseStatus status, String reason) {
         Course course = findCourse(courseId);
         course.setStatus(status);
+        if (reason != null) {
+            course.setRejectionReason(reason);
+        }
         if (status == CourseStatus.PUBLISHED && course.getPublishedAt() == null) {
             course.setPublishedAt(LocalDateTime.now());
         }

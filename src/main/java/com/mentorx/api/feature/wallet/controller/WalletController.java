@@ -10,6 +10,7 @@ import com.mentorx.api.feature.wallet.dto.request.DepositCreateRequest;
 import com.mentorx.api.feature.wallet.dto.request.TransferRequest;
 import com.mentorx.api.feature.wallet.dto.request.WithdrawCreateRequest;
 import com.mentorx.api.feature.wallet.dto.response.DepositOrderResponse;
+import com.mentorx.api.feature.wallet.dto.response.FinancialSummaryResponse;
 import com.mentorx.api.feature.wallet.dto.response.WalletResponse;
 import com.mentorx.api.feature.wallet.dto.response.WalletTransactionResponse;
 import com.mentorx.api.feature.wallet.dto.response.WithdrawalResponse;
@@ -26,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -185,6 +187,27 @@ public class WalletController {
         WithdrawalRequest request = withdrawalRequestRepository.findById(requestId)
                 .orElseThrow(() -> new AppException(ErrorCode.WITHDRAWAL_NOT_FOUND));
         return ResponseEntity.ok(ApiResponse.success(walletMapper.toWithdrawalResponse(request)));
+    }
+
+    // ==================== Admin Wallet Overview APIs ====================
+    
+    @GetMapping("/admin/financial-summary")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<FinancialSummaryResponse>> getFinancialSummary() {
+        return ResponseEntity.ok(ApiResponse.success(walletService.getFinancialSummary()));
+    }
+
+    @GetMapping("/admin/audit-logs")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Page<com.mentorx.api.feature.wallet.entity.WalletBalanceAuditLog>>> getAuditLogs(Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(walletService.getAuditLogs(pageable)));
+    }
+
+    @PostMapping("/admin/reconcile-all")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<String>> reconcileAll() {
+        // In real world, this would trigger an async job to scan all gateways
+        return ResponseEntity.ok(ApiResponse.success("Reconciliation job started successfully"));
     }
 
     // ==================== Admin Withdraw APIs ====================

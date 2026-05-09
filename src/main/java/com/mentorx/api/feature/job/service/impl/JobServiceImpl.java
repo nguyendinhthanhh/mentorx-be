@@ -113,9 +113,12 @@ public class JobServiceImpl implements JobService {
 
     @Override
     @Transactional
-    public JobResponse updateStatus(UUID jobId, JobStatus status) {
+    public JobResponse updateStatus(UUID jobId, JobStatus status, String reason) {
         Job job = findJob(jobId);
         job.setStatus(status);
+        if (reason != null) {
+            job.setStatusReason(reason);
+        }
         if (status == JobStatus.OPEN && job.getPublishedAt() == null) {
             job.setPublishedAt(LocalDateTime.now());
         }
@@ -151,7 +154,8 @@ public class JobServiceImpl implements JobService {
                 job.getPublishedAt(),
                 job.getClosedAt(),
                 job.getCreatedAt(),
-                job.getUpdatedAt()
+                job.getUpdatedAt(),
+                job.getStatusReason()
         );
     }
 }

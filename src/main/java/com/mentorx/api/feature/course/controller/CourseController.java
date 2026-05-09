@@ -86,7 +86,8 @@ public class CourseController {
     @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
     public ResponseEntity<ApiResponse<CourseResponse>> updateStatus(
             @PathVariable UUID courseId,
-            @RequestParam CourseStatus status) {
-        return ResponseEntity.ok(ApiResponse.success("Course status updated", courseService.updateStatus(courseId, status)));
+            @RequestParam CourseStatus status,
+            @RequestParam(required = false) String reason) {
+        return ResponseEntity.ok(ApiResponse.success("Course status updated", courseService.updateStatus(courseId, status, reason)));
     }
 }

@@ -8,4 +8,6 @@ import java.util.UUID;
 
 @Repository
 public interface WithdrawalRequestRepository extends JpaRepository<WithdrawalRequest, UUID> {
+    @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(w.mxcAmount), 0) FROM WithdrawalRequest w WHERE w.createdAt >= :startOfDay AND w.status = 'COMPLETED'")
+    java.math.BigDecimal getTodayTotalWithdrawals(@org.springframework.data.repository.query.Param("startOfDay") java.time.LocalDateTime startOfDay);
 }
