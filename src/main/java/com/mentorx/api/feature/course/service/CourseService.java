@@ -18,5 +18,5 @@ public interface CourseService {
     Page<CourseResponse> getPublished(Pageable pageable);
     Page<CourseResponse> getByInstructor(UUID instructorId, Pageable pageable);
     Page<CourseResponse> getByStatus(CourseStatus status, Pageable pageable);
-    CourseResponse updateStatus(UUID courseId, CourseStatus status);
+    CourseResponse updateStatus(UUID courseId, CourseStatus status, String reason);
 }

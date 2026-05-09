@@ -92,4 +92,7 @@ public class Job extends BaseEntity {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    @Column(name = "status_reason", columnDefinition = "TEXT")
+    private String statusReason;
 }

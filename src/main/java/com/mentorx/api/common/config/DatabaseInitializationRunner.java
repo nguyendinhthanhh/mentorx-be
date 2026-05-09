@@ -187,6 +187,15 @@ public class DatabaseInitializationRunner {
                 CREATE INDEX IF NOT EXISTS idx_mentor_profile_assets_profile
                     ON mentor_profile_assets(mentor_profile_id, asset_type, display_order)
                 """);
+        jdbcTemplate.execute("""
+                CREATE OR REPLACE FUNCTION fn_set_updated_at()
+                RETURNS TRIGGER AS $$
+                BEGIN
+                    NEW.updated_at = NOW();
+                    RETURN NEW;
+                END;
+                $$ LANGUAGE plpgsql;
+                """);
         jdbcTemplate.execute("DROP TRIGGER IF EXISTS trg_mentor_profile_assets_updated_at ON mentor_profile_assets");
         jdbcTemplate.execute("""
                 CREATE TRIGGER trg_mentor_profile_assets_updated_at

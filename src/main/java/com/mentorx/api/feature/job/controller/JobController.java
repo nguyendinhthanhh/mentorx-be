@@ -91,7 +91,8 @@ public class JobController {
     @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
     public ResponseEntity<ApiResponse<JobResponse>> updateStatus(
             @PathVariable UUID jobId,
-            @RequestParam JobStatus status) {
-        return ResponseEntity.ok(ApiResponse.success("Job status updated", jobService.updateStatus(jobId, status)));
+            @RequestParam JobStatus status,
+            @RequestParam(required = false) String reason) {
+        return ResponseEntity.ok(ApiResponse.success("Job status updated", jobService.updateStatus(jobId, status, reason)));
     }
 }

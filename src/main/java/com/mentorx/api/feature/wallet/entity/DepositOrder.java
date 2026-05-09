@@ -6,6 +6,8 @@ import com.mentorx.api.common.enums.TxnStatus;
 import com.mentorx.api.feature.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -53,6 +55,7 @@ public class DepositOrder extends BaseEntity {
     @Builder.Default
     private TxnStatus txnStatus = TxnStatus.PENDING;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "gateway_response", columnDefinition = "JSONB")
     private String gatewayResponse;
 

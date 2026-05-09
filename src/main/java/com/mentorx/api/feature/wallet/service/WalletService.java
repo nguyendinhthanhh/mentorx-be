@@ -5,6 +5,7 @@ import com.mentorx.api.common.enums.WalletAccountType;
 import com.mentorx.api.feature.wallet.dto.request.DepositRequest;
 import com.mentorx.api.feature.wallet.dto.request.TransferRequest;
 import com.mentorx.api.feature.wallet.dto.request.WithdrawalRequest;
+import com.mentorx.api.feature.wallet.dto.response.FinancialSummaryResponse;
 import com.mentorx.api.feature.wallet.dto.response.WalletResponse;
 import com.mentorx.api.feature.wallet.dto.response.WalletTransactionResponse;
 import org.springframework.data.domain.Page;
@@ -15,6 +16,9 @@ import java.util.List;
 import java.util.UUID;
 
 public interface WalletService {
+    FinancialSummaryResponse getFinancialSummary();
+    
+    Page<com.mentorx.api.feature.wallet.entity.WalletBalanceAuditLog> getAuditLogs(Pageable pageable);
 
     WalletResponse createWallet(UUID userId, WalletAccountType accountType);
 

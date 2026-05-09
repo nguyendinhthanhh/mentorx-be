@@ -26,4 +26,13 @@ public interface WalletRepository extends JpaRepository<Wallet, UUID> {
 
     @Query("SELECT COALESCE(SUM(w.balanceMxc), 0) FROM Wallet w WHERE w.user.id = :userId")
     BigDecimal getTotalBalanceByUserId(@Param("userId") UUID userId);
+
+    @Query("SELECT COUNT(w) FROM Wallet w WHERE w.isActive = false")
+    long countFrozenWallets();
+
+    @Query("SELECT COALESCE(SUM(w.balanceMxc), 0) FROM Wallet w WHERE w.isActive = false")
+    BigDecimal getTotalFrozenBalance();
+
+    @Query("SELECT COALESCE(SUM(w.balanceMxc), 0) FROM Wallet w")
+    BigDecimal getTotalCirculation();
 }

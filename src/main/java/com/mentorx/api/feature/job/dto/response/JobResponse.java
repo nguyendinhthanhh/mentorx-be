@@ -29,5 +29,6 @@ public record JobResponse(
         LocalDateTime publishedAt,
         LocalDateTime closedAt,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        String statusReason
 ) {}
