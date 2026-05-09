@@ -6,21 +6,39 @@ import com.mentorx.api.common.enums.JobStatus;
 import com.mentorx.api.common.enums.JobType;
 import com.mentorx.api.common.enums.LessonType;
 import com.mentorx.api.common.enums.MentorStatus;
+import com.mentorx.api.common.enums.PackageType;
 import com.mentorx.api.common.enums.SupportedLanguage;
 import com.mentorx.api.common.enums.UserStatus;
 import com.mentorx.api.common.enums.WalletAccountType;
+import com.mentorx.api.feature.chat.entity.ChatRoom;
+import com.mentorx.api.feature.chat.entity.ChatRoomMember;
+import com.mentorx.api.feature.chat.entity.Message;
+import com.mentorx.api.feature.chat.enums.ChatRoomType;
+import com.mentorx.api.feature.chat.repository.ChatRoomMemberRepository;
+import com.mentorx.api.feature.chat.repository.ChatRoomRepository;
+import com.mentorx.api.feature.chat.repository.MessageRepository;
 import com.mentorx.api.feature.course.entity.Course;
 import com.mentorx.api.feature.course.entity.CourseLesson;
 import com.mentorx.api.feature.course.entity.CourseSection;
 import com.mentorx.api.feature.course.repository.CourseLessonRepository;
 import com.mentorx.api.feature.course.repository.CourseRepository;
 import com.mentorx.api.feature.course.repository.CourseSectionRepository;
-import com.mentorx.api.feature.system.config.FileStorageProperties;
 import com.mentorx.api.feature.job.entity.Job;
 import com.mentorx.api.feature.job.entity.Proposal;
 import com.mentorx.api.feature.job.enums.ProposalStatus;
 import com.mentorx.api.feature.job.repository.JobRepository;
 import com.mentorx.api.feature.job.repository.ProposalRepository;
+import com.mentorx.api.feature.mentor.entity.MentorAvailability;
+import com.mentorx.api.feature.mentor.entity.MentorPackage;
+import com.mentorx.api.feature.mentor.repository.MentorAvailabilityRepository;
+import com.mentorx.api.feature.mentor.repository.MentorPackageRepository;
+import com.mentorx.api.feature.notification.entity.Notification;
+import com.mentorx.api.feature.notification.enums.NotificationType;
+import com.mentorx.api.feature.notification.repository.NotificationRepository;
+import com.mentorx.api.feature.review.entity.Review;
+import com.mentorx.api.feature.review.enums.ReviewTargetType;
+import com.mentorx.api.feature.review.repository.ReviewRepository;
+import com.mentorx.api.feature.system.config.FileStorageProperties;
 import com.mentorx.api.feature.system.entity.*;
 import com.mentorx.api.feature.system.repository.*;
 import com.mentorx.api.feature.user.entity.MentorProfile;
@@ -52,6 +70,7 @@ import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -79,6 +98,13 @@ public class DatabaseSeeder implements CommandLineRunner {
     private final CourseRepository courseRepository;
     private final CourseSectionRepository courseSectionRepository;
     private final CourseLessonRepository courseLessonRepository;
+    private final MentorPackageRepository mentorPackageRepository;
+    private final MentorAvailabilityRepository mentorAvailabilityRepository;
+    private final ReviewRepository reviewRepository;
+    private final NotificationRepository notificationRepository;
+    private final ChatRoomRepository chatRoomRepository;
+    private final ChatRoomMemberRepository chatRoomMemberRepository;
+    private final MessageRepository messageRepository;
     private final FileStorageProperties fileStorageProperties;
     private final PasswordEncoder passwordEncoder;
 
@@ -144,6 +170,31 @@ public class DatabaseSeeder implements CommandLineRunner {
 
         log.info("Ensuring sample job proposals exist...");
         seedProposals();
+
+        if (mentorPackageRepository.count() == 0) {
+            log.info("Seeding mentor packages...");
+            seedMentorPackages();
+        }
+
+        if (mentorAvailabilityRepository.count() == 0) {
+            log.info("Seeding mentor availability...");
+            seedMentorAvailability();
+        }
+
+        if (reviewRepository.count() == 0) {
+            log.info("Seeding sample reviews...");
+            seedReviews();
+        }
+
+        if (notificationRepository.count() == 0) {
+            log.info("Seeding sample notifications...");
+            seedNotifications();
+        }
+
+        if (chatRoomRepository.count() == 0) {
+            log.info("Seeding sample chat rooms and messages...");
+            seedChatData();
+        }
 
         log.info("Database seeding check completed.");
     }
@@ -275,14 +326,29 @@ public class DatabaseSeeder implements CommandLineRunner {
         User client1 = createUser("client1@mentorx.demo", "Công ty ABC", "ABC Company", UserStatus.ACTIVE, false, MentorStatus.NONE);
         assignRoleToUser(client1, "USER");
         setupUserAccount(client1);
+
+        User client2 = createUser("client2@mentorx.demo", "Startup XYZ", "XYZ Startup", UserStatus.ACTIVE, false, MentorStatus.NONE);
+        assignRoleToUser(client2, "USER");
+        setupUserAccount(client2);
+
+        User client3 = createUser("client3@mentorx.demo", "Doanh nghiệp DEF", "DEF Enterprise", UserStatus.ACTIVE, false, MentorStatus.NONE);
+        assignRoleToUser(client3, "USER");
+        setupUserAccount(client3);
+
+        User learner1 = createUser("user1@mentorx.demo", "Lê Hà Anh", "Ha Anh", UserStatus.ACTIVE, false, MentorStatus.NONE);
+        assignRoleToUser(learner1, "USER");
+        setupUserAccount(learner1);
     }
 
     private User createUser(String email, String fullName, String displayName, UserStatus status, boolean isMentor, MentorStatus mentorStatus) {
+        String avatarSeed = (displayName != null && !displayName.isBlank() ? displayName : fullName).trim().replace(" ", "+");
         User user = User.builder()
                 .email(email)
                 .passwordHash(passwordEncoder.encode("password"))
                 .fullName(fullName)
                 .displayName(displayName)
+                .avatarUrl("https://ui-avatars.com/api/?name=" + avatarSeed + "&background=random")
+                .bio("Demo account seeded for MentorX development.")
                 .status(status)
                 .isEmailVerified(true)
                 .isMentor(isMentor)
@@ -828,6 +894,381 @@ public class DatabaseSeeder implements CommandLineRunner {
             job.setProposalCount((int) proposalRepository.findByJobId(job.getId(), PageRequest.of(0, 100)).getTotalElements());
             jobRepository.save(job);
         });
+    }
+
+    private void seedMentorPackages() {
+        seedMentorPackagesForProfile(requireMentorProfile("mentor1@mentorx.demo"), List.of(
+                buildMentorPackage("Career Debug Session", "One focused session to unblock architecture, backend design, or delivery issues.", PackageType.SINGLE_SESSION, 1, "450.00", 1,
+                        "Live Zoom session", "Action notes after the call", "Follow-up via chat for 48 hours"),
+                buildMentorPackage("Backend Project Review", "Deep review of code structure, API boundaries, and database design for a real project.", PackageType.PACKAGE_DEAL, 2, "820.00", 2,
+                        "Code review before session", "Architecture recommendations", "Prioritized next steps"),
+                buildMentorPackage("4-Week Mentoring Sprint", "Weekly sessions for interview prep or backend skill growth with accountability.", PackageType.SUBSCRIPTION, 4, "1600.00", 3,
+                        "4 weekly sessions", "Homework and feedback", "Slack-style async support")
+        ));
+
+        seedMentorPackagesForProfile(requireMentorProfile("mentor2@mentorx.demo"), List.of(
+                buildMentorPackage("Portfolio Critique", "Detailed feedback on portfolio, case study narrative, and hiring presentation.", PackageType.SINGLE_SESSION, 1, "380.00", 1,
+                        "Portfolio walkthrough", "Structured critique", "Improvement checklist"),
+                buildMentorPackage("UX Audit Package", "Collaborative review of onboarding, conversion, and usability for a live product flow.", PackageType.PACKAGE_DEAL, 2, "720.00", 2,
+                        "Flow audit", "Annotated UX notes", "Design priorities")
+        ));
+
+        seedMentorPackagesForProfile(requireMentorProfile("mentor3@mentorx.demo"), List.of(
+                buildMentorPackage("Data Storytelling Session", "Refine dashboards, metrics, and presentation flow for stakeholder-facing analytics.", PackageType.SINGLE_SESSION, 1, "520.00", 1,
+                        "Metric review", "Dashboard critique", "Actionable recommendations"),
+                buildMentorPackage("Analytics Coaching Pack", "Multi-session coaching on SQL, KPI design, and decision-ready dashboarding.", PackageType.SUBSCRIPTION, 4, "1850.00", 2,
+                        "4 guided sessions", "Query review", "Project feedback")
+        ));
+    }
+
+    private void seedMentorPackagesForProfile(MentorProfile profile, List<MentorPackage> packages) {
+        if (!mentorPackageRepository.findByMentorProfileIdOrderByDisplayOrderAsc(profile.getId()).isEmpty()) {
+            return;
+        }
+
+        for (MentorPackage mentorPackage : packages) {
+            mentorPackage.setMentorProfileId(profile.getId());
+        }
+        mentorPackageRepository.saveAll(packages);
+    }
+
+    private MentorPackage buildMentorPackage(
+            String title,
+            String description,
+            PackageType packageType,
+            Integer durationHours,
+            String priceMxc,
+            Integer displayOrder,
+            String... features) {
+        MentorPackage mentorPackage = new MentorPackage();
+        mentorPackage.setTitle(title);
+        mentorPackage.setDescription(description);
+        mentorPackage.setPackageType(packageType);
+        mentorPackage.setDurationHours(durationHours);
+        mentorPackage.setPriceMxc(new BigDecimal(priceMxc));
+        mentorPackage.setFeatures(features);
+        mentorPackage.setIsActive(true);
+        mentorPackage.setDisplayOrder(displayOrder);
+        return mentorPackage;
+    }
+
+    private void seedMentorAvailability() {
+        seedAvailabilityForProfile(requireMentorProfile("mentor1@mentorx.demo"), List.of(
+                buildAvailability(2, "19:00", "21:00"),
+                buildAvailability(4, "19:00", "21:00"),
+                buildAvailability(6, "09:00", "11:00")
+        ));
+
+        seedAvailabilityForProfile(requireMentorProfile("mentor2@mentorx.demo"), List.of(
+                buildAvailability(3, "20:00", "21:30"),
+                buildAvailability(5, "20:00", "21:30"),
+                buildAvailability(7, "09:30", "11:30")
+        ));
+
+        seedAvailabilityForProfile(requireMentorProfile("mentor3@mentorx.demo"), List.of(
+                buildAvailability(2, "08:30", "10:00"),
+                buildAvailability(4, "20:00", "22:00"),
+                buildAvailability(6, "14:00", "16:00")
+        ));
+    }
+
+    private void seedAvailabilityForProfile(MentorProfile profile, List<MentorAvailability> slots) {
+        if (!mentorAvailabilityRepository.findByMentorProfileIdOrderByDayOfWeekAscStartTimeAsc(profile.getId()).isEmpty()) {
+            return;
+        }
+
+        for (MentorAvailability slot : slots) {
+            slot.setMentorProfileId(profile.getId());
+        }
+        mentorAvailabilityRepository.saveAll(slots);
+    }
+
+    private MentorAvailability buildAvailability(int dayOfWeek, String startTime, String endTime) {
+        MentorAvailability availability = new MentorAvailability();
+        availability.setDayOfWeek(dayOfWeek);
+        availability.setStartTime(LocalTime.parse(startTime));
+        availability.setEndTime(LocalTime.parse(endTime));
+        availability.setIsActive(true);
+        return availability;
+    }
+
+    private void seedReviews() {
+        User client1 = ensureDemoUser("client1@mentorx.demo", "Công ty ABC", "ABC Company", false, MentorStatus.NONE);
+        User client2 = ensureDemoUser("client2@mentorx.demo", "Startup XYZ", "XYZ Startup", false, MentorStatus.NONE);
+        User learner1 = ensureDemoUser("user1@mentorx.demo", "Lê Hà Anh", "Ha Anh", false, MentorStatus.NONE);
+        User mentor1 = ensureDemoUser("mentor1@mentorx.demo", "Nguyễn Văn An", "An Nguyen", true, MentorStatus.APPROVED);
+        User mentor2 = ensureDemoUser("mentor2@mentorx.demo", "Trần Thị Bình", "Binh Tran", true, MentorStatus.APPROVED);
+
+        seedReview(client1, ReviewTargetType.MENTOR, mentor1.getId(), "Strong backend guidance", "An helped us simplify a messy Spring Boot service into something the team could maintain.",
+                "Clear explanation style", "Could provide more written examples", "4.9", "4.8", "4.9", "5.0", "4.7", true, false, true,
+                "Happy to help. If your team wants, we can do a follow-up session focused on testing strategy.");
+        seedReview(client2, ReviewTargetType.MENTOR, mentor2.getId(), "Useful UX audit", "Binh identified the main onboarding friction points and gave concrete UI recommendations we could apply quickly.",
+                "Actionable and practical", "Wanted one more alternate flow", "4.8", "4.9", "4.8", "4.7", "4.8", true, false, true,
+                null);
+        seedReview(learner1, ReviewTargetType.MENTOR, mentor1.getId(), "Great for interview prep", "I used the mentoring sprint to prepare for backend interviews and the structure was exactly what I needed.",
+                "Focused homework", "No major downsides", "4.7", "4.7", "4.8", "4.7", "4.6", true, false, false,
+                null);
+
+        Course springBootCourse = requireCourse("spring-boot-foundations");
+        seedReview(learner1, ReviewTargetType.COURSE, springBootCourse.getId(), "Practical and well structured", "The course content felt very applied and the PDF resources were useful after each lesson.",
+                "Practical examples", "A few videos could be longer", "4.8", "4.7", "4.9", "4.8", "4.7", true, false, false,
+                null);
+    }
+
+    private void seedReview(
+            User reviewer,
+            ReviewTargetType targetType,
+            UUID targetId,
+            String reviewTitle,
+            String reviewText,
+            String pros,
+            String cons,
+            String overallRating,
+            String communicationRating,
+            String qualityRating,
+            String timelinessRating,
+            String valueRating,
+            boolean isVerified,
+            boolean isAnonymous,
+            boolean isFeatured,
+            String responseText) {
+        if (reviewRepository.findByReviewerIdAndTargetTypeAndTargetId(reviewer.getId(), targetType, targetId).isPresent()) {
+            return;
+        }
+
+        Review review = new Review();
+        review.setReviewer(reviewer);
+        review.setTargetType(targetType);
+        review.setTargetId(targetId);
+        review.setOverallRating(new BigDecimal(overallRating));
+        review.setCommunicationRating(new BigDecimal(communicationRating));
+        review.setQualityRating(new BigDecimal(qualityRating));
+        review.setTimelinessRating(new BigDecimal(timelinessRating));
+        review.setProfessionalismRating(new BigDecimal("4.9"));
+        review.setValueRating(new BigDecimal(valueRating));
+        review.setReviewTitle(reviewTitle);
+        review.setReviewText(reviewText);
+        review.setPros(pros);
+        review.setCons(cons);
+        review.setIsVerified(isVerified);
+        review.setVerifiedAt(isVerified ? LocalDateTime.now().minusDays(2) : null);
+        review.setIsAnonymous(isAnonymous);
+        review.setIsPublic(true);
+        review.setIsFeatured(isFeatured);
+        review.setHelpfulCount(8);
+        review.setNotHelpfulCount(1);
+        review.setLanguage("vi");
+        review.setWouldRecommend(true);
+        review.setServiceCompletedAt(LocalDateTime.now().minusDays(7));
+        review.setServiceDurationHours(new BigDecimal("1.50"));
+        review.setServiceAmountMxc(new BigDecimal("450.00"));
+        review.setResponseText(responseText);
+        review.setResponseAt(responseText != null ? LocalDateTime.now().minusDays(1) : null);
+        review.setResponseByUserId(responseText != null ? targetId : null);
+        reviewRepository.save(review);
+    }
+
+    private void seedNotifications() {
+        User admin = ensureDemoUser("admin@mentorx.demo", "System Administrator", "Admin", false, MentorStatus.NONE);
+        User mentor1 = ensureDemoUser("mentor1@mentorx.demo", "Nguyễn Văn An", "An Nguyen", true, MentorStatus.APPROVED);
+        User client1 = ensureDemoUser("client1@mentorx.demo", "Công ty ABC", "ABC Company", false, MentorStatus.NONE);
+        User learner1 = ensureDemoUser("user1@mentorx.demo", "Lê Hà Anh", "Ha Anh", false, MentorStatus.NONE);
+
+        Job backendJob = findJobByTitle("Backend Developer for Spring Boot API");
+        Course springBootCourse = requireCourse("spring-boot-foundations");
+
+        createNotification(mentor1, client1, NotificationType.NEW_MESSAGE, "New chat message", "ABC Company sent you a follow-up about the Spring Boot API scope.",
+                "/chat", backendJob.getId(), "JOB", 2, false);
+        createNotification(client1, mentor1, NotificationType.JOB_APPLICATION_RECEIVED, "New proposal received", "An Nguyen submitted a proposal for your backend API project.",
+                "/jobs/" + backendJob.getId(), backendJob.getId(), "JOB", 2, false);
+        createNotification(learner1, mentor1, NotificationType.COURSE_UPDATED, "Course resource updated", "A new resource was added to Spring Boot Foundations for Real Projects.",
+                "/courses/" + springBootCourse.getId(), springBootCourse.getId(), "COURSE", 3, true);
+        createNotification(learner1, admin, NotificationType.FEATURE_UPDATE, "Chat is ready for testing", "You can now test direct messaging, unread badges, and seeded demo conversations.",
+                "/chat", null, "SYSTEM", 4, false);
+    }
+
+    private void createNotification(
+            User recipient,
+            User sender,
+            NotificationType type,
+            String title,
+            String message,
+            String actionUrl,
+            UUID referenceId,
+            String referenceType,
+            int priority,
+            boolean markAsRead) {
+        Notification notification = new Notification();
+        notification.setUser(recipient);
+        notification.setSenderUser(sender);
+        notification.setNotificationType(type);
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setActionUrl(actionUrl);
+        notification.setReferenceId(referenceId);
+        notification.setReferenceType(referenceType);
+        notification.setPriorityLevel(priority);
+        notification.setCategory(type.name());
+        notification.setIsDelivered(true);
+        notification.setDeliveredAt(LocalDateTime.now().minusHours(2));
+        if (markAsRead) {
+            notification.markAsRead();
+        }
+        notificationRepository.save(notification);
+    }
+
+    private void seedChatData() {
+        User admin = ensureDemoUser("admin@mentorx.demo", "System Administrator", "Admin", false, MentorStatus.NONE);
+        User mentor1 = ensureDemoUser("mentor1@mentorx.demo", "Nguyễn Văn An", "An Nguyen", true, MentorStatus.APPROVED);
+        User mentor2 = ensureDemoUser("mentor2@mentorx.demo", "Trần Thị Bình", "Binh Tran", true, MentorStatus.APPROVED);
+        User client1 = ensureDemoUser("client1@mentorx.demo", "Công ty ABC", "ABC Company", false, MentorStatus.NONE);
+        User learner1 = ensureDemoUser("user1@mentorx.demo", "Lê Hà Anh", "Ha Anh", false, MentorStatus.NONE);
+
+        Job backendJob = findJobByTitle("Backend Developer for Spring Boot API");
+        Course designCourse = requireCourse("ux-design-sprint");
+
+        ChatRoom projectRoom = createChatRoom(
+                ChatRoomType.DIRECT_MESSAGE,
+                "Backend API Kickoff",
+                "Scope and delivery discussion for the Spring Boot API project.",
+                client1,
+                List.of(mentor1),
+                backendJob.getId(),
+                "JOB"
+        );
+        seedChatMessage(projectRoom, client1, "Hi An, can you review the API authentication scope before we finalize milestones?", LocalDateTime.now().minusHours(14));
+        seedChatMessage(projectRoom, mentor1, "Yes. I reviewed the brief and I would split auth, profile, and job flows into separate deliverables.", LocalDateTime.now().minusHours(13));
+        seedChatMessage(projectRoom, client1, "Perfect. Please start with auth and user profile, then we will extend to jobs.", LocalDateTime.now().minusHours(12));
+
+        ChatRoom courseRoom = createChatRoom(
+                ChatRoomType.COURSE_DISCUSSION,
+                "UX course questions",
+                "Follow-up discussion around the UX audit playbook.",
+                learner1,
+                List.of(mentor2),
+                designCourse.getId(),
+                "COURSE"
+        );
+        seedChatMessage(courseRoom, learner1, "I finished the onboarding audit lesson. Do you recommend testing the new copy before changing the layout?", LocalDateTime.now().minusHours(8));
+        seedChatMessage(courseRoom, mentor2, "Yes. Validate copy first so you can separate messaging issues from layout friction.", LocalDateTime.now().minusHours(7));
+        seedChatMessage(courseRoom, mentor2, "After that, test one layout change at a time and keep the funnel instrumentation consistent.", LocalDateTime.now().minusHours(6));
+
+        ChatRoom supportRoom = createChatRoom(
+                ChatRoomType.QUICK_SUPPORT,
+                "Platform support",
+                "General support conversation for demo testing.",
+                learner1,
+                List.of(admin),
+                null,
+                "SUPPORT"
+        );
+        seedChatMessage(supportRoom, learner1, "I can access chat now. Which demo accounts should I use to verify unread badges?", LocalDateTime.now().minusHours(3));
+        seedChatMessage(supportRoom, admin, "Use mentor1@mentorx.demo and client1@mentorx.demo for the direct project conversation.", LocalDateTime.now().minusHours(2));
+    }
+
+    private ChatRoom createChatRoom(
+            ChatRoomType roomType,
+            String roomName,
+            String description,
+            User creator,
+            List<User> otherMembers,
+            UUID referenceId,
+            String referenceType) {
+        ChatRoom room = new ChatRoom();
+        room.setRoomType(roomType);
+        room.setRoomName(roomName);
+        room.setDescription(description);
+        room.setCreatedByUser(creator);
+        room.setIsActive(true);
+        room.setIsPrivate(true);
+        room.setMaxMembers(Math.max(2, otherMembers.size() + 1));
+        room.setReferenceId(referenceId);
+        room.setReferenceType(referenceType);
+        room.setLastActivityAt(LocalDateTime.now());
+        room = chatRoomRepository.save(room);
+
+        room.getMembers().add(buildChatMember(room, creator, "OWNER", null, true));
+        for (User member : otherMembers) {
+            room.getMembers().add(buildChatMember(room, member, "MEMBER", creator, false));
+        }
+        room.setMemberCount(room.getMembers().size());
+        return chatRoomRepository.save(room);
+    }
+
+    private ChatRoomMember buildChatMember(ChatRoom room, User user, String role, User invitedBy, boolean canInviteMembers) {
+        ChatRoomMember member = new ChatRoomMember();
+        member.setChatRoom(room);
+        member.setUser(user);
+        member.setMemberRole(role);
+        member.setJoinedAt(LocalDateTime.now().minusDays(3));
+        member.setInvitedByUser(invitedBy);
+        member.setCanInviteMembers(canInviteMembers);
+        member.setCanShareFiles(true);
+        member.setCanSendMessages(true);
+        member.setIsActive(true);
+        member.setIsOnline(false);
+        member.setUnreadCount(0);
+        return member;
+    }
+
+    private void seedChatMessage(ChatRoom room, User sender, String content, LocalDateTime sentAt) {
+        Message message = new Message();
+        message.setChatRoom(room);
+        message.setSender(sender);
+        message.setMessageType(com.mentorx.api.feature.chat.enums.MessageType.TEXT);
+        message.setContent(content);
+        message.setSentAt(sentAt);
+        message.setReadCount(1);
+        Message savedMessage = messageRepository.save(message);
+
+        for (ChatRoomMember member : room.getMembers()) {
+            if (member.getUser().getId().equals(sender.getId())) {
+                member.setLastSeenAt(sentAt);
+                member.markAsRead(savedMessage.getId());
+                continue;
+            }
+            member.setUnreadCount((member.getUnreadCount() == null ? 0 : member.getUnreadCount()) + 1);
+        }
+        chatRoomMemberRepository.saveAll(room.getMembers());
+
+        room.setLastMessageId(savedMessage.getId());
+        room.setLastMessagePreview(savedMessage.getDisplayContent());
+        room.setLastMessageAt(sentAt);
+        room.setLastMessageSenderId(sender.getId());
+        room.setMessageCount(room.getMessageCount() + 1);
+        room.setLastActivityAt(sentAt);
+        chatRoomRepository.save(room);
+    }
+
+    private User ensureDemoUser(String email, String fullName, String displayName, boolean isMentor, MentorStatus mentorStatus) {
+        User user = userRepository.findByEmail(email)
+                .orElseGet(() -> createUser(email, fullName, displayName, UserStatus.ACTIVE, isMentor, mentorStatus));
+
+        assignRoleToUserIfMissing(user, "USER");
+        if (isMentor) {
+            assignRoleToUserIfMissing(user, "MENTOR");
+        }
+        setupUserAccountIfMissing(user);
+        return user;
+    }
+
+    private MentorProfile requireMentorProfile(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalStateException("Demo mentor user not found for " + email));
+        return mentorProfileRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new IllegalStateException("Mentor profile not found for " + email));
+    }
+
+    private Course requireCourse(String slug) {
+        return courseRepository.findBySlugAndDeletedAtIsNull(slug)
+                .orElseThrow(() -> new IllegalStateException("Course not found for slug " + slug));
+    }
+
+    private Job findJobByTitle(String title) {
+        return jobRepository.findAll().stream()
+                .filter(job -> title.equals(job.getTitle()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Job not found for title " + title));
     }
 
     private void seedProposal(

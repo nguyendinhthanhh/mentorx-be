@@ -11,6 +11,7 @@ import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 
 @Slf4j
@@ -47,6 +48,7 @@ public class JwtUtil {
     private String createToken(Map<String, Object> claims, String subject, Long expiry) {
         return Jwts.builder()
                 .claims(claims)
+                .id(UUID.randomUUID().toString())
                 .subject(subject)
                 .issuer(issuer)
                 .issuedAt(new Date(System.currentTimeMillis()))

@@ -36,7 +36,17 @@ public interface MentorProfileService {
 
     MentorProfileResponse rejectMentorApplication(UUID userId, String rejectionReason, UUID rejectedBy);
 
+    MentorProfileResponse requestMentorApplicationRevision(UUID userId, String revisionReason, UUID requestedBy);
+
     void setFeaturedStatus(UUID userId, boolean featured);
+
+    boolean isMentorSaved(UUID userId, UUID mentorUserId);
+
+    boolean saveMentor(UUID userId, UUID mentorUserId);
+
+    boolean unsaveMentor(UUID userId, UUID mentorUserId);
+
+    List<MentorProfileResponse> getSavedMentors(UUID userId);
 
     long getApprovedMentorsCount();
 

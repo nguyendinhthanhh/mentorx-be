@@ -1,7 +1,9 @@
 package com.mentorx.api.feature.user.dto.response;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record MentorProfileResponse(
@@ -20,6 +22,32 @@ public record MentorProfileResponse(
     Boolean isFeatured,
     String cvUrl,
     String portfolioUrl,
+    String videoIntroUrl,
+    String location,
+    List<String> languages,
+    String legalName,
+    LocalDate dateOfBirth,
+    String countryOfResidence,
+    String identityDocumentType,
+    String identityDocumentUrl,
+    String portraitUrl,
+    String phoneNumber,
+    Boolean phoneVerified,
+    String currentTitle,
+    String currentCompany,
+    String primaryDomain,
+    String linkedinUrl,
+    String githubUrl,
+    String portfolioEvidenceUrl,
+    String certificateUrl,
+    String bankAccountName,
+    String bankName,
+    String bankAccountNumber,
+    String bankBranch,
+    String taxId,
+    Boolean mentorAgreementAccepted,
+    Boolean disputePolicyAccepted,
+    LocalDateTime submittedAt,
     UUID approvedBy,
     String approvedByName,
     LocalDateTime approvedAt,

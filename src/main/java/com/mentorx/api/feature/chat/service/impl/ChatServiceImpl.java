@@ -3,6 +3,7 @@ package com.mentorx.api.feature.chat.service.impl;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.feature.chat.dto.request.ChatRoomCreateRequest;
+import com.mentorx.api.feature.chat.dto.response.ChatRoomMemberResponse;
 import com.mentorx.api.feature.chat.dto.request.MessageSendRequest;
 import com.mentorx.api.feature.chat.dto.response.ChatRoomResponse;
 import com.mentorx.api.feature.chat.dto.response.MessageResponse;
@@ -25,6 +26,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -70,18 +72,18 @@ public class ChatServiceImpl implements ChatService {
         }
 
         savedRoom.setMemberCount(savedRoom.getMembers().size());
-        return toRoomResponse(chatRoomRepository.save(savedRoom));
+        return toRoomResponse(chatRoomRepository.save(savedRoom), creator.getId());
     }
 
     @Override
     public ChatRoomResponse getRoomById(UUID roomId) {
-        return toRoomResponse(findRoom(roomId));
+        return toRoomResponse(findRoom(roomId), null);
     }
 
     @Override
     public Page<ChatRoomResponse> getUserRooms(UUID userId, Pageable pageable) {
         return chatRoomRepository.findActiveRoomsByUserId(userId, pageable)
-                .map(this::toRoomResponse);
+                .map(room -> toRoomResponse(room, userId));
     }
 
     @Override
@@ -99,7 +101,7 @@ public class ChatServiceImpl implements ChatService {
 
         addMemberToRoom(room, user, "MEMBER", addedBy);
         room.setMemberCount(room.getMembers().size());
-        return toRoomResponse(chatRoomRepository.save(room));
+        return toRoomResponse(chatRoomRepository.save(room), addedByUserId);
     }
 
     @Override
@@ -145,16 +147,29 @@ public class ChatServiceImpl implements ChatService {
         room.setLastActivityAt(LocalDateTime.now());
         chatRoomRepository.save(room);
 
-        // Update sender's last read
+        // Update sender's last read and increment unread count for everyone else
         member.markAsRead(savedMessage.getId());
+        member.updateLastSeen();
         chatRoomMemberRepository.save(member);
+
+        List<ChatRoomMember> otherMembers = new ArrayList<>();
+        for (ChatRoomMember roomMember : room.getMembers()) {
+            if (roomMember.getUser().getId().equals(sender.getId()) || !Boolean.TRUE.equals(roomMember.getIsActive())) {
+                continue;
+            }
+            roomMember.setUnreadCount((roomMember.getUnreadCount() == null ? 0 : roomMember.getUnreadCount()) + 1);
+            otherMembers.add(roomMember);
+        }
+        if (!otherMembers.isEmpty()) {
+            chatRoomMemberRepository.saveAll(otherMembers);
+        }
 
         return toMessageResponse(savedMessage);
     }
 
     @Override
     public Page<MessageResponse> getRoomMessages(UUID roomId, Pageable pageable) {
-        return messageRepository.findByChatRoomIdOrderBySentAtDesc(roomId, pageable)
+        return messageRepository.findByChatRoomIdOrderBySentAtAsc(roomId, pageable)
                 .map(this::toMessageResponse);
     }
 
@@ -192,7 +207,28 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
-    private ChatRoomResponse toRoomResponse(ChatRoom room) {
+    private ChatRoomResponse toRoomResponse(ChatRoom room, UUID currentUserId) {
+        List<ChatRoomMember> roomMembers = chatRoomMemberRepository.findByChatRoomIdOrderByJoinedAtAsc(room.getId());
+
+        List<ChatRoomMemberResponse> members = roomMembers.stream()
+                .filter(member -> Boolean.TRUE.equals(member.getIsActive()))
+                .map(member -> new ChatRoomMemberResponse(
+                        member.getUser().getId(),
+                        member.getUser().getFullName(),
+                        member.getUser().getDisplayName(),
+                        member.getUser().getAvatarUrl(),
+                        member.getMemberRole(),
+                        member.getIsOnline(),
+                        member.getLastSeenAt()
+                ))
+                .collect(Collectors.toList());
+
+        Integer unreadCount = roomMembers.stream()
+                .filter(member -> currentUserId != null && member.getUser().getId().equals(currentUserId))
+                .map(ChatRoomMember::getUnreadCount)
+                .findFirst()
+                .orElse(0);
+
         return new ChatRoomResponse(
                 room.getId(),
                 room.getRoomType(),
@@ -203,6 +239,7 @@ public class ChatServiceImpl implements ChatService {
                 room.getIsPrivate(),
                 room.getMaxMembers(),
                 room.getMemberCount(),
+                unreadCount,
                 room.getReferenceId(),
                 room.getReferenceType(),
                 room.getLastActivityAt(),
@@ -213,6 +250,7 @@ public class ChatServiceImpl implements ChatService {
                 room.getMessageCount(),
                 room.getRoomSettings(),
                 room.getAvatarUrl(),
+                members,
                 room.isArchived(),
                 room.getArchivedAt(),
                 room.getCreatedAt(),

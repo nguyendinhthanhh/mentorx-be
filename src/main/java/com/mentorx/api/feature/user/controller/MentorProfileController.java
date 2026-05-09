@@ -142,6 +142,45 @@ public class MentorProfileController {
         return ResponseEntity.ok(ApiResponse.success(mentors));
     }
 
+    @GetMapping("/saved")
+    @Operation(summary = "Get saved mentors", description = "Get mentors saved by a user")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<MentorProfileResponse>>> getSavedMentors(
+            @Parameter(description = "User ID") @RequestParam UUID userId) {
+        List<MentorProfileResponse> mentors = mentorProfileService.getSavedMentors(userId);
+        return ResponseEntity.ok(ApiResponse.success(mentors));
+    }
+
+    @GetMapping("/{mentorUserId}/save-status")
+    @Operation(summary = "Check saved mentor status", description = "Check whether a user has saved a mentor")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Boolean>> isMentorSaved(
+            @Parameter(description = "Mentor user ID") @PathVariable UUID mentorUserId,
+            @Parameter(description = "User ID") @RequestParam UUID userId) {
+        boolean saved = mentorProfileService.isMentorSaved(userId, mentorUserId);
+        return ResponseEntity.ok(ApiResponse.success(saved));
+    }
+
+    @PostMapping("/{mentorUserId}/save")
+    @Operation(summary = "Save mentor", description = "Save a mentor for the current user")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Boolean>> saveMentor(
+            @Parameter(description = "Mentor user ID") @PathVariable UUID mentorUserId,
+            @Parameter(description = "User ID") @RequestParam UUID userId) {
+        boolean saved = mentorProfileService.saveMentor(userId, mentorUserId);
+        return ResponseEntity.ok(ApiResponse.success("Mentor saved", saved));
+    }
+
+    @DeleteMapping("/{mentorUserId}/save")
+    @Operation(summary = "Unsave mentor", description = "Remove a mentor from saved mentors")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Boolean>> unsaveMentor(
+            @Parameter(description = "Mentor user ID") @PathVariable UUID mentorUserId,
+            @Parameter(description = "User ID") @RequestParam UUID userId) {
+        boolean saved = mentorProfileService.unsaveMentor(userId, mentorUserId);
+        return ResponseEntity.ok(ApiResponse.success("Mentor removed from saved list", saved));
+    }
+
     @PostMapping("/{userId}/approve")
     @Operation(summary = "Approve mentor application", description = "Approve a pending mentor application")
     @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
@@ -161,6 +200,17 @@ public class MentorProfileController {
             @Parameter(description = "Rejector ID") @RequestParam UUID rejectedBy) {
         MentorProfileResponse profile = mentorProfileService.rejectMentorApplication(userId, reason, rejectedBy);
         return ResponseEntity.ok(ApiResponse.success("Mentor application rejected", profile));
+    }
+
+    @PostMapping("/{userId}/request-revision")
+    @Operation(summary = "Request mentor application revision", description = "Ask a user to supplement or correct mentor application information")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
+    public ResponseEntity<ApiResponse<MentorProfileResponse>> requestMentorApplicationRevision(
+            @Parameter(description = "User ID") @PathVariable UUID userId,
+            @Parameter(description = "Revision reason") @RequestParam String reason,
+            @Parameter(description = "Reviewer ID") @RequestParam UUID requestedBy) {
+        MentorProfileResponse profile = mentorProfileService.requestMentorApplicationRevision(userId, reason, requestedBy);
+        return ResponseEntity.ok(ApiResponse.success("Mentor application revision requested", profile));
     }
 
     @PatchMapping("/{userId}/featured")
