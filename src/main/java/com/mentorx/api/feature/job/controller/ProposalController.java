@@ -51,6 +51,13 @@ public class ProposalController {
         return ResponseEntity.ok(ApiResponse.success(proposalService.getByJob(jobId, PageRequest.of(page, size))));
     }
 
+    @GetMapping("/job/{jobId}/mentor/{mentorId}")
+    public ResponseEntity<ApiResponse<ProposalResponse>> getByJobAndMentor(
+            @PathVariable UUID jobId,
+            @PathVariable UUID mentorId) {
+        return ResponseEntity.ok(ApiResponse.success(proposalService.getByJobAndMentor(jobId, mentorId)));
+    }
+
     @GetMapping("/mentor/{mentorId}")
     public ResponseEntity<ApiResponse<Page<ProposalResponse>>> getByMentor(
             @PathVariable UUID mentorId,
@@ -62,6 +69,12 @@ public class ProposalController {
     @PostMapping("/{proposalId}/submit")
     public ResponseEntity<ApiResponse<ProposalResponse>> submit(@PathVariable UUID proposalId) {
         return ResponseEntity.ok(ApiResponse.success(proposalService.submit(proposalId)));
+    }
+
+    @PostMapping("/{proposalId}/withdraw")
+    public ResponseEntity<ApiResponse<Void>> withdraw(@PathVariable UUID proposalId) {
+        proposalService.withdraw(proposalId);
+        return ResponseEntity.ok(ApiResponse.success("Proposal withdrawn", null));
     }
 
     @PostMapping("/{proposalId}/accept")
