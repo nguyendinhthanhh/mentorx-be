@@ -75,6 +75,24 @@ public class ProposalServiceImpl implements ProposalService {
     }
 
     @Override
+    public ProposalResponse getByJobAndMentor(UUID jobId, UUID mentorId) {
+        return proposalRepository.findByJobIdAndMentorId(jobId, mentorId)
+                .map(this::toResponse)
+                .orElse(null);
+    }
+
+    @Override
+    @Transactional
+    public void withdraw(UUID proposalId) {
+        Proposal proposal = findProposal(proposalId);
+        if (proposal.getStatus() == ProposalStatus.ACCEPTED) {
+            throw new AppException(ErrorCode.BAD_REQUEST); // Cannot withdraw accepted proposal
+        }
+        proposal.withdraw();
+        proposalRepository.save(proposal);
+    }
+
+    @Override
     public Page<ProposalResponse> getByJob(UUID jobId, Pageable pageable) {
         return proposalRepository.findByJobId(jobId, pageable).map(this::toResponse);
     }
@@ -97,6 +115,12 @@ public class ProposalServiceImpl implements ProposalService {
     public ProposalResponse accept(UUID proposalId) {
         Proposal proposal = findProposal(proposalId);
         proposal.accept();
+        
+        // Update job status to CLOSED (job is filled)
+        Job job = proposal.getJob();
+        job.setStatus(com.mentorx.api.common.enums.JobStatus.CLOSED);
+        jobRepository.save(job);
+        
         return toResponse(proposalRepository.save(proposal));
     }
 

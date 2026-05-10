@@ -28,6 +28,7 @@ public enum ErrorCode {
     UNAUTHORIZED_JOB_ACCESS(HttpStatus.FORBIDDEN, "Unauthorized access to job"),
     PROPOSAL_ALREADY_EXISTS(HttpStatus.CONFLICT, "Proposal already exists for this job"),
     PROPOSAL_NOT_FOUND(HttpStatus.NOT_FOUND, "Proposal not found"),
+    NEGOTIATION_NOT_FOUND(HttpStatus.NOT_FOUND, "Negotiation not found"),
     CONTRACT_NOT_FOUND(HttpStatus.NOT_FOUND, "Contract not found"),
     MILESTONE_NOT_FOUND(HttpStatus.NOT_FOUND, "Milestone not found"),
     INVALID_MILESTONE_STATUS(HttpStatus.BAD_REQUEST, "Invalid milestone status transition"),
