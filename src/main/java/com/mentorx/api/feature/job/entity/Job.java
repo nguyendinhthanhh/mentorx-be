@@ -5,14 +5,7 @@ import com.mentorx.api.common.enums.BudgetType;
 import com.mentorx.api.common.enums.JobStatus;
 import com.mentorx.api.common.enums.JobType;
 import com.mentorx.api.feature.user.entity.User;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -21,6 +14,8 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "jobs")
@@ -95,4 +90,14 @@ public class Job extends BaseEntity {
 
     @Column(name = "status_reason", columnDefinition = "TEXT")
     private String statusReason;
+
+    @Column(name = "attachment_url", length = 500)
+    private String attachmentUrl;
+
+    @ElementCollection
+    @CollectionTable(name = "job_attachments_list", 
+                    joinColumns = @JoinColumn(name = "job_id"))
+    @Column(name = "attachment_url", length = 500)
+    @Builder.Default
+    private List<String> attachments = new ArrayList<>();
 }

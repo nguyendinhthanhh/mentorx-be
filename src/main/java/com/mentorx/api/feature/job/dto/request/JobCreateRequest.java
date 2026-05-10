@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record JobCreateRequest(
@@ -20,5 +21,7 @@ public record JobCreateRequest(
         BigDecimal budgetMaxMxc,
         BigDecimal hourlyRateMxc,
         BigDecimal estimatedHours,
-        LocalDateTime deadlineAt
+        LocalDateTime deadlineAt,
+        String attachmentUrl,
+        List<String> attachments
 ) {}

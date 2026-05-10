@@ -46,6 +46,8 @@ public class JobServiceImpl implements JobService {
                 .hourlyRateMxc(request.hourlyRateMxc())
                 .estimatedHours(request.estimatedHours())
                 .deadlineAt(request.deadlineAt())
+                .attachmentUrl(request.attachmentUrl())
+                .attachments(request.attachments())
                 .status(JobStatus.DRAFT)
                 .build();
         return toResponse(jobRepository.save(job));
@@ -71,6 +73,8 @@ public class JobServiceImpl implements JobService {
         if (request.estimatedHours() != null) job.setEstimatedHours(request.estimatedHours());
         if (request.deadlineAt() != null) job.setDeadlineAt(request.deadlineAt());
         if (request.isFeatured() != null) job.setIsFeatured(request.isFeatured());
+        if (request.attachmentUrl() != null) job.setAttachmentUrl(request.attachmentUrl());
+        if (request.attachments() != null) job.setAttachments(request.attachments());
         if (request.status() != null) {
             job.setStatus(request.status());
             if (request.status() == JobStatus.OPEN && job.getPublishedAt() == null) {
@@ -155,7 +159,9 @@ public class JobServiceImpl implements JobService {
                 job.getClosedAt(),
                 job.getCreatedAt(),
                 job.getUpdatedAt(),
-                job.getStatusReason()
+                job.getStatusReason(),
+                job.getAttachmentUrl(),
+                job.getAttachments()
         );
     }
 }
