@@ -22,17 +22,20 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
     @Query("SELECT j FROM Job j WHERE j.deletedAt IS NULL " +
            "AND (:status IS NULL OR j.status = :status) " +
            "AND (:jobType IS NULL OR j.jobType = :jobType) " +
-           "AND (:categoryId IS NULL OR j.categoryId = :categoryId)")
+           "AND (:categoryId IS NULL OR j.categoryId = :categoryId) " +
+           "ORDER BY j.publishedAt DESC, j.createdAt DESC")
     Page<Job> findAllWithFilters(@Param("status") JobStatus status,
                                  @Param("jobType") JobType jobType,
                                  @Param("categoryId") Integer categoryId,
                                  Pageable pageable);
 
-    @Query("SELECT j FROM Job j WHERE j.deletedAt IS NULL AND j.status = 'OPEN'")
+    @Query("SELECT j FROM Job j WHERE j.deletedAt IS NULL AND j.status = 'OPEN' " +
+           "ORDER BY j.publishedAt DESC, j.createdAt DESC")
     Page<Job> findOpen(Pageable pageable);
 
     @Query("SELECT j FROM Job j WHERE j.deletedAt IS NULL AND j.status = 'OPEN' " +
            "AND (:jobType IS NULL OR j.jobType = :jobType) " +
-           "AND (:categoryId IS NULL OR j.categoryId = :categoryId)")
+           "AND (:categoryId IS NULL OR j.categoryId = :categoryId) " +
+           "ORDER BY j.publishedAt DESC, j.createdAt DESC")
     Page<Job> findOpenWithFilters(@Param("jobType") JobType jobType, @Param("categoryId") Integer categoryId, Pageable pageable);
 }
