@@ -49,7 +49,8 @@ public class JobServiceImpl implements JobService {
                 .deadlineAt(request.deadlineAt())
                 .attachmentUrl(request.attachmentUrl())
                 .attachments(request.attachments())
-                .status(JobStatus.DRAFT)
+                .status(JobStatus.OPEN)
+                .publishedAt(LocalDateTime.now())
                 .build();
         return toResponse(jobRepository.save(job));
     }
