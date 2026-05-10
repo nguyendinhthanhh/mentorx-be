@@ -6,6 +6,7 @@ import com.mentorx.api.common.enums.JobType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record JobResponse(
@@ -30,5 +31,7 @@ public record JobResponse(
         LocalDateTime closedAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
-        String statusReason
+        String statusReason,
+        String attachmentUrl,
+        List<String> attachments
 ) {}

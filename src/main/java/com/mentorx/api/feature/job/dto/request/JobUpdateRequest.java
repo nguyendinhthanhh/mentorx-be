@@ -6,6 +6,7 @@ import com.mentorx.api.common.enums.JobType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record JobUpdateRequest(
         Integer categoryId,
@@ -19,5 +20,7 @@ public record JobUpdateRequest(
         BigDecimal estimatedHours,
         LocalDateTime deadlineAt,
         JobStatus status,
-        Boolean isFeatured
+        Boolean isFeatured,
+        String attachmentUrl,
+        List<String> attachments
 ) {}
