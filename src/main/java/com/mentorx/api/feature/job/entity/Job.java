@@ -94,7 +94,7 @@ public class Job extends BaseEntity {
     @Column(name = "attachment_url", length = 500)
     private String attachmentUrl;
 
-    @ElementCollection
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "job_attachments_list", 
                     joinColumns = @JoinColumn(name = "job_id"))
     @Column(name = "attachment_url", length = 500)

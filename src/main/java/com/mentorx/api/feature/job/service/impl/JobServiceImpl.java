@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.UUID;
 
 @Service
@@ -161,7 +162,7 @@ public class JobServiceImpl implements JobService {
                 job.getUpdatedAt(),
                 job.getStatusReason(),
                 job.getAttachmentUrl(),
-                job.getAttachments()
+                job.getAttachments() != null ? new ArrayList<>(job.getAttachments()) : new ArrayList<>()
         );
     }
 }
