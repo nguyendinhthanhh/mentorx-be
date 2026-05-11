@@ -107,6 +107,13 @@ public class ProposalServiceImpl implements ProposalService {
     public ProposalResponse submit(UUID proposalId) {
         Proposal proposal = findProposal(proposalId);
         proposal.submit();
+        
+        // Update job activity
+        Job job = proposal.getJob();
+        job.setProposalCount(job.getProposalCount() + 1);
+        job.setUpdatedAt(java.time.LocalDateTime.now());
+        jobRepository.save(job);
+        
         return toResponse(proposalRepository.save(proposal));
     }
 

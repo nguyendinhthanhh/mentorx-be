@@ -9,6 +9,8 @@ import com.mentorx.api.feature.job.entity.ProposalNegotiation;
 import com.mentorx.api.feature.job.enums.NegotiationStatus;
 import com.mentorx.api.feature.job.enums.ProposalStatus;
 import com.mentorx.api.feature.job.enums.SenderType;
+import com.mentorx.api.feature.job.entity.Job;
+import com.mentorx.api.feature.job.repository.JobRepository;
 import com.mentorx.api.feature.job.repository.ProposalNegotiationRepository;
 import com.mentorx.api.feature.job.repository.ProposalRepository;
 import com.mentorx.api.feature.job.service.ProposalNegotiationService;
@@ -32,6 +34,7 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
 
     private final ProposalNegotiationRepository negotiationRepository;
     private final ProposalRepository proposalRepository;
+    private final JobRepository jobRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
 
@@ -52,6 +55,11 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
         // Update proposal status to NEGOTIATING
         proposal.setStatus(ProposalStatus.NEGOTIATING);
         proposalRepository.save(proposal);
+
+        // Update job activity
+        Job job = proposal.getJob();
+        job.setUpdatedAt(java.time.LocalDateTime.now());
+        jobRepository.save(job);
         
         // Create negotiation
         ProposalNegotiation negotiation = createNegotiation(proposal, client, SenderType.CLIENT, request);
@@ -80,6 +88,11 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
         // Update proposal status to NEGOTIATING
         proposal.setStatus(ProposalStatus.NEGOTIATING);
         proposalRepository.save(proposal);
+
+        // Update job activity
+        Job job = proposal.getJob();
+        job.setUpdatedAt(java.time.LocalDateTime.now());
+        jobRepository.save(job);
         
         // Create negotiation
         ProposalNegotiation negotiation = createNegotiation(proposal, mentor, SenderType.MENTOR, request);
@@ -133,6 +146,11 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
         // Update proposal status back to SUBMITTED (ready for final acceptance)
         proposal.setStatus(ProposalStatus.SUBMITTED);
         proposalRepository.save(proposal);
+
+        // Update job activity
+        Job job = proposal.getJob();
+        job.setUpdatedAt(java.time.LocalDateTime.now());
+        jobRepository.save(job);
         
         return toResponse(negotiationRepository.save(negotiation));
     }
