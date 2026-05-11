@@ -46,6 +46,7 @@ public class DatabaseInitializationRunner {
                 ensureOnboardingColumnsIfNeeded();
                 ensureUserSavesTableIfNeeded();
                 ensureMentorVerificationColumnsIfNeeded();
+                ensureDepositGatewayConstraintUpdated();
                 return;
             }
 
@@ -54,6 +55,7 @@ public class DatabaseInitializationRunner {
                 ensureOnboardingColumnsIfNeeded();
                 ensureUserSavesTableIfNeeded();
                 ensureMentorVerificationColumnsIfNeeded();
+                ensureDepositGatewayConstraintUpdated();
                 return;
             }
 
@@ -85,7 +87,24 @@ public class DatabaseInitializationRunner {
             ensureOnboardingColumnsIfNeeded();
             ensureUserSavesTableIfNeeded();
             ensureMentorVerificationColumnsIfNeeded();
+            ensureDepositGatewayConstraintUpdated();
         };
+    }
+
+    private void ensureDepositGatewayConstraintUpdated() {
+        if (!isSchemaAlreadyCreated()) {
+            return;
+        }
+        log.info("Ensuring deposit_orders gateway constraint includes MOMO...");
+        try {
+            // Drop old constraint if exists
+            jdbcTemplate.execute("ALTER TABLE deposit_orders DROP CONSTRAINT IF EXISTS deposit_orders_gateway_check");
+            // Re-add constraint with MOMO included
+            // We use standard names as defined by Hibernate/JPA auto-creation
+            jdbcTemplate.execute("ALTER TABLE deposit_orders ADD CONSTRAINT deposit_orders_gateway_check CHECK (gateway IN ('VNPAY', 'MOMO', 'STRIPE', 'MANUAL'))");
+        } catch (Exception e) {
+            log.warn("Could not update deposit_orders_gateway_check constraint: {}. This might be expected if the table or constraint doesn't exist yet.", e.getMessage());
+        }
     }
 
     private boolean isSchemaAlreadyCreated() {
@@ -165,6 +184,8 @@ public class DatabaseInitializationRunner {
         jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS tax_id VARCHAR(80)");
         jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS mentor_agreement_accepted BOOLEAN NOT NULL DEFAULT FALSE");
         jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS dispute_policy_accepted BOOLEAN NOT NULL DEFAULT FALSE");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS identity_document_back_url TEXT");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS verification_metadata JSONB");
         jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ");
         jdbcTemplate.execute("""
                 CREATE TABLE IF NOT EXISTS mentor_profile_assets (

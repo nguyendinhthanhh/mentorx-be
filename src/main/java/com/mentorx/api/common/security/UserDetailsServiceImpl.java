@@ -23,29 +23,13 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        User user = userRepository.findByEmail(email)
+        User user = userRepository.findByEmailAndDeletedAtIsNull(email)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        boolean isEnabled = user.getStatus() == com.mentorx.api.common.enums.UserStatus.ACTIVE || 
-                           user.getStatus() == com.mentorx.api.common.enums.UserStatus.PENDING;
+        // Load user roles
+        user.setUserRoles(userRoleRepository.findByUserIdWithRole(user.getId()));
 
-        List<SimpleGrantedAuthority> authorities = userRoleRepository.findByUserIdWithRole(user.getId())
-                .stream()
-                .map(userRole -> new SimpleGrantedAuthority("ROLE_" + userRole.getRole().getRoleName()))
-                .toList();
-
-        if (authorities.isEmpty()) {
-            authorities = List.of(new SimpleGrantedAuthority("ROLE_USER"));
-        }
-
-        return org.springframework.security.core.userdetails.User.builder()
-                .username(user.getEmail())
-                .password(user.getPasswordHash())
-                .authorities(authorities)
-                .accountExpired(false)
-                .accountLocked(false)
-                .credentialsExpired(false)
-                .disabled(!isEnabled)
-                .build();
+        // Return CustomUserDetails which includes userId
+        return new CustomUserDetails(user);
     }
 }
