@@ -61,8 +61,8 @@ public class ProposalServiceImpl implements ProposalService {
     @Transactional
     public ProposalResponse update(UUID proposalId, ProposalCreateRequest request) {
         Proposal proposal = findProposal(proposalId);
-        if (proposal.getStatus() != ProposalStatus.DRAFT) {
-            throw new AppException(ErrorCode.BAD_REQUEST); // Only draft can be updated directly
+        if (proposal.getStatus() != ProposalStatus.DRAFT && proposal.getStatus() != ProposalStatus.WITHDRAWN) {
+            throw new AppException(ErrorCode.BAD_REQUEST); // Only draft or withdrawn can be updated directly
         }
         updateProposalFields(proposal, request);
         return toResponse(proposalRepository.save(proposal));
