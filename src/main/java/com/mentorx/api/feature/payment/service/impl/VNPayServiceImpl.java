@@ -114,31 +114,32 @@ public class VNPayServiceImpl implements VNPayService {
             StringBuilder hashData = new StringBuilder();
             StringBuilder query = new StringBuilder();
             
-            Iterator<String> itr = fieldNames.iterator();
-            while (itr.hasNext()) {
-                String fieldName = itr.next();
+            for (String fieldName : fieldNames) {
                 String fieldValue = vnpParams.get(fieldName);
                 if ((fieldValue != null) && (fieldValue.length() > 0)) {
-                    // Build hash data (NO URL ENCODING for hash data)
+                    // Build hash data and query using the same encoded values
+                    String encodedValue = URLEncoder.encode(fieldValue, StandardCharsets.UTF_8.toString()).replace("+", "%20");
+                    
+                    if (hashData.length() > 0) {
+                        hashData.append('&');
+                        query.append('&');
+                    }
+                    
                     hashData.append(fieldName);
                     hashData.append('=');
-                    hashData.append(fieldValue);
+                    hashData.append(encodedValue);
                     
-                    // Build query (WITH URL ENCODING for query string)
                     query.append(URLEncoder.encode(fieldName, StandardCharsets.UTF_8.toString()));
                     query.append('=');
-                    query.append(URLEncoder.encode(fieldValue, StandardCharsets.UTF_8.toString()));
-                    
-                    if (itr.hasNext()) {
-                        query.append('&');
-                        hashData.append('&');
-                    }
+                    query.append(encodedValue);
                 }
             }
             
             String queryUrl = query.toString();
             String vnpSecureHash = VNPayUtil.hmacSHA512(vnPayConfig.getHashSecret(), hashData.toString());
-            queryUrl += "&vnp_SecureHash=" + vnpSecureHash;
+            log.debug("VNPay Hash Data: {}", hashData);
+            log.debug("VNPay Secure Hash: {}", vnpSecureHash);
+            queryUrl += "&vnp_SecureHashType=HMACSHA512&vnp_SecureHash=" + vnpSecureHash;
             String paymentUrl = vnPayConfig.getVnpUrl() + "?" + queryUrl;
 
             log.info("Created VNPay payment URL for order: {}", orderId);

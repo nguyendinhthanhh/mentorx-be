@@ -164,6 +164,13 @@ public class MentorProfile extends BaseEntity {
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
 
+    @Column(name = "identity_document_back_url")
+    private String identityDocumentBackUrl;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "verification_metadata", columnDefinition = "jsonb")
+    private String verificationMetadata;
+
     @Column(name = "rejection_reason")
     private String rejectionReason;
 }

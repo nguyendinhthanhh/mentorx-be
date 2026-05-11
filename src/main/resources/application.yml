@@ -142,6 +142,23 @@ app:
     job-relevance-batch-size: 100
     behavior-decay-half-life-days: 30
 
+  fpt-ai:
+    api-key: ${FPT_AI_API_KEY:cfZhosADkpTSwn2veN6XaoZQKAQpPmnx}
+    ocr-url: https://api.fpt.ai/vision/idr/vport
+    face-match-url: https://api.fpt.ai/vision/face/match
+
+fpt:
+  ai:
+    api-key: ${FPT_AI_API_KEY:cfZhosADkpTSwn2veN6XaoZQKAQpPmnx}
+    ocr-url: https://api.fpt.ai/vision/idr/vnm
+    liveness-url: https://api.fpt.ai/dmp/liveness
+    face-match-url: https://api.fpt.ai/dmp/checkface/v1/verify
+
+file:
+  upload:
+    kyc-dir: uploads/kyc
+
+
 vnpay:
   tmn-code: ${VNPAY_TMN_CODE:LIT9JOW0}
   hash-secret: ${VNPAY_HASH_SECRET:7FMGS92TYFEIWVX085T1AIJ4RLO98AFY}
@@ -150,6 +167,15 @@ vnpay:
   version: 2.1.0
   command: pay
   order-type: other
+
+momo:
+  partner-code: ${MOMO_PARTNER_CODE:MOMO}
+  access-key: ${MOMO_ACCESS_KEY:F8BBA842ECF85}
+  secret-key: ${MOMO_SECRET_KEY:K951B6PE1waDMi640xX08PD3vg6EkVlz}
+  url: ${MOMO_URL:https://test-payment.momo.vn/v2/gateway/api/create}
+  return-url: ${MOMO_RETURN_URL:http://localhost:3000/payment/momo-return}
+  notify-url: ${MOMO_NOTIFY_URL:http://localhost:8080/api/v1/payment/momo/callback}
+
 
 management:
   health:
@@ -165,7 +191,7 @@ management:
 
 logging:
   level:
-    com.mentorx.api: INFO
+    com.mentorx.api: DEBUG
     org.springframework.security: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE

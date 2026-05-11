@@ -26,7 +26,7 @@ public class VNPayUtil {
             byte[] result = hmac512.doFinal(data.getBytes(StandardCharsets.UTF_8));
             StringBuilder sb = new StringBuilder(2 * result.length);
             for (byte b : result) {
-                sb.append(String.format("%02x", b & 0xff));
+                sb.append(String.format("%02X", b & 0xff));
             }
             return sb.toString();
         } catch (Exception ex) {
@@ -39,17 +39,15 @@ public class VNPayUtil {
         List<String> fieldNames = new ArrayList<>(fields.keySet());
         Collections.sort(fieldNames);
         StringBuilder sb = new StringBuilder();
-        Iterator<String> itr = fieldNames.iterator();
-        while (itr.hasNext()) {
-            String fieldName = itr.next();
+        for (String fieldName : fieldNames) {
             String fieldValue = fields.get(fieldName);
             if ((fieldValue != null) && (fieldValue.length() > 0)) {
+                if (sb.length() > 0) {
+                    sb.append("&");
+                }
                 sb.append(fieldName);
                 sb.append("=");
                 sb.append(fieldValue);
-            }
-            if (itr.hasNext()) {
-                sb.append("&");
             }
         }
         return sb.toString();

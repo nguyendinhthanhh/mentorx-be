@@ -41,6 +41,11 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
 
     @Override
     public String storeFile(MultipartFile file) {
+        return store(file, null);
+    }
+
+    @Override
+    public String store(MultipartFile file, String subDirectory) {
         // Normalize file name
         String originalFileName = StringUtils.cleanPath(Objects.requireNonNull(file.getOriginalFilename()));
         
@@ -58,11 +63,22 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
             }
             String fileName = UUID.randomUUID().toString() + extension;
 
-            // Copy file to the target location (Replacing existing file with the same name)
-            Path targetLocation = this.fileStorageLocation.resolve(fileName);
+            // Handle subdirectory
+            Path targetDir = this.fileStorageLocation;
+            if (subDirectory != null && !subDirectory.isEmpty()) {
+                targetDir = targetDir.resolve(subDirectory);
+                Files.createDirectories(targetDir);
+            }
+
+            // Copy file to the target location
+            Path targetLocation = targetDir.resolve(fileName);
             Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
 
-            return fileName;
+            // Return relative path including subdirectory
+            return (subDirectory != null && !subDirectory.isEmpty()) 
+                ? subDirectory + "/" + fileName 
+                : fileName;
+                
         } catch (IOException ex) {
             throw new AppException(ErrorCode.FILE_UPLOAD_FAILED, "Could not store file " + originalFileName + ". Please try again!");
         }
@@ -77,4 +93,5 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
             log.error("Could not delete file: {}", fileName, ex);
         }
     }
+
 }
