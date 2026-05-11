@@ -142,6 +142,15 @@ app:
     job-relevance-batch-size: 100
     behavior-decay-half-life-days: 30
 
+vnpay:
+  tmn-code: ${VNPAY_TMN_CODE:LIT9JOW0}
+  hash-secret: ${VNPAY_HASH_SECRET:7FMGS92TYFEIWVX085T1AIJ4RLO98AFY}
+  url: ${VNPAY_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+  return-url: ${VNPAY_RETURN_URL:http://localhost:3000/payment/vnpay-return}
+  version: 2.1.0
+  command: pay
+  order-type: other
+
 management:
   health:
     redis:
