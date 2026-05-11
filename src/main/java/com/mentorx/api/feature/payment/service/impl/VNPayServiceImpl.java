@@ -119,14 +119,16 @@ public class VNPayServiceImpl implements VNPayService {
                 String fieldName = itr.next();
                 String fieldValue = vnpParams.get(fieldName);
                 if ((fieldValue != null) && (fieldValue.length() > 0)) {
-                    // Build hash data
+                    // Build hash data (NO URL ENCODING for hash data)
                     hashData.append(fieldName);
                     hashData.append('=');
-                    hashData.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII.toString()));
-                    // Build query
-                    query.append(URLEncoder.encode(fieldName, StandardCharsets.US_ASCII.toString()));
+                    hashData.append(fieldValue);
+                    
+                    // Build query (WITH URL ENCODING for query string)
+                    query.append(URLEncoder.encode(fieldName, StandardCharsets.UTF_8.toString()));
                     query.append('=');
-                    query.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII.toString()));
+                    query.append(URLEncoder.encode(fieldValue, StandardCharsets.UTF_8.toString()));
+                    
                     if (itr.hasNext()) {
                         query.append('&');
                         hashData.append('&');
