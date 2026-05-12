@@ -46,6 +46,7 @@ public class DatabaseInitializationRunner {
                 ensureOnboardingColumnsIfNeeded();
                 ensureUserSavesTableIfNeeded();
                 ensureMentorVerificationColumnsIfNeeded();
+                ensureMentorStatusEnumValuesIfNeeded();
                 ensureDepositGatewayConstraintUpdated();
                 return;
             }
@@ -55,6 +56,7 @@ public class DatabaseInitializationRunner {
                 ensureOnboardingColumnsIfNeeded();
                 ensureUserSavesTableIfNeeded();
                 ensureMentorVerificationColumnsIfNeeded();
+                ensureMentorStatusEnumValuesIfNeeded();
                 ensureDepositGatewayConstraintUpdated();
                 return;
             }
@@ -87,6 +89,7 @@ public class DatabaseInitializationRunner {
             ensureOnboardingColumnsIfNeeded();
             ensureUserSavesTableIfNeeded();
             ensureMentorVerificationColumnsIfNeeded();
+            ensureMentorStatusEnumValuesIfNeeded();
             ensureDepositGatewayConstraintUpdated();
         };
     }
@@ -222,5 +225,52 @@ public class DatabaseInitializationRunner {
                 CREATE TRIGGER trg_mentor_profile_assets_updated_at
                     BEFORE UPDATE ON mentor_profile_assets FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at()
                 """);
+    }
+
+    /**
+     * Existing databases may still use the short mentor_status enum. JPA uses {@code MentorStatus}
+     * string values such as KYC_SUBMITTED; extend the PostgreSQL enum when missing.
+     */
+    private void ensureMentorStatusEnumValuesIfNeeded() {
+        if (!isSchemaAlreadyCreated()) {
+            return;
+        }
+        log.info("Ensuring mentor_status enum includes KYC workflow values...");
+        try {
+            Integer typeCount = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM pg_type WHERE typname = 'mentor_status'",
+                    Integer.class);
+            if (typeCount == null || typeCount == 0) {
+                log.debug("No PostgreSQL type mentor_status found; skipping enum extension.");
+                return;
+            }
+        } catch (Exception e) {
+            log.warn("Could not inspect mentor_status type: {}", e.getMessage());
+            return;
+        }
+        String[] labels = {"PENDING_KYC", "KYC_SUBMITTED", "KYC_VERIFIED", "KYC_REJECTED", "ACTIVE"};
+        for (String label : labels) {
+            addMentorStatusEnumValueIfMissing(label);
+        }
+    }
+
+    private void addMentorStatusEnumValueIfMissing(String label) {
+        try {
+            Boolean exists = jdbcTemplate.queryForObject("""
+                            SELECT EXISTS (
+                                SELECT 1 FROM pg_enum e
+                                JOIN pg_type t ON e.enumtypid = t.oid
+                                WHERE t.typname = 'mentor_status' AND e.enumlabel = ?
+                            )
+                            """,
+                    Boolean.class, label);
+            if (Boolean.TRUE.equals(exists)) {
+                return;
+            }
+            jdbcTemplate.execute("ALTER TYPE mentor_status ADD VALUE '" + label + "'");
+            log.info("Added mentor_status enum value: {}", label);
+        } catch (Exception e) {
+            log.warn("Could not add mentor_status enum value {}: {}", label, e.getMessage());
+        }
     }
 }

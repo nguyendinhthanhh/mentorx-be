@@ -16,7 +16,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -46,8 +45,10 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
 
     @Override
     public String store(MultipartFile file, String subDirectory) {
-        // Normalize file name
-        String originalFileName = StringUtils.cleanPath(Objects.requireNonNull(file.getOriginalFilename()));
+        // Normalize file name (browser blobs / camera may omit originalFilename)
+        String rawName = file.getOriginalFilename();
+        String safeName = (rawName == null || rawName.isBlank()) ? "upload" : rawName;
+        String originalFileName = StringUtils.cleanPath(safeName);
         
         try {
             // Check if the file's name contains invalid characters

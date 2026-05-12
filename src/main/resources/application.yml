@@ -133,6 +133,11 @@ app:
     max-file-size: 10MB
     max-request-size: 10MB
 
+  kyc:
+    face-match-min-correlation: ${KYC_FACE_MATCH_MIN_CORR:0.45}
+    liveness-min-mean-diff: ${KYC_LIVENESS_MIN_DIFF:3.0}
+    liveness-min-frames: ${KYC_LIVENESS_MIN_FRAMES:2}
+
   wallet:
     secret-key: ${WALLET_SECRET_KEY:wallet-secret-key-for-hash-generation}
     cooling-off-period-hours: 72
@@ -141,13 +146,6 @@ app:
     mentor-score-expiry-hours: 168 # 7 days
     job-relevance-batch-size: 100
     behavior-decay-half-life-days: 30
-
-fpt:
-  ai:
-    api-key: ${FPT_AI_API_KEY:cfZhosADkpTSwn2veN6XaoZQKAQpPmnx}
-    ocr-url: https://api.fpt.ai/vision/idr/vnm
-    liveness-url: https://api.fpt.ai/vision/ekyc/liveness
-    face-match-url: https://api.fpt.ai/vision/ekyc/facematch/v4
 
 file:
   upload:
