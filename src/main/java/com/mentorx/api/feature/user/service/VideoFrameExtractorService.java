@@ -18,6 +18,13 @@ public class VideoFrameExtractorService {
 
     public MultipartFile extractMiddleFrame(MultipartFile livenessVideo) {
         log.info("Extracting middle frame from video: {}", livenessVideo.getOriginalFilename());
+        
+        // Check if FFmpeg is available
+        if (!isFfmpegAvailable()) {
+            log.warn("FFmpeg not found. Using video file directly as fallback.");
+            return createFallbackFrame(livenessVideo);
+        }
+        
         Path tempVideoPath = null;
         Path tempFramePath = null;
 
@@ -70,6 +77,44 @@ public class VideoFrameExtractorService {
             } catch (IOException e) {
                 log.warn("Failed to delete temp files: {}", e.getMessage());
             }
+        }
+    }
+    
+    /**
+     * Check if FFmpeg is available in system PATH
+     */
+    private boolean isFfmpegAvailable() {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("ffmpeg", "-version");
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            int exitCode = process.waitFor();
+            return exitCode == 0;
+        } catch (IOException | InterruptedException e) {
+            log.debug("FFmpeg not available: {}", e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Fallback: Use the video file directly when FFmpeg is not available
+     * FPT AI liveness API can accept video files directly
+     */
+    private MultipartFile createFallbackFrame(MultipartFile livenessVideo) {
+        try {
+            log.info("Creating fallback frame from video file");
+            byte[] videoBytes = livenessVideo.getBytes();
+            
+            // Return the video file with a different name to indicate it's for portrait
+            return new ByteArrayMultipartFile(
+                    "portrait",
+                    "portrait_video.mp4",
+                    livenessVideo.getContentType(),
+                    videoBytes
+            );
+        } catch (IOException e) {
+            log.error("Failed to create fallback frame", e);
+            throw new FrameExtractionException("Failed to create fallback frame: " + e.getMessage(), e);
         }
     }
 }
