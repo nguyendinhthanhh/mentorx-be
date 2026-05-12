@@ -74,7 +74,7 @@ public class KycServiceImpl implements KycService {
 
         // 2. OCR Front ID Card
         FptOcrResponse ocrResponse = fptAiClient.performOcr(request.getCccdFront());
-        if (ocrResponse.errorCode() == 0 && !ocrResponse.data().isEmpty()) {
+        if (!ocrResponse.data().isEmpty()) {
             FptOcrResponse.FptOcrData ocrData = ocrResponse.data().get(0);
             profile.setLegalName(ocrData.name());
             try {
@@ -85,12 +85,9 @@ public class KycServiceImpl implements KycService {
             profile.setIdentityDocumentType("CCCD");
         }
 
-        // 3. Extract and check liveness
-        MultipartFile frame = frameExtractorService.extractMiddleFrame(request.getLivenessVideo());
-        String portraitUrl = fileStorageService.store(frame, KYC_DIR);
-        profile.setPortraitUrl(portraitUrl);
-
-        FptLivenessResponse livenessResponse = fptAiClient.checkLiveness(frame);
+        // 3. Check liveness with VIDEO (not extracted frame)
+        // FPT AI liveness v3 requires video input, not image
+        FptLivenessResponse livenessResponse = fptAiClient.checkLiveness(request.getLivenessVideo());
         if (!livenessResponse.isLive()) {
             user.setMentorStatus(MentorStatus.KYC_REJECTED);
             profile.setRejectionReason("Liveness check failed: " + livenessResponse.message());
@@ -98,8 +95,13 @@ public class KycServiceImpl implements KycService {
             userRepository.save(user);
             throw new KycRejectedException("Liveness check failed: " + livenessResponse.message());
         }
+        
+        // 4. Extract frame for portrait and face matching
+        MultipartFile frame = frameExtractorService.extractMiddleFrame(request.getLivenessVideo());
+        String portraitUrl = fileStorageService.store(frame, KYC_DIR);
+        profile.setPortraitUrl(portraitUrl);
 
-        // 4. Face Match
+        // 5. Face Match
         FptFaceMatchResponse faceMatchResponse = fptAiClient.matchFace(request.getCccdFront(), frame);
 
         // 5. Build Metadata
