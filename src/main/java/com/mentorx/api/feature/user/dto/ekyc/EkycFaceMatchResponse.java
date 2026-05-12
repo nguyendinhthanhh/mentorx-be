@@ -1,6 +1,6 @@
-package com.mentorx.api.feature.user.dto.fptai;
+package com.mentorx.api.feature.user.dto.ekyc;
 
-public record FptFaceMatchResponse(
+public record EkycFaceMatchResponse(
     int code,
     boolean isMatch,
     double similarity,

@@ -5,12 +5,14 @@ import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.common.response.ApiResponse;
 import com.mentorx.api.feature.system.service.FileStorageService;
+import com.mentorx.api.feature.user.dto.ekyc.EkycFaceMatchResponse;
+import com.mentorx.api.feature.user.dto.ekyc.EkycOcrResponse;
 import com.mentorx.api.feature.user.entity.MentorProfile;
 import com.mentorx.api.feature.user.entity.User;
 import com.mentorx.api.feature.user.repository.MentorProfileRepository;
 import com.mentorx.api.feature.user.repository.UserRepository;
+import com.mentorx.api.feature.user.service.EkycClient;
 import com.mentorx.api.feature.user.service.EkycService;
-import com.mentorx.api.feature.user.service.FptAiService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,7 +23,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Service
@@ -29,7 +30,7 @@ import java.util.Map;
 @Slf4j
 public class EkycServiceImpl implements EkycService {
 
-    private final FptAiService fptAiService;
+    private final EkycClient ekycClient;
     private final FileStorageService fileStorageService;
     private final MentorProfileRepository mentorProfileRepository;
     private final UserRepository userRepository;
@@ -46,56 +47,48 @@ public class EkycServiceImpl implements EkycService {
             MentorProfile profile = mentorProfileRepository.findByUserId(user.getId())
                     .orElseGet(() -> MentorProfile.builder().user(user).build());
 
-            // 1. Store files
             String frontUrl = fileStorageService.storeFile(frontImage);
             String backUrl = fileStorageService.storeFile(backImage);
             String selfieUrl = fileStorageService.storeFile(selfieImage);
 
-            // 2. OCR Front ID Card
-            Map<String, Object> ocrResult = fptAiService.ocrIdCard(frontImage.getBytes());
-            if (ocrResult == null || ocrResult.containsKey("errorCode")) {
-                return ApiResponse.error("OCR failed: " + ocrResult.getOrDefault("errorMessage", "Unknown error"));
+            EkycOcrResponse ocrResponse = ekycClient.performOcr(frontImage);
+            if (ocrResponse.errorCode() != 0 || ocrResponse.data() == null || ocrResponse.data().isEmpty()) {
+                String msg = ocrResponse.errorMessage() != null ? ocrResponse.errorMessage() : "No OCR data";
+                return ApiResponse.error("OCR failed: " + msg);
             }
 
-            // Extract data from FPT AI response (assuming data is in 'data' field)
-            List<Map<String, Object>> dataList = (List<Map<String, Object>>) ocrResult.get("data");
-            if (dataList == null || dataList.isEmpty()) {
-                return ApiResponse.error("No data found on ID card");
-            }
-            Map<String, Object> idData = dataList.get(0);
+            EkycOcrResponse.EkycOcrData idData = ocrResponse.data().get(0);
 
-            // 3. Face Match
-            Map<String, Object> faceMatchResult = fptAiService.faceMatch(frontImage.getBytes(), selfieImage.getBytes());
-            if (faceMatchResult == null || faceMatchResult.containsKey("errorCode")) {
-                return ApiResponse.error("Face match failed: " + faceMatchResult.getOrDefault("errorMessage", "Unknown error"));
+            EkycFaceMatchResponse faceMatchResponse = ekycClient.matchFaces(frontImage, selfieImage);
+            if (faceMatchResponse.code() != 0) {
+                String msg = faceMatchResponse.message() != null ? faceMatchResponse.message() : "Face match error";
+                return ApiResponse.error("Face match failed: " + msg);
             }
-
-            Map<String, Object> faceMatchData = (Map<String, Object>) faceMatchResult.get("data");
-            double similarity = 0;
-            if (faceMatchData != null && faceMatchData.get("similarity") != null) {
-                similarity = Double.parseDouble(faceMatchData.get("similarity").toString());
+            if (!faceMatchResponse.isMatch()) {
+                return ApiResponse.error(faceMatchResponse.message() != null ? faceMatchResponse.message()
+                        : "Ảnh selfie không khớp với ảnh trên CCCD.");
             }
 
-            // 4. Update Profile
+            double similarity = faceMatchResponse.similarity();
+
             profile.setIdentityDocumentType("CCCD");
             profile.setIdentityDocumentUrl(frontUrl);
             profile.setIdentityDocumentBackUrl(backUrl);
             profile.setPortraitUrl(selfieUrl);
-            
-            // Extract legal name and DOB
-            String name = (String) idData.get("name");
-            String dobStr = (String) idData.get("dob");
-            if (name != null) profile.setLegalName(name);
+
+            String name = idData.name();
+            String dobStr = idData.dob();
+            if (name != null) {
+                profile.setLegalName(name);
+            }
             if (dobStr != null) {
                 try {
-                    // FPT AI format is usually DD/MM/YYYY
                     profile.setDateOfBirth(LocalDate.parse(dobStr, DateTimeFormatter.ofPattern("dd/MM/yyyy")));
                 } catch (Exception e) {
                     log.warn("Could not parse DOB: {}", dobStr);
                 }
             }
 
-            // Save metadata
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("ocr", idData);
             metadata.put("faceMatchScore", similarity);
@@ -108,7 +101,7 @@ public class EkycServiceImpl implements EkycService {
             result.put("similarity", similarity);
             result.put("name", name);
             result.put("dob", dobStr);
-            result.put("status", similarity > 80 ? "SUCCESS" : "MANUAL_REVIEW");
+            result.put("status", "SUCCESS");
 
             return ApiResponse.success("Identity verification processed", result);
 

@@ -3,28 +3,32 @@ package com.mentorx.api.feature.user.service.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mentorx.api.common.enums.MentorStatus;
+import com.mentorx.api.common.exception.AppException;
+import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.common.exception.KycRejectedException;
 import com.mentorx.api.common.exception.ResourceNotFoundException;
 import com.mentorx.api.feature.system.service.FileStorageService;
 import com.mentorx.api.feature.user.dto.KycStatusResponse;
 import com.mentorx.api.feature.user.dto.KycSubmitRequest;
-import com.mentorx.api.feature.user.dto.fptai.FptFaceMatchResponse;
-import com.mentorx.api.feature.user.dto.fptai.FptLivenessResponse;
-import com.mentorx.api.feature.user.dto.fptai.FptOcrResponse;
+import com.mentorx.api.feature.user.dto.ekyc.EkycFaceMatchResponse;
+import com.mentorx.api.feature.user.dto.ekyc.EkycLivenessResponse;
+import com.mentorx.api.feature.user.dto.ekyc.EkycOcrResponse;
 import com.mentorx.api.feature.user.entity.MentorProfile;
 import com.mentorx.api.feature.user.entity.User;
 import com.mentorx.api.feature.user.model.VerificationMetadataJson;
 import com.mentorx.api.feature.user.repository.MentorProfileRepository;
 import com.mentorx.api.feature.user.repository.UserRepository;
-import com.mentorx.api.feature.user.service.FptAiClient;
+import com.mentorx.api.feature.user.service.EkycClient;
 import com.mentorx.api.feature.user.service.KycService;
 import com.mentorx.api.feature.user.service.VideoFrameExtractorService;
+import com.mentorx.api.feature.user.util.ByteArrayMultipartFile;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -35,7 +39,7 @@ import java.util.UUID;
 @Slf4j
 public class KycServiceImpl implements KycService {
 
-    private final FptAiClient fptAiClient;
+    private final EkycClient ekycClient;
     private final VideoFrameExtractorService frameExtractorService;
     private final FileStorageService fileStorageService;
     private final MentorProfileRepository mentorProfileRepository;
@@ -65,17 +69,28 @@ public class KycServiceImpl implements KycService {
                     return mentorProfileRepository.save(newProfile);
                 });
 
+        final MultipartFile cccdFront;
+        final MultipartFile cccdBack;
+        final MultipartFile livenessVideo;
+        try {
+            cccdFront = toBufferedMultipart(request.getCccdFront(), "cccdFront");
+            cccdBack = toBufferedMultipart(request.getCccdBack(), "cccdBack");
+            livenessVideo = toBufferedMultipart(request.getLivenessVideo(), "livenessVideo");
+        } catch (IOException e) {
+            log.error("Failed to read KYC multipart uploads", e);
+            throw new AppException(ErrorCode.BAD_REQUEST, "Không đọc được tệp tải lên. Vui lòng thử lại.");
+        }
 
         // 1. Store images
-        String frontUrl = fileStorageService.store(request.getCccdFront(), KYC_DIR);
-        String backUrl = fileStorageService.store(request.getCccdBack(), KYC_DIR);
+        String frontUrl = fileStorageService.store(cccdFront, KYC_DIR);
+        String backUrl = fileStorageService.store(cccdBack, KYC_DIR);
         profile.setIdentityDocumentUrl(frontUrl);
         profile.setIdentityDocumentBackUrl(backUrl);
 
-        // 2. OCR Front ID Card
-        FptOcrResponse ocrResponse = fptAiClient.performOcr(request.getCccdFront());
+        // 2. OCR front CCCD → mentor profile + optional display name on user
+        EkycOcrResponse ocrResponse = ekycClient.performOcr(cccdFront);
         if (!ocrResponse.data().isEmpty()) {
-            FptOcrResponse.FptOcrData ocrData = ocrResponse.data().get(0);
+            EkycOcrResponse.EkycOcrData ocrData = ocrResponse.data().get(0);
             profile.setLegalName(ocrData.name());
             try {
                 profile.setDateOfBirth(LocalDate.parse(ocrData.dob(), DOB_FORMATTER));
@@ -83,11 +98,29 @@ public class KycServiceImpl implements KycService {
                 log.warn("Could not parse DOB: {}", ocrData.dob());
             }
             profile.setIdentityDocumentType("CCCD");
+            String legal = ocrData.name() != null ? ocrData.name().trim() : "";
+            if (!legal.isEmpty() && !legal.equalsIgnoreCase("unknown")
+                    && (user.getDisplayName() == null || user.getDisplayName().isBlank())) {
+                user.setDisplayName(legal);
+            }
         }
 
-        // 3. Check liveness with VIDEO (not extracted frame)
-        // FPT AI liveness v3 requires video input, not image
-        FptLivenessResponse livenessResponse = fptAiClient.checkLiveness(request.getLivenessVideo());
+        // 3. Portrait frame from liveness video, then face match (CCCD vs frame)
+        MultipartFile frame = frameExtractorService.extractMiddleFrame(livenessVideo);
+        String portraitUrl = fileStorageService.store(frame, KYC_DIR);
+        profile.setPortraitUrl(portraitUrl);
+
+        EkycFaceMatchResponse faceMatchResponse = ekycClient.matchFaces(cccdFront, frame);
+        if (!faceMatchResponse.isMatch()) {
+            user.setMentorStatus(MentorStatus.KYC_REJECTED);
+            profile.setRejectionReason(faceMatchResponse.message());
+            mentorProfileRepository.save(profile);
+            userRepository.save(user);
+            throw new KycRejectedException(faceMatchResponse.message());
+        }
+
+        // 4. Liveness (motion in video) — after portrait + match; uses same buffered bytes
+        EkycLivenessResponse livenessResponse = ekycClient.checkLiveness(livenessVideo);
         if (!livenessResponse.isLive()) {
             user.setMentorStatus(MentorStatus.KYC_REJECTED);
             profile.setRejectionReason("Liveness check failed: " + livenessResponse.message());
@@ -95,22 +128,14 @@ public class KycServiceImpl implements KycService {
             userRepository.save(user);
             throw new KycRejectedException("Liveness check failed: " + livenessResponse.message());
         }
-        
-        // 4. Extract frame for portrait and face matching
-        MultipartFile frame = frameExtractorService.extractMiddleFrame(request.getLivenessVideo());
-        String portraitUrl = fileStorageService.store(frame, KYC_DIR);
-        profile.setPortraitUrl(portraitUrl);
 
-        // 5. Face Match
-        FptFaceMatchResponse faceMatchResponse = fptAiClient.matchFace(request.getCccdFront(), frame);
-
-        // 5. Build Metadata
+        // 5. Metadata (similarity 0–100 from local matcher → stored as 0–1.0)
         VerificationMetadataJson metadata = new VerificationMetadataJson(
                 toJson(ocrResponse),
-                null, // No OCR on back image requested by logic flow but could be added
+                null,
                 livenessResponse.livenessScore(),
                 livenessResponse.isLive() ? "LIVE" : "FAKE",
-                faceMatchResponse.similarity() / 100.0, // FPT AI similarity is 0-100, record expects 0-1.0
+                faceMatchResponse.similarity() / 100.0,
                 faceMatchResponse.isMatch() ? "MATCHED" : "NOT_MATCHED",
                 LocalDateTime.now()
         );
@@ -209,5 +234,20 @@ public class KycServiceImpl implements KycService {
             log.error("Error serializing object to JSON", e);
             return null;
         }
+    }
+
+    private static MultipartFile toBufferedMultipart(MultipartFile file, String fieldName) throws IOException {
+        byte[] bytes = file.getBytes();
+        String orig = file.getOriginalFilename();
+        if (orig == null || orig.isBlank()) {
+            orig = "upload.bin";
+        }
+        String ct = file.getContentType();
+        return new ByteArrayMultipartFile(
+                fieldName,
+                orig,
+                ct != null ? ct : "application/octet-stream",
+                bytes
+        );
     }
 }
