@@ -43,6 +43,50 @@ public class Job extends BaseEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String description;
 
+    @ElementCollection
+    @CollectionTable(name = "job_required_skills",
+            joinColumns = @JoinColumn(name = "job_id"))
+    @Column(name = "skill", length = 120)
+    @Builder.Default
+    private List<String> requiredSkills = new ArrayList<>();
+
+    @Column(name = "experience_level", length = 80)
+    private String experienceLevel;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "current_level", length = 120)
+    private com.mentorx.api.common.enums.UserLevel currentLevel;
+
+    @Column(name = "learning_goals", columnDefinition = "TEXT")
+    private String learningGoals;
+
+    @Column(name = "success_criteria", columnDefinition = "TEXT")
+    private String successCriteria;
+
+    @Column(name = "availability_expectation", length = 255)
+    private String availabilityExpectation;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "communication_preference", length = 120)
+    private com.mentorx.api.common.enums.CommunicationPreference communicationPreference;
+    
+    @Column(name = "timezone", length = 100)
+    private String timezone;
+
+    @Column(name = "expected_sessions")
+    private Integer expectedSessions;
+
+    @Column(name = "expected_weeks")
+    private Integer expectedWeeks;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visibility", length = 50)
+    @Builder.Default
+    private com.mentorx.api.common.enums.JobVisibility visibility = com.mentorx.api.common.enums.JobVisibility.PUBLIC;
+
+    @Column(name = "preferred_language", length = 50)
+    private String preferredLanguage;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "budget_type", nullable = false)
     private BudgetType budgetType;

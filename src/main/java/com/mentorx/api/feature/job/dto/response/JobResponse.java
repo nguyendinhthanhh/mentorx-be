@@ -10,13 +10,20 @@ import java.util.List;
 import java.util.UUID;
 
 public record JobResponse(
-        UUID id,
+        UUID jobId,
         UUID clientId,
         String clientName,
         Integer categoryId,
         JobType jobType,
         String title,
         String description,
+        List<String> requiredSkills,
+        String experienceLevel,
+        String currentLevel,
+        String learningGoals,
+        String successCriteria,
+        String availabilityExpectation,
+        String communicationPreference,
         BudgetType budgetType,
         BigDecimal budgetMinMxc,
         BigDecimal budgetMaxMxc,
