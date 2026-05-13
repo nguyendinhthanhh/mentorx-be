@@ -1,0 +1,34 @@
+# Profile: vnpt-ekyc — VNPT eKYC REST (see VnptEkycClient).
+# Activate: SPRING_PROFILES_ACTIVE=dev,vnpt-ekyc (keep dev-mock OFF).
+#
+# URLs and multipart field names must match your VNPT contract (Postman / tài liệu đối tác).
+
+app:
+  vnpt-ekyc:
+    base-url: ${VNPT_EKYC_BASE_URL:}
+    # Use full URLs OR path segments relative to base-url
+    ocr-url: ${VNPT_EKYC_OCR_URL:}
+    face-match-url: ${VNPT_EKYC_FACE_MATCH_URL:}
+    liveness-url: ${VNPT_EKYC_LIVENESS_URL:}
+
+    access-token: ${VNPT_EKYC_ACCESS_TOKEN:}
+    token-id: ${VNPT_EKYC_TOKEN_ID:}
+    token-key: ${VNPT_EKYC_TOKEN_KEY:}
+    # Optional — reserved for validating signed responses later
+    public-key-ca: ${VNPT_EKYC_PUBLIC_KEY_CA:}
+
+    authorization-header: ${VNPT_EKYC_AUTHORIZATION_HEADER:Authorization}
+    token-id-header: ${VNPT_EKYC_TOKEN_ID_HEADER:token-id}
+    token-key-header: ${VNPT_EKYC_TOKEN_KEY_HEADER:token-key}
+
+    ocr-image-part: ${VNPT_EKYC_OCR_PART:image}
+    face-image-1-part: ${VNPT_EKYC_FACE_PART_1:image1}
+    face-image-2-part: ${VNPT_EKYC_FACE_PART_2:image2}
+    liveness-video-part: ${VNPT_EKYC_LIVENESS_PART:video}
+
+    connect-timeout-ms: ${VNPT_EKYC_CONNECT_TIMEOUT_MS:15000}
+    read-timeout-ms: ${VNPT_EKYC_READ_TIMEOUT_MS:120000}
+
+    # When partner JSON has no explicit code: approve / manual-review thresholds (%)
+    face-match-approve-similarity-min: ${VNPT_EKYC_FACE_APPROVE_MIN:56}
+    face-match-review-similarity-min: ${VNPT_EKYC_FACE_REVIEW_MIN:42}

@@ -41,6 +41,13 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Login successful", response));
     }
 
+    @PostMapping("/google")
+    @Operation(summary = "Google login", description = "Authenticate user via Google ID Token")
+    public ResponseEntity<ApiResponse<AuthResponse>> googleLogin(@Valid @RequestBody com.mentorx.api.auth.dto.request.GoogleLoginRequest request) {
+        AuthResponse response = authService.googleLogin(request);
+        return ResponseEntity.ok(ApiResponse.success("Google login successful", response));
+    }
+
     @PostMapping("/refresh")
     @Operation(summary = "Refresh access token", description = "Generate new access token using refresh token")
     public ResponseEntity<ApiResponse<AuthResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {

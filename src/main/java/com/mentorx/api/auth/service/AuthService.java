@@ -13,6 +13,8 @@ public interface AuthService {
 
     AuthResponse login(LoginRequest request);
 
+    AuthResponse googleLogin(com.mentorx.api.auth.dto.request.GoogleLoginRequest request);
+
     AuthResponse refreshToken(RefreshTokenRequest request);
 
     void logout(String refreshToken);

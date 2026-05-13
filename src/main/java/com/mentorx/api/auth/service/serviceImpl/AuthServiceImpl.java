@@ -1,6 +1,12 @@
 package com.mentorx.api.auth.service.serviceImpl;
 
+import com.mentorx.api.auth.dto.request.GoogleLoginRequest;
 import com.mentorx.api.auth.dto.request.LoginRequest;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
+import java.util.Collections;
 import com.mentorx.api.auth.dto.request.RefreshTokenRequest;
 import com.mentorx.api.auth.dto.request.RegisterRequest;
 import com.mentorx.api.auth.dto.response.AuthResponse;
@@ -45,6 +51,9 @@ public class AuthServiceImpl implements AuthService {
 
     @Value("${jwt.refresh-token-expiry}")
     private Long refreshTokenExpiryMs;
+
+    @Value("${spring.security.oauth2.client.registration.google.client-id:default-client-id}")
+    private String googleClientId;
 
     @Override
     @Transactional
@@ -97,6 +106,34 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
+    public AuthResponse googleLogin(com.mentorx.api.auth.dto.request.GoogleLoginRequest request) {
+        try {
+            com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier verifier = new com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier.Builder(new com.google.api.client.http.javanet.NetHttpTransport(), com.google.api.client.json.gson.GsonFactory.getDefaultInstance())
+                    .setAudience(java.util.Collections.singletonList(googleClientId))
+                    .build();
+
+            com.google.api.client.googleapis.auth.oauth2.GoogleIdToken idToken = verifier.verify(request.getCredential());
+            if (idToken != null) {
+                com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload payload = idToken.getPayload();
+                String email = payload.getEmail();
+                String firstName = (String) payload.get("given_name");
+                if (firstName == null) firstName = "User";
+                String lastName = (String) payload.get("family_name");
+                if (lastName == null) lastName = "";
+                String subject = payload.getSubject();
+
+                return handleOAuth2Success(email, firstName, lastName, "google", subject);
+            } else {
+                throw new AppException(ErrorCode.INVALID_CREDENTIALS);
+            }
+        } catch (Exception e) {
+            log.error("Google login failed", e);
+            throw new AppException(ErrorCode.INVALID_CREDENTIALS);
+        }
+    }
+
+    @Override
+    @Transactional
     public AuthResponse refreshToken(RefreshTokenRequest request) {
         String rawToken = request.refreshToken();
         String tokenHash = HashUtil.generateSHA256Hash(rawToken);
@@ -116,7 +153,7 @@ public class AuthServiceImpl implements AuthService {
         String accessToken = jwtUtil.generateAccessToken(
                 org.springframework.security.core.userdetails.User.builder()
                         .username(user.getEmail())
-                        .password(user.getPasswordHash())
+                        .password(user.getPasswordHash() != null ? user.getPasswordHash() : "OAUTH2_USER")
                         .authorities("ROLE_USER")
                         .build()
         );
@@ -149,17 +186,27 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse handleOAuth2Success(String email, String firstName, String lastName, String provider, String providerId) {
-        User user = userRepository.findByEmailAndDeletedAtIsNull(email).orElseGet(() ->
-                userRepository.save(User.builder()
-                        .email(email)
-                        .fullName((firstName + " " + lastName).trim())
-                        .displayName(firstName)
-                        .status(UserStatus.ACTIVE)
-                        .isEmailVerified(true)
-                        .mentorStatus(MentorStatus.NONE)
-                        .preferredLanguage(SupportedLanguage.vi)
-                        .build())
-        );
+        User user = userRepository.findByEmailAndDeletedAtIsNull(email).orElse(null);
+        if (user == null) {
+            user = userRepository.save(User.builder()
+                    .email(email)
+                    .fullName((firstName + " " + lastName).trim())
+                    .displayName(firstName)
+                    .status(UserStatus.ACTIVE)
+                    .isEmailVerified(true)
+                    .mentorStatus(MentorStatus.NONE)
+                    .preferredLanguage(SupportedLanguage.vi)
+                    .build());
+
+            try {
+                walletService.createWallet(user.getId(), WalletAccountType.USER_AVAILABLE);
+                walletService.createWallet(user.getId(), WalletAccountType.USER_PENDING);
+                walletService.createWallet(user.getId(), WalletAccountType.ESCROW);
+                log.info("Created wallets for new OAuth2 user: {}", user.getId());
+            } catch (Exception e) {
+                log.error("Failed to create wallets for OAuth2 user: {}", user.getId(), e);
+            }
+        }
         return buildAuthResponse(user);
     }
 
@@ -225,7 +272,7 @@ public class AuthServiceImpl implements AuthService {
     private AuthResponse buildAuthResponse(User user) {
         var principal = org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())
-                .password(user.getPasswordHash())
+                .password(user.getPasswordHash() != null ? user.getPasswordHash() : "OAUTH2_USER")
                 .authorities("ROLE_USER")
                 .build();
 
