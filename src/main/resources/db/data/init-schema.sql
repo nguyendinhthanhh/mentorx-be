@@ -272,6 +272,12 @@ CREATE TABLE jobs (
     job_type       job_type NOT NULL,
     title          VARCHAR(255) NOT NULL,
     description    TEXT NOT NULL,
+    experience_level VARCHAR(80),
+    current_level VARCHAR(120),
+    learning_goals TEXT,
+    success_criteria TEXT,
+    availability_expectation VARCHAR(255),
+    communication_preference VARCHAR(120),
     budget_type    budget_type NOT NULL,
     budget_min_mxc NUMERIC(12, 2),
     budget_max_mxc NUMERIC(12, 2),
@@ -288,6 +294,11 @@ CREATE TABLE jobs (
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at     TIMESTAMPTZ,
     CONSTRAINT budget_min_lte_max CHECK (budget_min_mxc IS NULL OR budget_max_mxc IS NULL OR budget_min_mxc <= budget_max_mxc)
+);
+
+CREATE TABLE job_required_skills (
+    job_id UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    skill  VARCHAR(120) NOT NULL
 );
 
 -- ============================================================
