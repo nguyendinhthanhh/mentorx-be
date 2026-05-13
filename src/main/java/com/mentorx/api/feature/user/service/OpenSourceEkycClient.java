@@ -1,8 +1,8 @@
 package com.mentorx.api.feature.user.service;
 
-import com.mentorx.api.feature.user.dto.fptai.FptFaceMatchResponse;
-import com.mentorx.api.feature.user.dto.fptai.FptLivenessResponse;
-import com.mentorx.api.feature.user.dto.fptai.FptOcrResponse;
+import com.mentorx.api.feature.user.dto.ekyc.EkycFaceMatchResponse;
+import com.mentorx.api.feature.user.dto.ekyc.EkycLivenessResponse;
+import com.mentorx.api.feature.user.dto.ekyc.EkycOcrResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
@@ -13,16 +13,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Open-source eKYC implementation using Tesseract OCR and OpenCV
- * 100% FREE - No API key required!
- * 
- * Activate with: -Dspring-boot.run.profiles=dev,opensource-ekyc
+ * Local eKYC using Tesseract OCR and OpenCV (no external Vision API).
+ * Disabled when profile {@code dev-mock} is active.
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Profile("opensource-ekyc")
-public class OpenSourceEkycClient {
+@Profile("!dev-mock")
+public class OpenSourceEkycClient implements EkycClient {
 
     private final OpenSourceOcrService ocrService;
     private final OpenSourceFaceService faceService;
@@ -30,47 +28,47 @@ public class OpenSourceEkycClient {
     /**
      * Perform OCR on ID card using Tesseract
      */
-    public FptOcrResponse performOcr(MultipartFile image) {
-        log.info("🆓 FREE OCR: Using Tesseract (open-source)");
+    @Override
+    public EkycOcrResponse performOcr(MultipartFile image) {
+        log.info("Local OCR: Tesseract");
         
         try {
             Map<String, String> extracted = ocrService.extractIdCardInfo(image);
-            
-            // Convert to FPT AI response format for compatibility
-            FptOcrResponse.FptOcrData ocrData = new FptOcrResponse.FptOcrData(
+            String addr = extracted.getOrDefault("address", "Unknown");
+
+            EkycOcrResponse.EkycOcrData ocrData = new EkycOcrResponse.EkycOcrData(
+                extracted.getOrDefault("idNumber", ""),
                 extracted.getOrDefault("name", "Unknown"),
                 extracted.getOrDefault("dob", "01/01/1990"),
-                extracted.getOrDefault("idNumber", "000000000000"),
                 extracted.getOrDefault("gender", "Unknown"),
-                "Vietnam", // nationality
-                extracted.getOrDefault("address", "Unknown"),
-                extracted.getOrDefault("issueDate", "01/01/2020"),
-                extracted.getOrDefault("issuePlace", "Unknown")
+                "Vietnam",
+                addr,
+                addr,
+                ""
             );
             
-            log.info("✅ FREE OCR completed successfully");
-            return new FptOcrResponse(0, null, List.of(ocrData));
+            log.info("OCR completed");
+            return new EkycOcrResponse(0, null, List.of(ocrData));
             
         } catch (Exception e) {
-            log.error("FREE OCR failed", e);
-            return new FptOcrResponse(1, "OCR failed: " + e.getMessage(), List.of());
+            log.error("OCR failed", e);
+            return new EkycOcrResponse(1, "OCR failed: " + e.getMessage(), List.of());
         }
     }
 
     /**
      * Check liveness using OpenCV
      */
-    public FptLivenessResponse checkLiveness(MultipartFile video) {
-        log.info("🆓 FREE Liveness Check: Using OpenCV (open-source)");
+    @Override
+    public EkycLivenessResponse checkLiveness(MultipartFile video) {
+        log.info("Local liveness: OpenCV");
         
         try {
             OpenSourceFaceService.LivenessResult result = faceService.checkLiveness(video);
             
-            // Convert to FPT AI response format for compatibility
-            log.info("✅ FREE Liveness check completed: isLive={}, score={}", 
-                    result.isLive(), result.score());
+            log.info("Liveness completed: isLive={}, score={}", result.isLive(), result.score());
             
-            return new FptLivenessResponse(
+            return new EkycLivenessResponse(
                 result.isLive() ? 0 : 1,
                 result.isLive(),
                 result.score(),
@@ -78,25 +76,24 @@ public class OpenSourceEkycClient {
             );
             
         } catch (Exception e) {
-            log.error("FREE Liveness check failed", e);
-            return new FptLivenessResponse(1, false, 0.0, "Liveness check failed: " + e.getMessage());
+            log.error("Liveness check failed", e);
+            return new EkycLivenessResponse(1, false, 0.0, "Liveness check failed: " + e.getMessage());
         }
     }
 
     /**
      * Match faces using OpenCV
      */
-    public FptFaceMatchResponse matchFace(MultipartFile image1, MultipartFile image2) {
-        log.info("🆓 FREE Face Matching: Using OpenCV (open-source)");
+    @Override
+    public EkycFaceMatchResponse matchFaces(MultipartFile image1, MultipartFile image2) {
+        log.info("Local face match: OpenCV");
         
         try {
             OpenSourceFaceService.FaceMatchResult result = faceService.matchFaces(image1, image2);
             
-            // Convert to FPT AI response format for compatibility
-            log.info("✅ FREE Face matching completed: isMatch={}, similarity={}%", 
-                    result.isMatch(), result.similarity());
+            log.info("Face match completed: isMatch={}, similarity={}%", result.isMatch(), result.similarity());
             
-            return new FptFaceMatchResponse(
+            return new EkycFaceMatchResponse(
                 result.isMatch() ? 0 : 1,
                 result.isMatch(),
                 result.similarity(),
@@ -104,8 +101,8 @@ public class OpenSourceEkycClient {
             );
             
         } catch (Exception e) {
-            log.error("FREE Face matching failed", e);
-            return new FptFaceMatchResponse(1, false, 0.0, "Face matching failed: " + e.getMessage());
+            log.error("Face matching failed", e);
+            return new EkycFaceMatchResponse(1, false, 0.0, "Face matching failed: " + e.getMessage());
         }
     }
 
