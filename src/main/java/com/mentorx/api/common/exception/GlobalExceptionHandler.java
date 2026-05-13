@@ -8,6 +8,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -80,18 +81,6 @@ public class GlobalExceptionHandler {
             .body(ApiResponse.error(ex.getMessage()));
     }
 
-    @ExceptionHandler(FptAiException.class)
-    public ResponseEntity<ApiResponse<Object>> handleFptAiException(FptAiException ex) {
-        log.error("FPT AI service error: {}", ex.getMessage());
-        
-        // Extract user-friendly message from FPT AI error
-        String userMessage = extractFptAiUserMessage(ex.getMessage());
-        
-        return ResponseEntity
-            .status(HttpStatus.BAD_REQUEST)
-            .body(ApiResponse.error(userMessage));
-    }
-
     @ExceptionHandler(KycRejectedException.class)
     public ResponseEntity<ApiResponse<Object>> handleKycRejectedException(KycRejectedException ex) {
         log.warn("KYC rejected: {}", ex.getMessage());
@@ -111,9 +100,30 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(FrameExtractionException.class)
     public ResponseEntity<ApiResponse<Object>> handleFrameExtractionException(FrameExtractionException ex) {
         log.error("Frame extraction failed: {}", ex.getMessage());
+        String msg = ex.getMessage() != null && !ex.getMessage().isBlank()
+                ? ex.getMessage()
+                : "Không thể xử lý video. Vui lòng thử lại với video khác.";
         return ResponseEntity
-            .status(HttpStatus.BAD_REQUEST)
-            .body(ApiResponse.error("Không thể xử lý video. Vui lòng thử lại với video khác."));
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(msg));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        Throwable root = ex.getMostSpecificCause();
+        String detail = root != null ? root.getMessage() : ex.getMessage();
+        log.error("Data integrity violation: {}", detail);
+
+        if (detail != null && detail.contains("mentor_status")) {
+            return ResponseEntity
+                    .status(HttpStatus.CONFLICT)
+                    .body(ApiResponse.error(
+                            "Cơ sở dữ liệu chưa hỗ trợ trạng thái KYC mới. Hãy khởi động lại backend (script sẽ mở rộng enum mentor_status), hoặc chạy migration V3.0.0."));
+        }
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("Dữ liệu không thể lưu do ràng buộc cơ sở dữ liệu. Vui lòng thử lại hoặc liên hệ hỗ trợ."));
     }
 
     @ExceptionHandler(Exception.class)
@@ -124,32 +134,4 @@ public class GlobalExceptionHandler {
             .body(ApiResponse.error("An unexpected error occurred"));
     }
 
-    /**
-     * Extract user-friendly message from FPT AI error response
-     */
-    private String extractFptAiUserMessage(String errorMessage) {
-        if (errorMessage == null) {
-            return "Lỗi xác thực danh tính. Vui lòng thử lại.";
-        }
-
-        // Check for common FPT AI error messages
-        if (errorMessage.contains("Unable to find ID card")) {
-            return "Không tìm thấy CCCD trong ảnh. Vui lòng chụp lại ảnh CCCD rõ nét, đầy đủ 4 góc.";
-        }
-        if (errorMessage.contains("Image quality")) {
-            return "Chất lượng ảnh không đủ tốt. Vui lòng chụp ảnh rõ nét hơn.";
-        }
-        if (errorMessage.contains("Face not found")) {
-            return "Không tìm thấy khuôn mặt trong ảnh. Vui lòng chụp lại.";
-        }
-        if (errorMessage.contains("Liveness check failed")) {
-            return "Xác thực khuôn mặt thất bại. Vui lòng quay video với khuôn mặt thật.";
-        }
-        if (errorMessage.contains("Face not match")) {
-            return "Khuôn mặt không khớp với ảnh trên CCCD. Vui lòng thử lại.";
-        }
-
-        // Default message for other FPT AI errors
-        return "Lỗi xác thực danh tính: " + errorMessage + ". Vui lòng kiểm tra lại ảnh và thử lại.";
-    }
 }

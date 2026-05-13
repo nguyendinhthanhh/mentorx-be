@@ -1,14 +1,13 @@
-package com.mentorx.api.feature.user.dto.fptai;
+package com.mentorx.api.feature.user.dto.ekyc;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
-public record FptOcrResponse(
+public record EkycOcrResponse(
     int errorCode,
     String errorMessage,
-    List<FptOcrData> data
+    List<EkycOcrData> data
 ) {
-    public record FptOcrData(
+    public record EkycOcrData(
         String id,
         String name,
         String dob,
