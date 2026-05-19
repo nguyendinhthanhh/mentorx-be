@@ -1,0 +1,35 @@
+# Redis Profile Configuration
+# Activate this profile to enable Redis caching
+# Usage: ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev,redis
+
+spring:
+  cache:
+    type: redis  # Override to use Redis cache
+  
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 2
+          max-wait: -1ms
+
+cache:
+  feed:
+    ttl-hours: 1  # Feed cache TTL in hours
+
+logging:
+  level:
+    org.springframework.data.redis: DEBUG
+    io.lettuce.core: DEBUG
+
+management:
+  health:
+    redis:
+      enabled: true

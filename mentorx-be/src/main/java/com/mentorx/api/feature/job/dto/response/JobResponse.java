@@ -1,0 +1,48 @@
+package com.mentorx.api.feature.job.dto.response;
+
+import com.mentorx.api.common.enums.BudgetType;
+import com.mentorx.api.common.enums.JobStatus;
+import com.mentorx.api.common.enums.JobType;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+
+public record JobResponse(
+        UUID jobId,
+        UUID clientId,
+        String clientName,
+        Integer categoryId,
+        String customCategoryName,
+        JobType jobType,
+        String title,
+        String description,
+        List<String> requiredSkills,
+        String experienceLevel,
+        String currentLevel,
+        String learningGoals,
+        String successCriteria,
+        String availabilityExpectation,
+        String availabilityStartTime,
+        String availabilityEndTime,
+        String communicationPreference,
+        BudgetType budgetType,
+        BigDecimal budgetMinMxc,
+        BigDecimal budgetMaxMxc,
+        BigDecimal hourlyRateMxc,
+        BigDecimal estimatedHours,
+        LocalDateTime startDate,
+        LocalDateTime deadlineAt,
+        JobStatus status,
+        Boolean isFeatured,
+        Integer viewCount,
+        Integer proposalCount,
+        LocalDateTime publishedAt,
+        LocalDateTime closedAt,
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt,
+        String statusReason,
+        String attachmentUrl,
+        List<String> attachments
+) {}

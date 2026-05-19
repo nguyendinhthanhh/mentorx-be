@@ -1,0 +1,173 @@
+package com.mentorx.api.feature.review.service.impl;
+
+import com.mentorx.api.common.exception.AppException;
+import com.mentorx.api.common.exception.ErrorCode;
+import com.mentorx.api.feature.review.dto.request.ReviewCreateRequest;
+import com.mentorx.api.feature.review.dto.request.ReviewUpdateRequest;
+import com.mentorx.api.feature.review.dto.response.ReviewResponse;
+import com.mentorx.api.feature.review.entity.Review;
+import com.mentorx.api.feature.review.enums.ReviewTargetType;
+import com.mentorx.api.feature.review.repository.ReviewRepository;
+import com.mentorx.api.feature.review.service.ReviewService;
+import com.mentorx.api.feature.user.entity.User;
+import com.mentorx.api.feature.user.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class ReviewServiceImpl implements ReviewService {
+
+    private final ReviewRepository reviewRepository;
+    private final UserRepository userRepository;
+
+    @Override
+    @Transactional
+    public ReviewResponse createReview(ReviewCreateRequest request) {
+        if (reviewRepository.findByReviewerIdAndTargetTypeAndTargetId(
+                request.reviewerId(), request.targetType(), request.targetId()).isPresent()) {
+            throw new AppException(ErrorCode.REVIEW_ALREADY_EXISTS);
+        }
+
+        User reviewer = userRepository.findById(request.reviewerId())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        Review review = new Review();
+        review.setReviewer(reviewer);
+        review.setTargetType(request.targetType());
+        review.setTargetId(request.targetId());
+        review.setOverallRating(request.overallRating());
+        review.setCommunicationRating(request.communicationRating());
+        review.setQualityRating(request.qualityRating());
+        review.setTimelinessRating(request.timelinessRating());
+        review.setProfessionalismRating(request.professionalismRating());
+        review.setValueRating(request.valueRating());
+        review.setReviewText(request.reviewText());
+        review.setReviewTitle(request.reviewTitle());
+        review.setPros(request.pros());
+        review.setCons(request.cons());
+        review.setIsAnonymous(request.isAnonymous() != null ? request.isAnonymous() : false);
+        review.setIsPublic(request.isPublic() != null ? request.isPublic() : true);
+        review.setLanguage(request.language());
+        review.setContractId(request.contractId());
+
+        return toResponse(reviewRepository.save(review));
+    }
+
+    @Override
+    @Transactional
+    public ReviewResponse updateReview(UUID reviewId, ReviewUpdateRequest request) {
+        Review review = findReview(reviewId);
+        
+        if (!review.canBeEdited()) {
+            throw new AppException(ErrorCode.REVIEW_CANNOT_BE_EDITED);
+        }
+
+        if (request.overallRating() != null) review.setOverallRating(request.overallRating());
+        if (request.communicationRating() != null) review.setCommunicationRating(request.communicationRating());
+        if (request.qualityRating() != null) review.setQualityRating(request.qualityRating());
+        if (request.timelinessRating() != null) review.setTimelinessRating(request.timelinessRating());
+        if (request.professionalismRating() != null) review.setProfessionalismRating(request.professionalismRating());
+        if (request.valueRating() != null) review.setValueRating(request.valueRating());
+        if (request.reviewText() != null) review.setReviewText(request.reviewText());
+        if (request.reviewTitle() != null) review.setReviewTitle(request.reviewTitle());
+        if (request.pros() != null) review.setPros(request.pros());
+        if (request.cons() != null) review.setCons(request.cons());
+        if (request.isAnonymous() != null) review.setIsAnonymous(request.isAnonymous());
+        if (request.isPublic() != null) review.setIsPublic(request.isPublic());
+        if (request.language() != null) review.setLanguage(request.language());
+
+        return toResponse(reviewRepository.save(review));
+    }
+
+    @Override
+    public ReviewResponse getReviewById(UUID reviewId) {
+        return toResponse(findReview(reviewId));
+    }
+
+    @Override
+    public Page<ReviewResponse> getReviewsByTarget(ReviewTargetType targetType, UUID targetId, Pageable pageable) {
+        return reviewRepository.findByTargetTypeAndTargetIdAndIsHiddenFalseAndIsPublicTrue(targetType, targetId, pageable)
+                .map(this::toResponse);
+    }
+
+    @Override
+    public Page<ReviewResponse> getReviewsByReviewer(UUID reviewerId, Pageable pageable) {
+        return reviewRepository.findByReviewerId(reviewerId, pageable).map(this::toResponse);
+    }
+
+    @Override
+    @Transactional
+    public ReviewResponse voteHelpful(UUID reviewId, boolean isHelpful) {
+        Review review = findReview(reviewId);
+        if (isHelpful) {
+            review.setHelpfulCount(review.getHelpfulCount() + 1);
+        } else {
+            review.setNotHelpfulCount(review.getNotHelpfulCount() + 1);
+        }
+        return toResponse(reviewRepository.save(review));
+    }
+
+    @Override
+    @Transactional
+    public void deleteReview(UUID reviewId) {
+        Review review = findReview(reviewId);
+        review.setIsHidden(true);
+        review.setHiddenReason("Deleted by user/admin");
+        reviewRepository.save(review);
+    }
+
+    private Review findReview(UUID reviewId) {
+        return reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new AppException(ErrorCode.REVIEW_NOT_FOUND));
+    }
+
+    private ReviewResponse toResponse(Review review) {
+        return new ReviewResponse(
+                review.getId(),
+                review.getReviewer().getId(),
+                review.getReviewerDisplayName(),
+                review.getTargetType(),
+                review.getTargetId(),
+                review.getOverallRating(),
+                review.getCommunicationRating(),
+                review.getQualityRating(),
+                review.getTimelinessRating(),
+                review.getProfessionalismRating(),
+                review.getValueRating(),
+                review.getReviewText(),
+                review.getReviewTitle(),
+                review.getPros(),
+                review.getCons(),
+                review.getIsVerified(),
+                review.getVerifiedAt(),
+                review.getIsAnonymous(),
+                review.getIsPublic(),
+                review.getIsFeatured(),
+                review.getHelpfulCount(),
+                review.getNotHelpfulCount(),
+                review.getReportCount(),
+                review.getIsModerated(),
+                review.getModeratedAt(),
+                review.getModerationNotes(),
+                review.getIsHidden(),
+                review.getHiddenReason(),
+                review.getLanguage(),
+                review.getContractId(),
+                review.getWouldRecommend(),
+                review.getResponseText(),
+                review.getResponseAt(),
+                review.getResponseByUserId(),
+                review.getHelpfulnessRatio(),
+                review.canBeEdited(),
+                review.getCreatedAt(),
+                review.getUpdatedAt()
+        );
+    }
+}

@@ -1,0 +1,202 @@
+spring:
+  application:
+    name: mentorx-api
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/mentorx_db}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:12345}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+      leak-detection-threshold: 60000
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        use_sql_comments: true
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+    open-in-view: false
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: 564448517069-orgmrm1ttnjo3froa8p13jbpr12c97ng.apps.googleusercontent.com
+            client-secret: ${GOOGLE_CLIENT_SECRET:your-google-client-secret}
+            scope: openid,profile,email
+            redirect-uri: "{baseUrl}/oauth2/callback/{registrationId}"
+          github:
+            client-id: ${GITHUB_CLIENT_ID:your-github-client-id}
+            client-secret: ${GITHUB_CLIENT_SECRET:your-github-client-secret}
+            scope: user:email,read:user
+            redirect-uri: "{baseUrl}/oauth2/callback/{registrationId}"
+
+  mail:
+    host: ${SMTP_HOST:smtp.gmail.com}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:your-email@gmail.com}
+    password: ${SMTP_PASSWORD:your-app-password}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 3000
+          writetimeout: 5000
+
+  task:
+    execution:
+      pool:
+        core-size: 5
+        max-size: 20
+        queue-capacity: 100
+        keep-alive: 60s
+      thread-name-prefix: mentorx-async-
+    scheduling:
+      pool:
+        size: 5
+      thread-name-prefix: mentorx-scheduler-
+
+  cache:
+    type: simple  # Use simple in-memory cache by default (Redis when "redis" profile is active)
+    cache-names:
+      - users
+      - mentors
+      - jobs
+      - courses
+      - match-scores
+      - feed-items
+  
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 2
+          max-wait: -1ms
+
+cache:
+  feed:
+    ttl-hours: 1 # Feed cache TTL in hours
+
+jwt:
+  secret: ${JWT_SECRET:CHANGE_THIS_JWT_SECRET_IN_PRODUCTION_MINIMUM_32_CHARACTERS}
+  access-token-expiry: 900000 # 15 minutes
+  refresh-token-expiry: 604800000 # 7 days
+  issuer: mentorx-api
+
+app:
+  database:
+    initialize-on-startup: ${DB_INITIALIZE_ON_STARTUP:true}
+    run-sample-data: ${DB_RUN_SAMPLE_DATA:false}
+    seed-data: true
+    schema-script: ${DB_SCHEMA_SCRIPT:classpath:db/data/init-schema.sql}
+    sample-data-script: ${DB_SAMPLE_DATA_SCRIPT:classpath:db/data/sample-data.sql}
+
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001}
+    allowed-methods: GET,POST,PUT,DELETE,PATCH,OPTIONS
+    allowed-headers: "*"
+    allow-credentials: true
+  
+  oauth2:
+    authorized-redirect-uris:
+      - http://localhost:3000/oauth2/redirect
+      - http://localhost:3001/oauth2/redirect
+  
+  file:
+    upload-dir: ${FILE_UPLOAD_DIR:./uploads}
+    max-file-size: 10MB
+    max-request-size: 10MB
+
+  kyc:
+    face-match-min-correlation: ${KYC_FACE_MATCH_MIN_CORR:0.45}
+    liveness-min-mean-diff: ${KYC_LIVENESS_MIN_DIFF:3.0}
+    liveness-min-frames: ${KYC_LIVENESS_MIN_FRAMES:2}
+
+  wallet:
+    secret-key: ${WALLET_SECRET_KEY:wallet-secret-key-for-hash-generation}
+    cooling-off-period-hours: 72
+
+  matching:
+    mentor-score-expiry-hours: 168 # 7 days
+    job-relevance-batch-size: 100
+    behavior-decay-half-life-days: 30
+
+file:
+  upload:
+    kyc-dir: uploads/kyc
+
+
+vnpay:
+  tmn-code: ${VNPAY_TMN_CODE:LIT9JOW0}
+  hash-secret: ${VNPAY_HASH_SECRET:1FVYDDWXY9PQACDKPIHN708E0MH9Z3N6}
+  url: ${VNPAY_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+  return-url: ${VNPAY_RETURN_URL:http://localhost:3000/payment/vnpay-return}
+  version: 2.1.0
+  command: pay
+  order-type: other
+
+momo:
+  partner-code: ${MOMO_PARTNER_CODE:MOMO}
+  access-key: ${MOMO_ACCESS_KEY:F8BBA842ECF85}
+  secret-key: ${MOMO_SECRET_KEY:K951B6PE1waDMi640xX08PD3vg6EkVlz}
+  url: ${MOMO_URL:https://test-payment.momo.vn/v2/gateway/api/create}
+  return-url: ${MOMO_RETURN_URL:http://localhost:3000/payment/momo-return}
+  notify-url: ${MOMO_NOTIFY_URL:http://localhost:8080/api/v1/payment/momo/callback}
+
+
+management:
+  health:
+    redis:
+      enabled: false
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    com.mentorx.api: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/mentorx-api.log
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method

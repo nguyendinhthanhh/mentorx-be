@@ -1,0 +1,107 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  JAVA_VERSION: '21'
+  MAVEN_OPTS: '-Xmx1024m'
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: mentorx_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK ${{ env.JAVA_VERSION }}
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+        cache: maven
+
+    - name: Cache Maven dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+
+    - name: Run tests
+      run: mvn clean test
+      env:
+        DB_URL: jdbc:postgresql://localhost:5432/mentorx_test
+        POSTGRES_USER: test_user
+        POSTGRES_PASSWORD: test_password
+        JWT_SECRET: test-jwt-secret-key-for-testing-purposes-only
+        WALLET_SECRET_KEY: test-wallet-secret-key
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: target/surefire-reports/
+
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK ${{ env.JAVA_VERSION }}
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+        cache: maven
+
+    - name: Cache Maven dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+
+    - name: Compile and package
+      run: mvn clean compile package -DskipTests
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: jar-artifact
+        path: target/*.jar
+
+  # TODO: Uncomment the following jobs when secrets are configured:
+  # - code-quality: Requires SONAR_TOKEN
+  # - security-scan: OWASP dependency check
+  # - docker-build: Requires DOCKER_USERNAME, DOCKER_PASSWORD
+  # - deploy-staging / deploy-production: Requires deployment infrastructure

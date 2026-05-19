@@ -1,0 +1,17 @@
+package com.mentorx.api.common.enums;
+
+public enum TxnType {
+    DEPOSIT,
+    WITHDRAWAL,
+    JOB_PAYMENT,
+    JOB_RELEASE,
+    JOB_REFUND,
+    COURSE_PURCHASE,
+    COURSE_REFUND,
+    PLATFORM_FEE,
+    WITHDRAWAL_FEE,
+    BONUS_CREDIT,
+    PENALTY_DEDUCTION,
+    WITHDRAWAL_REFUND,
+    ADJUSTMENT
+}
