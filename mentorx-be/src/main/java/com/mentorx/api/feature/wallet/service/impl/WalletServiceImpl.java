@@ -1,7 +1,9 @@
 package com.mentorx.api.feature.wallet.service.impl;
 
 import com.mentorx.api.common.enums.LedgerDirection;
+import com.mentorx.api.common.enums.PaymentGateway;
 import com.mentorx.api.common.enums.TxnType;
+import com.mentorx.api.common.enums.TxnStatus;
 import com.mentorx.api.common.enums.WalletAccountType;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
@@ -12,6 +14,7 @@ import com.mentorx.api.feature.wallet.dto.request.DepositRequest;
 import com.mentorx.api.feature.wallet.dto.request.TransferRequest;
 import com.mentorx.api.feature.wallet.dto.request.WithdrawalRequest;
 import com.mentorx.api.feature.wallet.dto.response.FinancialSummaryResponse;
+import com.mentorx.api.feature.wallet.dto.response.MxcConversionResult;
 import com.mentorx.api.feature.wallet.dto.response.WalletResponse;
 import com.mentorx.api.feature.wallet.dto.response.WalletTransactionResponse;
 import com.mentorx.api.feature.wallet.entity.Wallet;
@@ -23,6 +26,7 @@ import com.mentorx.api.feature.wallet.entity.DepositOrder;
 import com.mentorx.api.common.enums.WithdrawalStatus;
 import com.mentorx.api.feature.wallet.repository.DepositOrderRepository;
 import com.mentorx.api.feature.wallet.repository.WithdrawalRequestRepository;
+import com.mentorx.api.feature.wallet.service.MxcConversionService;
 import com.mentorx.api.feature.wallet.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,8 +37,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Locale;
 import java.util.List;
 import java.util.UUID;
 
@@ -51,6 +57,10 @@ public class WalletServiceImpl implements WalletService {
     private final DepositOrderRepository depositOrderRepository;
     private final WithdrawalRequestRepository withdrawalRequestRepository;
     private final com.mentorx.api.feature.wallet.repository.WalletBalanceAuditLogRepository auditLogRepository;
+    private final MxcConversionService mxcConversionService;
+
+    private static final BigDecimal MXC_TO_VND_RATE = BigDecimal.valueOf(1000);
+    private static final String BASE_CURRENCY = "VND";
 
     @Value("${app.wallet.secret-key}")
     private String walletSecretKey;
@@ -170,6 +180,121 @@ public class WalletServiceImpl implements WalletService {
         walletRepository.save(toWallet);
         transactionRepository.save(credit);
         return walletMapper.toWalletTransactionResponse(credit);
+    }
+
+    @Override
+    @Transactional
+    public DepositOrder createDepositOrder(
+            UUID userId,
+            BigDecimal originalAmount,
+            String originalCurrency,
+            PaymentGateway gateway,
+            String gatewayOrderId,
+            String gatewayTxnId,
+            String note
+    ) {
+        User user = userRepository.findById(userId).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        PaymentGateway resolvedGateway = gateway == null ? PaymentGateway.MANUAL : gateway;
+        MxcConversionResult conversion = mxcConversionService.convertToMxc(originalAmount, originalCurrency);
+
+        DepositOrder order = DepositOrder.builder()
+                .user(user)
+                .gateway(resolvedGateway)
+                .gatewayOrderId(
+                        gatewayOrderId != null && !gatewayOrderId.isBlank()
+                                ? gatewayOrderId
+                                : resolvedGateway.name() + "_" + System.currentTimeMillis()
+                )
+                .gatewayTxnId(blankToNull(gatewayTxnId))
+                .realAmount(conversion.originalAmount())
+                .realCurrency(conversion.originalCurrency())
+                .convertedAmountVnd(conversion.convertedAmountVnd())
+                .mxcAmount(conversion.amountMxc())
+                .exchangeRate(conversion.exchangeRateToVnd())
+                .txnStatus(TxnStatus.PENDING)
+                .build();
+        return depositOrderRepository.save(order);
+    }
+
+    @Override
+    @Transactional
+    public void completeDepositOrder(DepositOrder order, String gatewayTxnId, String gatewayResponse, String note) {
+        if (order == null) {
+            throw new AppException(ErrorCode.DEPOSIT_ORDER_NOT_FOUND);
+        }
+        if (order.getTxnStatus() == TxnStatus.COMPLETED) {
+            return;
+        }
+        if (order.getTxnStatus() != TxnStatus.PENDING) {
+            throw new AppException(ErrorCode.DEPOSIT_ALREADY_PROCESSED, "Deposit order is not pending");
+        }
+
+        Wallet platformFloat = getSystemWallet(WalletAccountType.PLATFORM_FLOAT);
+        Wallet userAvailable = getOrCreateUserWallet(order.getUser().getId(), WalletAccountType.USER_AVAILABLE);
+        UUID groupId = UUID.randomUUID();
+
+        platformFloat.addToBalance(order.getMxcAmount());
+        WalletTransaction platformEntry = createTransaction(
+                platformFloat,
+                groupId,
+                TxnType.DEPOSIT,
+                LedgerDirection.DEBIT,
+                order.getMxcAmount(),
+                order.getId(),
+                "deposit_order",
+                note != null ? note : "Deposit settled into platform float",
+                order.getRealAmount(),
+                order.getRealCurrency(),
+                order.getExchangeRate(),
+                order.getConvertedAmountVnd(),
+                order.getGateway(),
+                gatewayTxnId != null ? gatewayTxnId : order.getGatewayTxnId()
+        );
+
+        userAvailable.addToBalance(order.getMxcAmount());
+        WalletTransaction userEntry = createTransaction(
+                userAvailable,
+                groupId,
+                TxnType.DEPOSIT,
+                LedgerDirection.CREDIT,
+                order.getMxcAmount(),
+                order.getId(),
+                "deposit_order",
+                note != null ? note : "Deposit credited to user wallet",
+                order.getRealAmount(),
+                order.getRealCurrency(),
+                order.getExchangeRate(),
+                order.getConvertedAmountVnd(),
+                order.getGateway(),
+                gatewayTxnId != null ? gatewayTxnId : order.getGatewayTxnId()
+        );
+
+        order.setTxnStatus(TxnStatus.COMPLETED);
+        order.setGatewayTxnId(blankToNull(gatewayTxnId) != null ? gatewayTxnId : order.getGatewayTxnId());
+        order.setGatewayResponse(blankToNull(gatewayResponse) != null ? gatewayResponse : order.getGatewayResponse());
+        order.setReconciledAt(LocalDateTime.now());
+
+        walletRepository.save(platformFloat);
+        walletRepository.save(userAvailable);
+        transactionRepository.save(platformEntry);
+        transactionRepository.save(userEntry);
+        depositOrderRepository.save(order);
+    }
+
+    @Override
+    @Transactional
+    public void failDepositOrder(DepositOrder order, String gatewayTxnId, String gatewayResponse, String note) {
+        if (order == null) {
+            throw new AppException(ErrorCode.DEPOSIT_ORDER_NOT_FOUND);
+        }
+        if (order.getTxnStatus() == TxnStatus.COMPLETED) {
+            throw new AppException(ErrorCode.DEPOSIT_ALREADY_PROCESSED, "Completed deposit cannot be marked failed");
+        }
+        order.setTxnStatus(TxnStatus.FAILED);
+        order.setGatewayTxnId(blankToNull(gatewayTxnId) != null ? gatewayTxnId : order.getGatewayTxnId());
+        order.setGatewayResponse(blankToNull(gatewayResponse) != null ? gatewayResponse : order.getGatewayResponse());
+        order.setReconciledAt(LocalDateTime.now());
+        depositOrderRepository.save(order);
     }
 
     @Override
@@ -301,6 +426,13 @@ public class WalletServiceImpl implements WalletService {
     }
 
     @Override
+    public BigDecimal getUserEscrowBalance(UUID userId) {
+        return walletRepository.findByUserIdAndAccountType(userId, WalletAccountType.ESCROW)
+                .map(Wallet::getBalanceMxc)
+                .orElse(BigDecimal.ZERO);
+    }
+
+    @Override
     @Transactional
     public void freezeWallet(UUID walletId, String reason) {
         log.info("freezeWallet requested for {} with reason {}", walletId, reason);
@@ -352,25 +484,7 @@ public class WalletServiceImpl implements WalletService {
     @Override
     @Transactional
     public void depositCallback(DepositOrder order) {
-        if (order.getTxnStatus() != com.mentorx.api.common.enums.TxnStatus.PENDING) return;
-        
-        Wallet platformFloat = getSystemWallet(WalletAccountType.PLATFORM_FLOAT);
-        Wallet userAvailable = getOrCreateUserWallet(order.getUser().getId(), WalletAccountType.USER_AVAILABLE);
-        
-        UUID groupId = UUID.randomUUID();
-        
-        platformFloat.addToBalance(order.getMxcAmount());
-        WalletTransaction t1 = createTransaction(platformFloat, groupId, TxnType.DEPOSIT, LedgerDirection.DEBIT, order.getMxcAmount(), order.getId(), "deposit", "Deposit from " + order.getGateway());
-        
-        userAvailable.addToBalance(order.getMxcAmount());
-        WalletTransaction t2 = createTransaction(userAvailable, groupId, TxnType.DEPOSIT, LedgerDirection.CREDIT, order.getMxcAmount(), order.getId(), "deposit", "Deposit to user");
-        
-        order.setTxnStatus(com.mentorx.api.common.enums.TxnStatus.COMPLETED);
-        walletRepository.save(platformFloat);
-        walletRepository.save(userAvailable);
-        transactionRepository.save(t1);
-        transactionRepository.save(t2);
-        depositOrderRepository.save(order);
+        completeDepositOrder(order, order.getGatewayTxnId(), order.getGatewayResponse(), "Gateway deposit completed");
     }
 
     @Override
@@ -574,6 +688,26 @@ public class WalletServiceImpl implements WalletService {
 
     private WalletTransaction createTransaction(Wallet wallet, UUID groupId, TxnType type, LedgerDirection direction,
                                                 BigDecimal amount, UUID referenceId, String referenceType, String note) {
+        return createTransaction(wallet, groupId, type, direction, amount, referenceId, referenceType, note,
+                null, null, null, null, null, null);
+    }
+
+    private WalletTransaction createTransaction(
+            Wallet wallet,
+            UUID groupId,
+            TxnType type,
+            LedgerDirection direction,
+            BigDecimal amount,
+            UUID referenceId,
+            String referenceType,
+            String note,
+            BigDecimal originalAmount,
+            String originalCurrency,
+            BigDecimal exchangeRateToVnd,
+            BigDecimal convertedAmountVnd,
+            PaymentGateway gateway,
+            String gatewayTransactionId
+    ) {
         String prevHash = wallet.getLedgerHash();
         String entryHash = HashUtil.generateTransactionHash(
                 wallet.getId(), type, direction, amount, wallet.getBalanceMxc(), prevHash, walletSecretKey
@@ -584,14 +718,24 @@ public class WalletServiceImpl implements WalletService {
                 .transactionGroupId(groupId)
                 .txnType(type)
                 .direction(direction)
+                .originalAmount(originalAmount)
+                .originalCurrency(originalCurrency)
+                .exchangeRateToVnd(exchangeRateToVnd)
+                .convertedAmountVnd(convertedAmountVnd)
                 .amountMxc(amount)
                 .balanceAfterMxc(wallet.getBalanceMxc())
                 .referenceId(referenceId)
                 .referenceType(referenceType)
                 .note(note)
+                .gateway(gateway != null ? gateway.name() : null)
+                .gatewayTransactionId(blankToNull(gatewayTransactionId))
                 .entryHash(entryHash)
                 .prevEntryHash(prevHash)
                 .build();
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     private Wallet findWalletById(UUID walletId) {

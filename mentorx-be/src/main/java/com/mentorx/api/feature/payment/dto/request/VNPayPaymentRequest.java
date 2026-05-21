@@ -1,6 +1,6 @@
 package com.mentorx.api.feature.payment.dto.request;
 
-import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,10 +16,13 @@ import java.math.BigDecimal;
 public class VNPayPaymentRequest {
 
     @NotNull(message = "Amount is required")
-    @Min(value = 10000, message = "Minimum amount is 10,000 VND")
+    @DecimalMin(value = "10000", message = "Minimum amount is 10,000 VND")
     private BigDecimal amount;
 
     private String orderInfo;
 
     private String bankCode; // Optional: NCB, VNPAYQR, VNBANK, INTCARD, etc.
+
+    @Builder.Default
+    private String currency = "VND";
 }
