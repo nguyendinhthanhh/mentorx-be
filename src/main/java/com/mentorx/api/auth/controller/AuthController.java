@@ -48,6 +48,13 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Google login successful", response));
     }
 
+    @PostMapping("/github")
+    @Operation(summary = "GitHub login", description = "Authenticate user via GitHub OAuth code")
+    public ResponseEntity<ApiResponse<AuthResponse>> githubLogin(@Valid @RequestBody com.mentorx.api.auth.dto.request.GithubLoginRequest request) {
+        AuthResponse response = authService.githubLogin(request);
+        return ResponseEntity.ok(ApiResponse.success("GitHub login successful", response));
+    }
+
     @PostMapping("/refresh")
     @Operation(summary = "Refresh access token", description = "Generate new access token using refresh token")
     public ResponseEntity<ApiResponse<AuthResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {

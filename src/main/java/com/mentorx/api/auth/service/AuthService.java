@@ -15,6 +15,8 @@ public interface AuthService {
 
     AuthResponse googleLogin(com.mentorx.api.auth.dto.request.GoogleLoginRequest request);
 
+    AuthResponse githubLogin(com.mentorx.api.auth.dto.request.GithubLoginRequest request);
+
     AuthResponse refreshToken(RefreshTokenRequest request);
 
     void logout(String refreshToken);

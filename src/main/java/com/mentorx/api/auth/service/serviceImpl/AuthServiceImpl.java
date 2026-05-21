@@ -1,14 +1,35 @@
 package com.mentorx.api.auth.service.serviceImpl;
 
-import com.mentorx.api.auth.dto.request.GoogleLoginRequest;
-import com.mentorx.api.auth.dto.request.LoginRequest;
+import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestTemplate;
+
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
-import java.util.Collections;
+import com.mentorx.api.auth.dto.request.GithubLoginRequest;
+import com.mentorx.api.auth.dto.request.GoogleLoginRequest;
+import com.mentorx.api.auth.dto.request.LoginRequest;
 import com.mentorx.api.auth.dto.request.RefreshTokenRequest;
 import com.mentorx.api.auth.dto.request.RegisterRequest;
+import com.mentorx.api.auth.dto.response.GithubAccessTokenResponse;
+import com.mentorx.api.auth.dto.response.GithubEmail;
+import com.mentorx.api.auth.dto.response.GithubUser;
 import com.mentorx.api.auth.dto.response.AuthResponse;
 import com.mentorx.api.auth.entity.RefreshToken;
 import com.mentorx.api.auth.repository.RefreshTokenRepository;
@@ -26,15 +47,9 @@ import com.mentorx.api.feature.user.entity.User;
 import com.mentorx.api.feature.user.mapper.UserMapper;
 import com.mentorx.api.feature.user.repository.UserRepository;
 import com.mentorx.api.feature.wallet.service.WalletService;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Slf4j
 @Service
@@ -48,12 +63,19 @@ public class AuthServiceImpl implements AuthService {
     private final JwtUtil jwtUtil;
     private final UserMapper userMapper;
     private final WalletService walletService;
+    private final RestTemplate restTemplate;
 
     @Value("${jwt.refresh-token-expiry}")
     private Long refreshTokenExpiryMs;
 
     @Value("${spring.security.oauth2.client.registration.google.client-id:default-client-id}")
     private String googleClientId;
+
+    @Value("${spring.security.oauth2.client.registration.github.client-id}")
+    private String githubClientId;
+
+    @Value("${spring.security.oauth2.client.registration.github.client-secret}")
+    private String githubClientSecret;
 
     @Override
     @Transactional
@@ -106,15 +128,15 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public AuthResponse googleLogin(com.mentorx.api.auth.dto.request.GoogleLoginRequest request) {
+    public AuthResponse googleLogin(GoogleLoginRequest request) {
         try {
-            com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier verifier = new com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier.Builder(new com.google.api.client.http.javanet.NetHttpTransport(), com.google.api.client.json.gson.GsonFactory.getDefaultInstance())
-                    .setAudience(java.util.Collections.singletonList(googleClientId))
+            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), GsonFactory.getDefaultInstance())
+                    .setAudience(Collections.singletonList(googleClientId))
                     .build();
 
-            com.google.api.client.googleapis.auth.oauth2.GoogleIdToken idToken = verifier.verify(request.getCredential());
+            GoogleIdToken idToken = verifier.verify(request.getCredential());
             if (idToken != null) {
-                com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload payload = idToken.getPayload();
+                GoogleIdToken.Payload payload = idToken.getPayload();
                 String email = payload.getEmail();
                 String firstName = (String) payload.get("given_name");
                 if (firstName == null) firstName = "User";
@@ -128,6 +150,84 @@ public class AuthServiceImpl implements AuthService {
             }
         } catch (Exception e) {
             log.error("Google login failed", e);
+            throw new AppException(ErrorCode.INVALID_CREDENTIALS);
+        }
+    }
+
+    @Override
+    @Transactional
+    public AuthResponse githubLogin(GithubLoginRequest request) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+
+            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+            body.add("client_id", githubClientId);
+            body.add("client_secret", githubClientSecret);
+            body.add("code", request.getCode());
+
+            HttpEntity<MultiValueMap<String, String>> tokenRequest = new HttpEntity<>(body, headers);
+
+            ResponseEntity<GithubAccessTokenResponse> tokenResponse = restTemplate.exchange(
+                    "https://github.com/login/oauth/access_token",
+                    HttpMethod.POST,
+                    tokenRequest,
+                    GithubAccessTokenResponse.class);
+
+            GithubAccessTokenResponse tokenBody = tokenResponse.getBody();
+            if (tokenBody == null || tokenBody.accessToken() == null || tokenBody.accessToken().isEmpty()) {
+                log.error("GitHub OAuth token exchange failed: {}", tokenBody);
+                throw new AppException(ErrorCode.INVALID_CREDENTIALS);
+            }
+
+            HttpHeaders userHeaders = new HttpHeaders();
+            userHeaders.setBearerAuth(tokenBody.accessToken());
+            HttpEntity<Void> userRequest = new HttpEntity<>(userHeaders);
+
+            ResponseEntity<GithubUser> userResponse = restTemplate.exchange(
+                    "https://api.github.com/user",
+                    HttpMethod.GET,
+                    userRequest,
+                    GithubUser.class);
+
+            GithubUser githubUser = userResponse.getBody();
+            if (githubUser == null || githubUser.id() == null) {
+                log.error("Failed to fetch GitHub user info");
+                throw new AppException(ErrorCode.INVALID_CREDENTIALS);
+            }
+
+            ResponseEntity<GithubEmail[]> emailsResponse = restTemplate.exchange(
+                    "https://api.github.com/user/emails",
+                    HttpMethod.GET,
+                    userRequest,
+                    GithubEmail[].class);
+
+            String email = githubUser.email();
+            GithubEmail[] emails = emailsResponse.getBody();
+            if ((email == null || email.isEmpty()) && emails != null) {
+                email = Arrays.stream(emails)
+                        .filter(GithubEmail::primary)
+                        .map(GithubEmail::email)
+                        .findFirst()
+                        .orElse(null);
+            }
+
+            if (email == null || email.isEmpty()) {
+                log.error("No email found for GitHub user: {}", githubUser.login());
+                throw new AppException(ErrorCode.INVALID_CREDENTIALS);
+            }
+
+            String name = githubUser.name();
+            if (name == null || name.isEmpty()) {
+                name = githubUser.login();
+            }
+
+            return handleOAuth2Success(email, name, "", "github", githubUser.id().toString());
+        } catch (AppException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("GitHub login failed", e);
             throw new AppException(ErrorCode.INVALID_CREDENTIALS);
         }
     }
