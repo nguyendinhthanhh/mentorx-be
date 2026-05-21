@@ -1,5 +1,7 @@
 package com.mentorx.api.auth.service.serviceImpl;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
@@ -18,6 +20,8 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
@@ -27,10 +31,9 @@ import com.mentorx.api.auth.dto.request.GoogleLoginRequest;
 import com.mentorx.api.auth.dto.request.LoginRequest;
 import com.mentorx.api.auth.dto.request.RefreshTokenRequest;
 import com.mentorx.api.auth.dto.request.RegisterRequest;
-import com.mentorx.api.auth.dto.response.GithubAccessTokenResponse;
+import com.mentorx.api.auth.dto.response.AuthResponse;
 import com.mentorx.api.auth.dto.response.GithubEmail;
 import com.mentorx.api.auth.dto.response.GithubUser;
-import com.mentorx.api.auth.dto.response.AuthResponse;
 import com.mentorx.api.auth.entity.RefreshToken;
 import com.mentorx.api.auth.repository.RefreshTokenRepository;
 import com.mentorx.api.auth.service.AuthService;
@@ -161,6 +164,7 @@ public class AuthServiceImpl implements AuthService {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
             headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+            headers.set("User-Agent", "MentorX/1.0");
 
             MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
             body.add("client_id", githubClientId);
@@ -169,20 +173,25 @@ public class AuthServiceImpl implements AuthService {
 
             HttpEntity<MultiValueMap<String, String>> tokenRequest = new HttpEntity<>(body, headers);
 
-            ResponseEntity<GithubAccessTokenResponse> tokenResponse = restTemplate.exchange(
+            ResponseEntity<String> rawResponse = restTemplate.exchange(
                     "https://github.com/login/oauth/access_token",
                     HttpMethod.POST,
                     tokenRequest,
-                    GithubAccessTokenResponse.class);
+                    String.class);
 
-            GithubAccessTokenResponse tokenBody = tokenResponse.getBody();
-            if (tokenBody == null || tokenBody.accessToken() == null || tokenBody.accessToken().isEmpty()) {
-                log.error("GitHub OAuth token exchange failed: {}", tokenBody);
+            String responseBody = rawResponse.getBody();
+            log.debug("GitHub token response: {}", responseBody);
+
+            String accessToken = extractAccessToken(responseBody);
+            if (accessToken == null || accessToken.isEmpty()) {
+                log.error("GitHub OAuth token exchange failed: {}", responseBody);
                 throw new AppException(ErrorCode.INVALID_CREDENTIALS);
             }
 
             HttpHeaders userHeaders = new HttpHeaders();
-            userHeaders.setBearerAuth(tokenBody.accessToken());
+            userHeaders.setBearerAuth(accessToken);
+            userHeaders.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+            userHeaders.set("User-Agent", "MentorX/1.0");
             HttpEntity<Void> userRequest = new HttpEntity<>(userHeaders);
 
             ResponseEntity<GithubUser> userResponse = restTemplate.exchange(
@@ -367,6 +376,31 @@ public class AuthServiceImpl implements AuthService {
 
     private User findUser(UUID userId) {
         return userRepository.findById(userId).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+    }
+
+    private String extractAccessToken(String responseBody) {
+        if (responseBody == null || responseBody.isEmpty()) return null;
+
+        if (responseBody.trim().startsWith("{")) {
+            try {
+                return new ObjectMapper().readTree(responseBody).path("access_token").asText(null);
+            } catch (JsonProcessingException e) {
+                log.warn("Failed to parse GitHub token response as JSON", e);
+                return null;
+            }
+        }
+
+        for (String pair : responseBody.split("&")) {
+            String[] parts = pair.split("=", 2);
+            if (parts.length == 2 && "access_token".equals(parts[0])) {
+                try {
+                    return URLDecoder.decode(parts[1], "UTF-8");
+                } catch (UnsupportedEncodingException e) {
+                    return parts[1];
+                }
+            }
+        }
+        return null;
     }
 
     private AuthResponse buildAuthResponse(User user) {
