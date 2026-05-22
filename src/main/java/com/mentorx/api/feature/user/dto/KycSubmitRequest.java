@@ -1,5 +1,6 @@
 package com.mentorx.api.feature.user.dto;
 
+import com.mentorx.api.common.enums.IdentityDocumentType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -12,4 +13,7 @@ public class KycSubmitRequest {
     private MultipartFile cccdFront;
     private MultipartFile cccdBack;
     private MultipartFile livenessVideo;
+    private String country;
+    private IdentityDocumentType documentType;
+    private String documentNumber;
 }

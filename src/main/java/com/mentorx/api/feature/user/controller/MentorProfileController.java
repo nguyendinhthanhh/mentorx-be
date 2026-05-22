@@ -1,8 +1,10 @@
 package com.mentorx.api.feature.user.controller;
 
 import com.mentorx.api.common.response.ApiResponse;
+import com.mentorx.api.common.security.MentorModeAccessService;
 import com.mentorx.api.feature.user.dto.request.MentorProfileRequest;
 import com.mentorx.api.feature.user.dto.response.MentorProfileResponse;
+import com.mentorx.api.feature.user.dto.response.UserResponse;
 import com.mentorx.api.feature.user.service.MentorProfileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -29,6 +31,7 @@ import java.util.UUID;
 public class MentorProfileController {
 
     private final MentorProfileService mentorProfileService;
+    private final MentorModeAccessService mentorModeAccessService;
 
     @PostMapping("/{userId}/profile")
     @Operation(summary = "Create mentor profile", description = "Create a mentor profile for a user")
@@ -39,6 +42,17 @@ public class MentorProfileController {
         MentorProfileResponse profile = mentorProfileService.createMentorProfile(userId, request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Mentor profile created successfully", profile));
+    }
+
+    @PostMapping("/apply")
+    @Operation(summary = "Apply to become a mentor", description = "Create or submit the current user's mentor application")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<MentorProfileResponse>> applyForMentor(
+            @Valid @RequestBody MentorProfileRequest request) {
+        UUID currentUserId = mentorModeAccessService.getCurrentUserId();
+        MentorProfileResponse profile = mentorProfileService.createMentorProfile(currentUserId, request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Mentor application submitted successfully", profile));
     }
 
     @GetMapping("/{userId}/profile")
@@ -94,6 +108,14 @@ public class MentorProfileController {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").ascending());
         Page<MentorProfileResponse> applications = mentorProfileService.getPendingMentorApplications(pageable);
         return ResponseEntity.ok(ApiResponse.success(applications));
+    }
+
+    @GetMapping("/application/status")
+    @Operation(summary = "Get current mentor application status", description = "Get the authenticated user's mentor application state")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<UserResponse>> getCurrentApplicationStatus() {
+        UUID currentUserId = mentorModeAccessService.getCurrentUserId();
+        return ResponseEntity.ok(ApiResponse.success(mentorProfileService.getCurrentApplicationStatus(currentUserId)));
     }
 
     @GetMapping("/search")
@@ -186,8 +208,9 @@ public class MentorProfileController {
     @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
     public ResponseEntity<ApiResponse<MentorProfileResponse>> approveMentorApplication(
             @Parameter(description = "User ID") @PathVariable UUID userId,
-            @Parameter(description = "Approver ID") @RequestParam UUID approvedBy) {
-        MentorProfileResponse profile = mentorProfileService.approveMentorApplication(userId, approvedBy);
+            @Parameter(description = "Approver ID") @RequestParam(required = false) UUID approvedBy) {
+        UUID approverId = approvedBy != null ? approvedBy : mentorModeAccessService.getCurrentUserId();
+        MentorProfileResponse profile = mentorProfileService.approveMentorApplication(userId, approverId);
         return ResponseEntity.ok(ApiResponse.success("Mentor application approved", profile));
     }
 
@@ -197,8 +220,9 @@ public class MentorProfileController {
     public ResponseEntity<ApiResponse<MentorProfileResponse>> rejectMentorApplication(
             @Parameter(description = "User ID") @PathVariable UUID userId,
             @Parameter(description = "Rejection reason") @RequestParam String reason,
-            @Parameter(description = "Rejector ID") @RequestParam UUID rejectedBy) {
-        MentorProfileResponse profile = mentorProfileService.rejectMentorApplication(userId, reason, rejectedBy);
+            @Parameter(description = "Rejector ID") @RequestParam(required = false) UUID rejectedBy) {
+        UUID rejectorId = rejectedBy != null ? rejectedBy : mentorModeAccessService.getCurrentUserId();
+        MentorProfileResponse profile = mentorProfileService.rejectMentorApplication(userId, reason, rejectorId);
         return ResponseEntity.ok(ApiResponse.success("Mentor application rejected", profile));
     }
 
@@ -208,9 +232,22 @@ public class MentorProfileController {
     public ResponseEntity<ApiResponse<MentorProfileResponse>> requestMentorApplicationRevision(
             @Parameter(description = "User ID") @PathVariable UUID userId,
             @Parameter(description = "Revision reason") @RequestParam String reason,
-            @Parameter(description = "Reviewer ID") @RequestParam UUID requestedBy) {
-        MentorProfileResponse profile = mentorProfileService.requestMentorApplicationRevision(userId, reason, requestedBy);
+            @Parameter(description = "Reviewer ID") @RequestParam(required = false) UUID requestedBy) {
+        UUID reviewerId = requestedBy != null ? requestedBy : mentorModeAccessService.getCurrentUserId();
+        MentorProfileResponse profile = mentorProfileService.requestMentorApplicationRevision(userId, reason, reviewerId);
         return ResponseEntity.ok(ApiResponse.success("Mentor application revision requested", profile));
+    }
+
+    @PostMapping("/{userId}/suspend")
+    @Operation(summary = "Suspend mentor access", description = "Suspend an approved mentor from Mentor Mode")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
+    public ResponseEntity<ApiResponse<MentorProfileResponse>> suspendMentor(
+            @Parameter(description = "User ID") @PathVariable UUID userId,
+            @Parameter(description = "Suspension reason") @RequestParam String reason,
+            @Parameter(description = "Moderator ID") @RequestParam(required = false) UUID suspendedBy) {
+        UUID moderatorId = suspendedBy != null ? suspendedBy : mentorModeAccessService.getCurrentUserId();
+        MentorProfileResponse profile = mentorProfileService.suspendMentor(userId, reason, moderatorId);
+        return ResponseEntity.ok(ApiResponse.success("Mentor suspended", profile));
     }
 
     @PatchMapping("/{userId}/featured")

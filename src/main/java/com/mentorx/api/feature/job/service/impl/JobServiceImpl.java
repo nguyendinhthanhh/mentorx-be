@@ -46,6 +46,7 @@ public class JobServiceImpl implements JobService {
         Job job = Job.builder()
                 .client(client)
                 .categoryId(request.categoryId())
+                .customCategoryName(normalizeText(request.customCategoryName()))
                 .jobType(request.jobType())
                 .title(request.title())
                 .description(request.description())
@@ -54,8 +55,10 @@ public class JobServiceImpl implements JobService {
                 .currentLevel(request.currentLevel())
                 .learningGoals(request.learningGoals())
                 .successCriteria(request.successCriteria())
-                .availabilityExpectation(request.availabilityExpectation())
-                .communicationPreference(request.communicationPreference())
+                .availabilityExpectation(normalizeText(request.availabilityExpectation()))
+                .availabilityStartTime(normalizeText(request.availabilityStartTime()))
+                .availabilityEndTime(normalizeText(request.availabilityEndTime()))
+                .communicationPreference(normalizeText(request.communicationPreference()))
                 .timezone(request.timezone())
                 .expectedSessions(request.expectedSessions())
                 .expectedWeeks(request.expectedWeeks())
@@ -66,8 +69,9 @@ public class JobServiceImpl implements JobService {
                 .budgetMaxMxc(request.budgetMaxMxc())
                 .hourlyRateMxc(request.hourlyRateMxc())
                 .estimatedHours(request.estimatedHours())
+                .startDate(request.startDate())
                 .deadlineAt(request.deadlineAt())
-                .attachmentUrl(request.attachmentUrl())
+                .attachmentUrl(resolvePrimaryAttachment(request.attachmentUrl(), request.attachments()))
                 .attachments(normalizeList(request.attachments()))
                 .status(request.status() != null ? request.status() : JobStatus.OPEN)
                 .publishedAt(request.status() == JobStatus.OPEN || request.status() == null ? LocalDateTime.now() : null)
@@ -85,6 +89,7 @@ public class JobServiceImpl implements JobService {
     public JobResponse update(UUID jobId, JobUpdateRequest request) {
         Job job = findJob(jobId);
         if (request.categoryId() != null) job.setCategoryId(request.categoryId());
+        if (request.customCategoryName() != null) job.setCustomCategoryName(normalizeText(request.customCategoryName()));
         if (request.jobType() != null) job.setJobType(request.jobType());
         if (request.title() != null) job.setTitle(request.title());
         if (request.description() != null) job.setDescription(request.description());
@@ -93,8 +98,10 @@ public class JobServiceImpl implements JobService {
         if (request.currentLevel() != null) job.setCurrentLevel(request.currentLevel());
         if (request.learningGoals() != null) job.setLearningGoals(request.learningGoals());
         if (request.successCriteria() != null) job.setSuccessCriteria(request.successCriteria());
-        if (request.availabilityExpectation() != null) job.setAvailabilityExpectation(request.availabilityExpectation());
-        if (request.communicationPreference() != null) job.setCommunicationPreference(request.communicationPreference());
+        if (request.availabilityExpectation() != null) job.setAvailabilityExpectation(normalizeText(request.availabilityExpectation()));
+        if (request.availabilityStartTime() != null) job.setAvailabilityStartTime(normalizeText(request.availabilityStartTime()));
+        if (request.availabilityEndTime() != null) job.setAvailabilityEndTime(normalizeText(request.availabilityEndTime()));
+        if (request.communicationPreference() != null) job.setCommunicationPreference(normalizeText(request.communicationPreference()));
         if (request.timezone() != null) job.setTimezone(request.timezone());
         if (request.expectedSessions() != null) job.setExpectedSessions(request.expectedSessions());
         if (request.expectedWeeks() != null) job.setExpectedWeeks(request.expectedWeeks());
@@ -124,10 +131,16 @@ public class JobServiceImpl implements JobService {
         if (request.budgetMaxMxc() != null) job.setBudgetMaxMxc(request.budgetMaxMxc());
         if (request.hourlyRateMxc() != null) job.setHourlyRateMxc(request.hourlyRateMxc());
         if (request.estimatedHours() != null) job.setEstimatedHours(request.estimatedHours());
+        if (request.startDate() != null) job.setStartDate(request.startDate());
         if (request.deadlineAt() != null) job.setDeadlineAt(request.deadlineAt());
         if (request.isFeatured() != null) job.setIsFeatured(request.isFeatured());
-        if (request.attachmentUrl() != null) job.setAttachmentUrl(request.attachmentUrl());
-        if (request.attachments() != null) job.setAttachments(normalizeList(request.attachments()));
+        if (request.attachments() != null) {
+            List<String> normalizedAttachments = normalizeList(request.attachments());
+            job.setAttachments(normalizedAttachments);
+            job.setAttachmentUrl(resolvePrimaryAttachment(request.attachmentUrl(), normalizedAttachments));
+        } else if (request.attachmentUrl() != null) {
+            job.setAttachmentUrl(request.attachmentUrl().trim());
+        }
         if (request.status() != null) {
             job.setStatus(request.status());
             if (request.status() == JobStatus.OPEN && job.getPublishedAt() == null) {
@@ -195,6 +208,7 @@ public class JobServiceImpl implements JobService {
                 job.getClient().getId(),
                 job.getClient().getFullName(),
                 job.getCategoryId(),
+                job.getCustomCategoryName(),
                 job.getJobType(),
                 job.getTitle(),
                 job.getDescription(),
@@ -204,12 +218,15 @@ public class JobServiceImpl implements JobService {
                 job.getLearningGoals(),
                 job.getSuccessCriteria(),
                 job.getAvailabilityExpectation(),
-                job.getCommunicationPreference() != null ? job.getCommunicationPreference().name() : null,
+                job.getAvailabilityStartTime(),
+                job.getAvailabilityEndTime(),
+                job.getCommunicationPreference(),
                 job.getBudgetType(),
                 job.getBudgetMinMxc(),
                 job.getBudgetMaxMxc(),
                 job.getHourlyRateMxc(),
                 job.getEstimatedHours(),
+                job.getStartDate(),
                 job.getDeadlineAt(),
                 job.getStatus(),
                 job.getIsFeatured(),
@@ -234,6 +251,23 @@ public class JobServiceImpl implements JobService {
                 .map(String::trim)
                 .distinct()
                 .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+    }
+
+    private String normalizeText(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String resolvePrimaryAttachment(String attachmentUrl, List<String> attachments) {
+        String normalizedPrimary = normalizeText(attachmentUrl);
+        if (normalizedPrimary != null) {
+            return normalizedPrimary;
+        }
+        List<String> normalizedAttachments = normalizeList(attachments);
+        return normalizedAttachments.isEmpty() ? null : normalizedAttachments.get(0);
     }
 
     private void validateBudget(BudgetType type, java.math.BigDecimal min, java.math.BigDecimal max, java.math.BigDecimal hourly) {

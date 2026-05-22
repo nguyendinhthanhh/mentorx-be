@@ -1,6 +1,7 @@
 package com.mentorx.api.feature.user.repository;
 
 import com.mentorx.api.common.enums.MentorStatus;
+import com.mentorx.api.common.enums.VerificationStatus;
 import com.mentorx.api.feature.user.entity.MentorProfile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -10,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -46,4 +48,10 @@ public interface MentorProfileRepository extends JpaRepository<MentorProfile, UU
 
     @Query("SELECT COUNT(mp) FROM MentorProfile mp WHERE mp.user.mentorStatus = :status")
     long countByMentorStatus(@Param("status") MentorStatus status);
+
+    @Query("SELECT mp FROM MentorProfile mp WHERE mp.identityStatus IN :statuses")
+    Page<MentorProfile> findByIdentityStatuses(@Param("statuses") Collection<VerificationStatus> statuses, Pageable pageable);
+
+    @Query("SELECT mp FROM MentorProfile mp WHERE mp.payoutStatus IN :statuses")
+    Page<MentorProfile> findByPayoutStatuses(@Param("statuses") Collection<VerificationStatus> statuses, Pageable pageable);
 }

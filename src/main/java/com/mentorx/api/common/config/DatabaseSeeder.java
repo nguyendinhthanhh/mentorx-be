@@ -50,6 +50,8 @@ import com.mentorx.api.feature.user.repository.RoleRepository;
 import com.mentorx.api.feature.user.repository.UserRepository;
 import com.mentorx.api.feature.user.repository.UserRoleRepository;
 import com.mentorx.api.feature.wallet.entity.Wallet;
+import com.mentorx.api.feature.wallet.entity.ExchangeRate;
+import com.mentorx.api.feature.wallet.repository.ExchangeRateRepository;
 import com.mentorx.api.feature.wallet.repository.WalletRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -92,6 +94,7 @@ public class DatabaseSeeder implements CommandLineRunner {
     private final PlatformSettingRepository platformSettingRepository;
     private final SkillRepository skillRepository;
     private final WalletRepository walletRepository;
+    private final ExchangeRateRepository exchangeRateRepository;
     private final NotificationPreferenceRepository notificationPreferenceRepository;
     private final JobRepository jobRepository;
     private final ProposalRepository proposalRepository;
@@ -147,6 +150,8 @@ public class DatabaseSeeder implements CommandLineRunner {
             log.info("Seeding system wallets...");
             seedSystemWallets();
         }
+
+        seedExchangeRates();
 
         if (userRepository.count() == 0) {
             log.info("Seeding sample users...");
@@ -300,6 +305,28 @@ public class DatabaseSeeder implements CommandLineRunner {
         walletRepository.save(Wallet.builder().accountType(WalletAccountType.PLATFORM_REVENUE).balanceMxc(BigDecimal.ZERO).build());
         walletRepository.save(Wallet.builder().accountType(WalletAccountType.PLATFORM_FLOAT).balanceMxc(BigDecimal.ZERO).build());
         walletRepository.save(Wallet.builder().accountType(WalletAccountType.ESCROW).balanceMxc(BigDecimal.ZERO).build());
+    }
+
+    private void seedExchangeRates() {
+        log.info("Ensuring baseline exchange rates exist...");
+        upsertExchangeRate("VND", "VND", "1.000000", "system-default");
+    }
+
+    private void upsertExchangeRate(String fromCurrency, String toCurrency, String rate, String source) {
+        boolean exists = exchangeRateRepository
+                .findTopByFromCurrencyIgnoreCaseAndToCurrencyIgnoreCaseOrderByEffectiveAtDescCreatedAtDesc(fromCurrency, toCurrency)
+                .isPresent();
+        if (exists) {
+            return;
+        }
+
+        exchangeRateRepository.save(ExchangeRate.builder()
+                .fromCurrency(fromCurrency)
+                .toCurrency(toCurrency)
+                .rate(new BigDecimal(rate))
+                .source(source)
+                .effectiveAt(LocalDateTime.now())
+                .build());
     }
 
     private void seedUsers() {

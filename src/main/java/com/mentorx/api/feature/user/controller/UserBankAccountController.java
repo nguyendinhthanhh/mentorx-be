@@ -1,6 +1,7 @@
 package com.mentorx.api.feature.user.controller;
 
 import com.mentorx.api.common.response.ApiResponse;
+import com.mentorx.api.common.util.SecurityUtils;
 import com.mentorx.api.feature.user.dto.request.BankAccountRequest;
 import com.mentorx.api.feature.user.dto.response.BankAccountResponse;
 import com.mentorx.api.feature.user.service.UserBankAccountService;
@@ -101,9 +102,23 @@ public class UserBankAccountController {
     public ResponseEntity<ApiResponse<BankAccountResponse>> verify(
             @Parameter(description = "User ID") @PathVariable UUID userId,
             @Parameter(description = "Account ID") @PathVariable UUID accountId,
-            @Parameter(description = "Verified by") @RequestParam String verifiedBy) {
-        BankAccountResponse response = bankAccountService.verifyAccount(accountId, verifiedBy);
+            @Parameter(description = "Verified by") @RequestParam(required = false) String verifiedBy) {
+        String reviewer = verifiedBy != null ? verifiedBy : SecurityUtils.getCurrentUserId().toString();
+        BankAccountResponse response = bankAccountService.verifyAccount(accountId, reviewer);
         return ResponseEntity.ok(ApiResponse.success("Bank account verified successfully", response));
+    }
+
+    @PostMapping("/{accountId}/reject")
+    @Operation(summary = "Reject payout account", description = "Reject payout setup (Admin only)")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<BankAccountResponse>> reject(
+            @Parameter(description = "User ID") @PathVariable UUID userId,
+            @Parameter(description = "Account ID") @PathVariable UUID accountId,
+            @Parameter(description = "Reject reason") @RequestParam String reason,
+            @Parameter(description = "Rejected by") @RequestParam(required = false) String rejectedBy) {
+        String reviewer = rejectedBy != null ? rejectedBy : SecurityUtils.getCurrentUserId().toString();
+        BankAccountResponse response = bankAccountService.rejectAccount(accountId, reviewer, reason);
+        return ResponseEntity.ok(ApiResponse.success("Bank account rejected", response));
     }
 
     @GetMapping("/count")
