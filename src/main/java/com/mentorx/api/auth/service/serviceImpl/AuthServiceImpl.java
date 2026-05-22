@@ -74,6 +74,9 @@ public class AuthServiceImpl implements AuthService {
     @Value("${spring.security.oauth2.client.registration.google.client-id:default-client-id}")
     private String googleClientId;
 
+    @Value("${spring.security.oauth2.client.registration.google.client-secret}")
+    private String googleClientSecret;
+
     @Value("${spring.security.oauth2.client.registration.github.client-id}")
     private String githubClientId;
 
@@ -133,11 +136,42 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public AuthResponse googleLogin(GoogleLoginRequest request) {
         try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+
+            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+            body.add("code", request.getCredential());
+            body.add("client_id", googleClientId);
+            body.add("client_secret", googleClientSecret);
+            body.add("redirect_uri", "postmessage");
+            body.add("grant_type", "authorization_code");
+
+            HttpEntity<MultiValueMap<String, String>> tokenRequest = new HttpEntity<>(body, headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(
+                    "https://oauth2.googleapis.com/token",
+                    HttpMethod.POST,
+                    tokenRequest,
+                    String.class);
+
+            String responseBody = response.getBody();
+            if (responseBody == null || responseBody.isEmpty()) {
+                log.error("Google token exchange returned empty response");
+                throw new AppException(ErrorCode.INVALID_CREDENTIALS);
+            }
+
+            String idTokenString = new ObjectMapper().readTree(responseBody).path("id_token").asText(null);
+            if (idTokenString == null || idTokenString.isEmpty()) {
+                log.error("No id_token in Google token response: {}", responseBody);
+                throw new AppException(ErrorCode.INVALID_CREDENTIALS);
+            }
+
             GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), GsonFactory.getDefaultInstance())
                     .setAudience(Collections.singletonList(googleClientId))
                     .build();
 
-            GoogleIdToken idToken = verifier.verify(request.getCredential());
+            GoogleIdToken idToken = verifier.verify(idTokenString);
             if (idToken != null) {
                 GoogleIdToken.Payload payload = idToken.getPayload();
                 String email = payload.getEmail();
@@ -151,6 +185,8 @@ public class AuthServiceImpl implements AuthService {
             } else {
                 throw new AppException(ErrorCode.INVALID_CREDENTIALS);
             }
+        } catch (AppException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Google login failed", e);
             throw new AppException(ErrorCode.INVALID_CREDENTIALS);
