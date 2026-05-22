@@ -33,6 +33,9 @@ public class Job extends BaseEntity {
     @Column(name = "category_id")
     private Integer categoryId;
 
+    @Column(name = "custom_category_name", length = 120)
+    private String customCategoryName;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "job_type", nullable = false)
     private JobType jobType;
@@ -66,9 +69,14 @@ public class Job extends BaseEntity {
     @Column(name = "availability_expectation", length = 255)
     private String availabilityExpectation;
 
-    @Enumerated(EnumType.STRING)
+    @Column(name = "availability_start_time", length = 120)
+    private String availabilityStartTime;
+
+    @Column(name = "availability_end_time", length = 120)
+    private String availabilityEndTime;
+
     @Column(name = "communication_preference", length = 120)
-    private com.mentorx.api.common.enums.CommunicationPreference communicationPreference;
+    private String communicationPreference;
     
     @Column(name = "timezone", length = 100)
     private String timezone;
@@ -102,6 +110,9 @@ public class Job extends BaseEntity {
 
     @Column(name = "estimated_hours", precision = 6, scale = 2)
     private BigDecimal estimatedHours;
+
+    @Column(name = "start_date")
+    private LocalDateTime startDate;
 
     @Column(name = "deadline_at")
     private LocalDateTime deadlineAt;

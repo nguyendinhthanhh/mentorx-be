@@ -2,6 +2,7 @@ package com.mentorx.api.feature.wallet.entity;
 
 import com.mentorx.api.common.entity.BaseEntity;
 import com.mentorx.api.common.enums.PaymentGateway;
+import com.mentorx.api.common.enums.PayoutMethod;
 import com.mentorx.api.common.enums.WithdrawalStatus;
 import com.mentorx.api.feature.user.entity.User;
 import jakarta.persistence.*;
@@ -51,6 +52,16 @@ public class WithdrawalRequest extends BaseEntity {
 
     @Column(name = "bank_account_name", length = 150)
     private String bankAccountName;
+
+    @Column(name = "payout_country", length = 10)
+    private String payoutCountry;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payout_method", length = 40)
+    private PayoutMethod payoutMethod;
+
+    @Column(name = "payout_reference", length = 255)
+    private String payoutReference;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

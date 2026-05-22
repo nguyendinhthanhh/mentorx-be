@@ -19,4 +19,5 @@ public interface ProposalService {
     ProposalResponse submit(UUID proposalId);
     ProposalResponse accept(UUID proposalId);
     ProposalResponse reject(UUID proposalId, String reason);
+    void markAsViewed(UUID proposalId);
 }

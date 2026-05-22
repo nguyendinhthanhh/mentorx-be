@@ -32,8 +32,6 @@ public interface AuthService {
 
     void verifyEmail(String token);
 
-    void devVerifyEmail(String email);
-
     void enable2FA(UUID userId);
 
     void disable2FA(UUID userId);

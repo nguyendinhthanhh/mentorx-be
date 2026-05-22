@@ -2,7 +2,8 @@ package com.mentorx.api.feature.user.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mentorx.api.common.enums.MentorStatus;
+import com.mentorx.api.common.enums.IdentityDocumentType;
+import com.mentorx.api.common.enums.VerificationStatus;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.common.exception.KycRejectedException;
@@ -39,6 +40,9 @@ import java.util.UUID;
 @Slf4j
 public class KycServiceImpl implements KycService {
 
+    private static final String KYC_DIR = "kyc";
+    private static final DateTimeFormatter DOB_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
     private final EkycClient ekycClient;
     private final VideoFrameExtractorService frameExtractorService;
     private final FileStorageService fileStorageService;
@@ -46,90 +50,76 @@ public class KycServiceImpl implements KycService {
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
 
-    private static final String KYC_DIR = "kyc";
-    private static final DateTimeFormatter DOB_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-
     @Override
     @Transactional
     public KycStatusResponse submitKyc(UUID userId, KycSubmitRequest request) {
-        log.info("Submitting KYC for user: {}", userId);
+        log.info("Submitting identity verification for user {}", userId);
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        if (user.getMentorStatus() == MentorStatus.KYC_VERIFIED) {
-            throw new IllegalStateException("KYC already verified");
+        MentorProfile profile = mentorProfileRepository.findByUserId(userId)
+                .orElseGet(() -> mentorProfileRepository.save(MentorProfile.builder().user(user).build()));
+
+        if (profile.getIdentityStatus() == VerificationStatus.APPROVED) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Identity verification is already approved.");
         }
 
-        MentorProfile profile = mentorProfileRepository.findByUserId(userId)
-                .orElseGet(() -> {
-                    log.info("Creating new MentorProfile for identity verification of user: {}", userId);
-                    MentorProfile newProfile = new MentorProfile();
-                    newProfile.setUser(user);
-                    return mentorProfileRepository.save(newProfile);
-                });
-
-        final MultipartFile cccdFront;
-        final MultipartFile cccdBack;
+        final MultipartFile documentFront;
+        final MultipartFile documentBack;
         final MultipartFile livenessVideo;
         try {
-            cccdFront = toBufferedMultipart(request.getCccdFront(), "cccdFront");
-            cccdBack = toBufferedMultipart(request.getCccdBack(), "cccdBack");
+            documentFront = toBufferedMultipart(request.getCccdFront(), "documentFront");
+            documentBack = toBufferedMultipart(request.getCccdBack(), "documentBack");
             livenessVideo = toBufferedMultipart(request.getLivenessVideo(), "livenessVideo");
         } catch (IOException e) {
-            log.error("Failed to read KYC multipart uploads", e);
-            throw new AppException(ErrorCode.BAD_REQUEST, "Không đọc được tệp tải lên. Vui lòng thử lại.");
+            log.error("Failed to read identity verification uploads", e);
+            throw new AppException(ErrorCode.BAD_REQUEST, "Unable to read the uploaded verification files.");
         }
 
-        // 1. Store images
-        String frontUrl = fileStorageService.store(cccdFront, KYC_DIR);
-        String backUrl = fileStorageService.store(cccdBack, KYC_DIR);
+        String frontUrl = fileStorageService.store(documentFront, KYC_DIR);
+        String backUrl = fileStorageService.store(documentBack, KYC_DIR);
         profile.setIdentityDocumentUrl(frontUrl);
         profile.setIdentityDocumentBackUrl(backUrl);
+        profile.setCountryOfResidence(request.getCountry());
+        profile.setIdentityDocumentType(resolveDocumentType(request.getDocumentType(), request.getCountry()));
+        profile.setDocumentNumberMasked(maskDocumentNumber(request.getDocumentNumber()));
 
-        // 2. OCR front CCCD → mentor profile + optional display name on user
-        EkycOcrResponse ocrResponse = ekycClient.performOcr(cccdFront);
+        EkycOcrResponse ocrResponse = ekycClient.performOcr(documentFront);
         if (!ocrResponse.data().isEmpty()) {
             EkycOcrResponse.EkycOcrData ocrData = ocrResponse.data().get(0);
-            profile.setLegalName(ocrData.name());
-            try {
-                profile.setDateOfBirth(LocalDate.parse(ocrData.dob(), DOB_FORMATTER));
-            } catch (Exception e) {
-                log.warn("Could not parse DOB: {}", ocrData.dob());
+            if (profile.getLegalName() == null || profile.getLegalName().isBlank()) {
+                profile.setLegalName(ocrData.name());
             }
-            profile.setIdentityDocumentType("CCCD");
-            String legal = ocrData.name() != null ? ocrData.name().trim() : "";
-            if (!legal.isEmpty() && !legal.equalsIgnoreCase("unknown")
-                    && (user.getDisplayName() == null || user.getDisplayName().isBlank())) {
-                user.setDisplayName(legal);
+            if (profile.getDateOfBirth() == null) {
+                try {
+                    profile.setDateOfBirth(LocalDate.parse(ocrData.dob(), DOB_FORMATTER));
+                } catch (Exception ignored) {
+                    log.warn("Could not parse OCR date of birth for user {}", userId);
+                }
             }
         }
 
-        // 3. Portrait frame from liveness video, then face match (CCCD vs frame)
         MultipartFile frame = frameExtractorService.extractMiddleFrame(livenessVideo);
         String portraitUrl = fileStorageService.store(frame, KYC_DIR);
         profile.setPortraitUrl(portraitUrl);
 
-        EkycFaceMatchResponse faceMatchResponse = ekycClient.matchFaces(cccdFront, frame);
+        EkycFaceMatchResponse faceMatchResponse = ekycClient.matchFaces(documentFront, frame);
         if (!faceMatchResponse.isMatch()) {
-            user.setMentorStatus(MentorStatus.KYC_REJECTED);
-            profile.setRejectionReason(faceMatchResponse.message());
+            profile.setIdentityStatus(VerificationStatus.REJECTED);
+            profile.setIdentityRejectionReason(faceMatchResponse.message());
             mentorProfileRepository.save(profile);
-            userRepository.save(user);
             throw new KycRejectedException(faceMatchResponse.message());
         }
 
-        // 4. Liveness (motion in video) — after portrait + match; uses same buffered bytes
         EkycLivenessResponse livenessResponse = ekycClient.checkLiveness(livenessVideo);
         if (!livenessResponse.isLive()) {
-            user.setMentorStatus(MentorStatus.KYC_REJECTED);
-            profile.setRejectionReason("Liveness check failed: " + livenessResponse.message());
+            profile.setIdentityStatus(VerificationStatus.REJECTED);
+            profile.setIdentityRejectionReason("Liveness check failed: " + livenessResponse.message());
             mentorProfileRepository.save(profile);
-            userRepository.save(user);
             throw new KycRejectedException("Liveness check failed: " + livenessResponse.message());
         }
 
-        // 5. Metadata (similarity 0–100 from local matcher → stored as 0–1.0)
         VerificationMetadataJson metadata = new VerificationMetadataJson(
                 toJson(ocrResponse),
                 null,
@@ -141,64 +131,72 @@ public class KycServiceImpl implements KycService {
         );
 
         profile.setVerificationMetadata(toJson(metadata));
-        profile.setSubmittedAt(LocalDateTime.now());
-        user.setMentorStatus(MentorStatus.KYC_SUBMITTED);
-
+        profile.setVerificationProvider("internal-ekyc");
+        profile.setIdentityStatus(VerificationStatus.PENDING);
+        profile.setIdentityRejectionReason(null);
         mentorProfileRepository.save(profile);
-        userRepository.save(user);
 
-        return mapToStatusResponse(profile, user);
+        return mapToStatusResponse(profile);
     }
 
     @Override
     @Transactional
     public void adminReviewKyc(UUID mentorProfileId, boolean approved, String rejectionReason, UUID adminId) {
-        log.info("Admin {} reviewing KYC for profile: {}", adminId, mentorProfileId);
+        log.info("Admin {} reviewing identity verification for mentor profile {}", adminId, mentorProfileId);
 
         MentorProfile profile = mentorProfileRepository.findById(mentorProfileId)
                 .orElseThrow(() -> new ResourceNotFoundException("Mentor profile not found"));
-        
-        User user = profile.getUser();
         User admin = userRepository.findById(adminId)
                 .orElseThrow(() -> new ResourceNotFoundException("Admin user not found"));
 
         if (approved) {
-            user.setMentorStatus(MentorStatus.KYC_VERIFIED);
-            user.setIsMentor(true);
-            profile.setApprovedAt(LocalDateTime.now());
-            profile.setApprovedBy(admin);
+            profile.setIdentityStatus(VerificationStatus.APPROVED);
+            profile.setIdentityVerifiedAt(LocalDateTime.now());
+            profile.setIdentityVerifiedBy(admin);
+            profile.setIdentityRejectionReason(null);
+            if (profile.getVerificationProvider() == null || profile.getVerificationProvider().isBlank()) {
+                profile.setVerificationProvider("manual-review");
+            }
         } else {
-            user.setMentorStatus(MentorStatus.KYC_REJECTED);
-            profile.setRejectionReason(rejectionReason);
+            profile.setIdentityStatus(VerificationStatus.REJECTED);
+            profile.setIdentityVerifiedAt(null);
+            profile.setIdentityVerifiedBy(null);
+            profile.setIdentityRejectionReason(rejectionReason);
         }
 
         mentorProfileRepository.save(profile);
-        userRepository.save(user);
     }
 
     @Override
     public KycStatusResponse getKycStatus(UUID userId) {
-        User user = userRepository.findById(userId)
+        userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        
-        MentorProfile profile = mentorProfileRepository.findByUserId(userId)
-                .orElse(null);
 
+        MentorProfile profile = mentorProfileRepository.findByUserId(userId).orElse(null);
         if (profile == null) {
             return new KycStatusResponse(
-                    user.getMentorStatus(),
-                    null, null, null, null,
-                    null, null, null,
-                    null, null, null, null, null
+                    VerificationStatus.NOT_SUBMITTED,
+                    false,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
             );
-
         }
 
-
-        return mapToStatusResponse(profile, user);
+        return mapToStatusResponse(profile);
     }
 
-    private KycStatusResponse mapToStatusResponse(MentorProfile profile, User user) {
+    private KycStatusResponse mapToStatusResponse(MentorProfile profile) {
         VerificationMetadataJson metadata = null;
         if (profile.getVerificationMetadata() != null) {
             try {
@@ -209,23 +207,23 @@ public class KycServiceImpl implements KycService {
         }
 
         return new KycStatusResponse(
-                user.getMentorStatus(),
+                profile.getIdentityStatus() != null ? profile.getIdentityStatus() : VerificationStatus.NOT_SUBMITTED,
+                profile.getIdentityRequired(),
+                profile.getIdentityDocumentType(),
                 metadata != null ? metadata.livenessResult() : null,
                 metadata != null ? metadata.livenessScore() : null,
                 metadata != null ? metadata.faceMatchingResult() : null,
                 metadata != null ? metadata.faceMatchingSimilarity() : null,
                 profile.getSubmittedAt(),
-                profile.getApprovedAt(),
-                profile.getRejectionReason(),
-                profile.getIdentityDocumentUrl(),
-                profile.getIdentityDocumentBackUrl(),
-                profile.getPortraitUrl(),
+                profile.getIdentityVerifiedAt(),
+                profile.getIdentityRejectionReason(),
                 profile.getLegalName(),
-                profile.getDateOfBirth() != null ? profile.getDateOfBirth().toString() : null
+                profile.getDateOfBirth() != null ? profile.getDateOfBirth().toString() : null,
+                profile.getCountryOfResidence(),
+                profile.getDocumentNumberMasked(),
+                profile.getVerificationProvider()
         );
     }
-
-
 
     private String toJson(Object obj) {
         try {
@@ -249,5 +247,25 @@ public class KycServiceImpl implements KycService {
                 ct != null ? ct : "application/octet-stream",
                 bytes
         );
+    }
+
+    private IdentityDocumentType resolveDocumentType(IdentityDocumentType requestedType, String country) {
+        if (requestedType != null) {
+            return requestedType;
+        }
+        return country != null && country.trim().equalsIgnoreCase("VN")
+                ? IdentityDocumentType.CCCD
+                : IdentityDocumentType.PASSPORT;
+    }
+
+    private String maskDocumentNumber(String documentNumber) {
+        if (documentNumber == null || documentNumber.isBlank()) {
+            return null;
+        }
+        String normalized = documentNumber.replaceAll("\\s+", "");
+        if (normalized.length() <= 4) {
+            return normalized;
+        }
+        return "*".repeat(Math.max(0, normalized.length() - 4)) + normalized.substring(normalized.length() - 4);
     }
 }
