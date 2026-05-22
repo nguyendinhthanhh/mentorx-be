@@ -1,5 +1,6 @@
 package com.mentorx.api.feature.mentor.service.impl;
 
+import com.mentorx.api.common.security.MentorModeAccessService;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.feature.mentor.dto.request.MentorProfileAssetRequest;
@@ -25,6 +26,7 @@ public class MentorProfileAssetServiceImpl implements MentorProfileAssetService 
 
     private final MentorProfileAssetRepository assetRepository;
     private final MentorProfileRepository mentorProfileRepository;
+    private final MentorModeAccessService mentorModeAccessService;
 
     @Override
     @Transactional(readOnly = true)
@@ -39,6 +41,7 @@ public class MentorProfileAssetServiceImpl implements MentorProfileAssetService 
     @Override
     @Transactional
     public MentorProfileAssetResponse createAsset(UUID userId, MentorProfileAssetRequest request) {
+        mentorModeAccessService.requireApprovedMentorContentAccess(userId);
         MentorProfile profile = findMentorProfileByUserId(userId);
         MentorProfileAsset asset = new MentorProfileAsset();
         asset.setMentorProfileId(profile.getId());
@@ -51,6 +54,9 @@ public class MentorProfileAssetServiceImpl implements MentorProfileAssetService 
     public MentorProfileAssetResponse updateAsset(UUID assetId, MentorProfileAssetRequest request) {
         MentorProfileAsset asset = assetRepository.findById(assetId)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
+        MentorProfile profile = mentorProfileRepository.findById(asset.getMentorProfileId())
+                .orElseThrow(() -> new AppException(ErrorCode.MENTOR_PROFILE_NOT_FOUND));
+        mentorModeAccessService.requireApprovedMentorContentAccess(profile.getUser().getId());
         applyRequest(asset, request);
         return MentorProfileAssetResponse.fromEntity(assetRepository.save(asset));
     }
@@ -58,10 +64,12 @@ public class MentorProfileAssetServiceImpl implements MentorProfileAssetService 
     @Override
     @Transactional
     public void deleteAsset(UUID assetId) {
-        if (!assetRepository.existsById(assetId)) {
-            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND);
-        }
-        assetRepository.deleteById(assetId);
+        MentorProfileAsset asset = assetRepository.findById(assetId)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
+        MentorProfile profile = mentorProfileRepository.findById(asset.getMentorProfileId())
+                .orElseThrow(() -> new AppException(ErrorCode.MENTOR_PROFILE_NOT_FOUND));
+        mentorModeAccessService.requireApprovedMentorContentAccess(profile.getUser().getId());
+        assetRepository.delete(asset);
     }
 
     private MentorProfile findMentorProfileByUserId(UUID userId) {

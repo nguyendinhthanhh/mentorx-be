@@ -87,4 +87,10 @@ public class ProposalController {
                                                                 @RequestParam String reason) {
         return ResponseEntity.ok(ApiResponse.success(proposalService.reject(proposalId, reason)));
     }
+
+    @PostMapping("/{proposalId}/view")
+    public ResponseEntity<ApiResponse<Void>> markAsViewed(@PathVariable UUID proposalId) {
+        proposalService.markAsViewed(proposalId);
+        return ResponseEntity.ok(ApiResponse.success("Proposal marked as viewed", null));
+    }
 }

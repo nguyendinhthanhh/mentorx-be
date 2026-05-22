@@ -45,7 +45,7 @@ public class KycController {
     }
 
     @PutMapping("/admin/{mentorProfileId}/review")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
     @Operation(summary = "Admin review of a mentor's KYC submission")
     public ResponseEntity<Void> reviewKyc(
             @PathVariable UUID mentorProfileId,

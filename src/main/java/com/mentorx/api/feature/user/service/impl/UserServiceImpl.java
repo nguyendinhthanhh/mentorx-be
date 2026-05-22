@@ -7,9 +7,13 @@ import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.feature.user.dto.request.UserCreateRequest;
 import com.mentorx.api.feature.user.dto.request.UserUpdateRequest;
 import com.mentorx.api.feature.user.dto.response.UserResponse;
+import com.mentorx.api.feature.user.entity.Role;
 import com.mentorx.api.feature.user.entity.User;
+import com.mentorx.api.feature.user.entity.UserRole;
 import com.mentorx.api.feature.user.mapper.UserMapper;
+import com.mentorx.api.feature.user.repository.RoleRepository;
 import com.mentorx.api.feature.user.repository.UserRepository;
+import com.mentorx.api.feature.user.repository.UserRoleRepository;
 import com.mentorx.api.feature.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +36,8 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
+    private final UserRoleRepository userRoleRepository;
+    private final RoleRepository roleRepository;
 
     @Override
     @Transactional
@@ -63,6 +69,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserResponse getUserById(UUID userId) {
         User user = findUserByIdAndNotDeleted(userId);
+        hydrateRoles(user);
         return userMapper.toUserResponse(user);
     }
 
@@ -70,6 +77,7 @@ public class UserServiceImpl implements UserService {
     public UserResponse getUserByEmail(String email) {
         User user = userRepository.findByEmailAndDeletedAtIsNull(email)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        hydrateRoles(user);
         return userMapper.toUserResponse(user);
     }
 
@@ -149,7 +157,11 @@ public class UserServiceImpl implements UserService {
         User user = findUserByIdAndNotDeleted(userId);
         user.setMentorStatus(mentorStatus);
         user.setIsMentor(mentorStatus == MentorStatus.APPROVED);
+        if (mentorStatus == MentorStatus.APPROVED) {
+            assignRoleIfMissing(user, "MENTOR");
+        }
         User updatedUser = userRepository.save(user);
+        hydrateRoles(updatedUser);
         log.info("Mentor status updated: {} -> {}", userId, mentorStatus);
         return userMapper.toUserResponse(updatedUser);
     }
@@ -238,5 +250,23 @@ public class UserServiceImpl implements UserService {
         return userRepository.findById(userId)
                 .filter(user -> user.getDeletedAt() == null)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+    }
+
+    private void hydrateRoles(User user) {
+        user.setUserRoles(userRoleRepository.findByUserIdWithRole(user.getId()));
+    }
+
+    private void assignRoleIfMissing(User user, String roleName) {
+        Role role = roleRepository.findByRoleName(roleName)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Role not found: " + roleName));
+        if (!userRoleRepository.existsByUserIdAndRoleId(user.getId(), role.getId())) {
+            userRoleRepository.save(UserRole.builder()
+                    .userId(user.getId())
+                    .roleId(role.getId())
+                    .user(user)
+                    .role(role)
+                    .grantedAt(LocalDateTime.now())
+                    .build());
+        }
     }
 }

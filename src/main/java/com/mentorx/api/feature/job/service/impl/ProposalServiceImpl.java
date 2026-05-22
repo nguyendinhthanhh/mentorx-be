@@ -1,5 +1,6 @@
 package com.mentorx.api.feature.job.service.impl;
 
+import com.mentorx.api.common.security.MentorModeAccessService;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.feature.job.dto.request.ProposalCreateRequest;
@@ -29,10 +30,12 @@ public class ProposalServiceImpl implements ProposalService {
     private final ProposalRepository proposalRepository;
     private final JobRepository jobRepository;
     private final UserRepository userRepository;
+    private final MentorModeAccessService mentorModeAccessService;
 
     @Override
     @Transactional
     public ProposalResponse create(ProposalCreateRequest request) {
+        mentorModeAccessService.requireApprovedMentorContentAccess(request.mentorId());
         if (proposalRepository.findByJobIdAndMentorId(request.jobId(), request.mentorId()).isPresent()) {
             throw new AppException(ErrorCode.PROPOSAL_ALREADY_EXISTS);
         }
@@ -61,6 +64,7 @@ public class ProposalServiceImpl implements ProposalService {
     @Transactional
     public ProposalResponse update(UUID proposalId, ProposalCreateRequest request) {
         Proposal proposal = findProposal(proposalId);
+        mentorModeAccessService.requireApprovedMentorContentAccess(proposal.getMentor().getId());
         if (proposal.getStatus() != ProposalStatus.DRAFT && proposal.getStatus() != ProposalStatus.WITHDRAWN) {
             throw new AppException(ErrorCode.BAD_REQUEST); // Only draft or withdrawn can be updated directly
         }
@@ -71,7 +75,9 @@ public class ProposalServiceImpl implements ProposalService {
     @Override
     @Transactional
     public void delete(UUID proposalId) {
-        proposalRepository.deleteById(proposalId);
+        Proposal proposal = findProposal(proposalId);
+        mentorModeAccessService.requireApprovedMentorContentAccess(proposal.getMentor().getId());
+        proposalRepository.delete(proposal);
     }
 
     @Override
@@ -85,6 +91,7 @@ public class ProposalServiceImpl implements ProposalService {
     @Transactional
     public void withdraw(UUID proposalId) {
         Proposal proposal = findProposal(proposalId);
+        mentorModeAccessService.requireApprovedMentorContentAccess(proposal.getMentor().getId());
         if (proposal.getStatus() == ProposalStatus.ACCEPTED) {
             throw new AppException(ErrorCode.BAD_REQUEST); // Cannot withdraw accepted proposal
         }
@@ -99,6 +106,7 @@ public class ProposalServiceImpl implements ProposalService {
 
     @Override
     public Page<ProposalResponse> getByMentor(UUID mentorId, Pageable pageable) {
+        mentorModeAccessService.requireSelfOrAdmin(mentorId);
         return proposalRepository.findByMentorId(mentorId, pageable).map(this::toResponse);
     }
 
@@ -106,6 +114,7 @@ public class ProposalServiceImpl implements ProposalService {
     @Transactional
     public ProposalResponse submit(UUID proposalId) {
         Proposal proposal = findProposal(proposalId);
+        mentorModeAccessService.requireApprovedMentorContentAccess(proposal.getMentor().getId());
         proposal.submit();
         
         // Update job activity
@@ -137,6 +146,14 @@ public class ProposalServiceImpl implements ProposalService {
         Proposal proposal = findProposal(proposalId);
         proposal.reject(reason);
         return toResponse(proposalRepository.save(proposal));
+    }
+
+    @Override
+    @Transactional
+    public void markAsViewed(UUID proposalId) {
+        Proposal proposal = findProposal(proposalId);
+        proposal.markAsViewed();
+        proposalRepository.save(proposal);
     }
 
     private void updateProposalFields(Proposal proposal, ProposalCreateRequest request) {
@@ -183,6 +200,7 @@ public class ProposalServiceImpl implements ProposalService {
                 proposal.getIsFeatured(),
                 proposal.getScore(),
                 proposal.getIsCounterProposal(),
+                proposal.getViewCount(),
                 proposal.getCreatedAt(),
                 proposal.getUpdatedAt()
         );

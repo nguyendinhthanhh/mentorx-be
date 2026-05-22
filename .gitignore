@@ -201,6 +201,7 @@ HELP.md
 # UPLOADS AND USER CONTENT
 # ==========================================
 uploads/
+uploads-dev/
 files/
 attachments/
 media/
