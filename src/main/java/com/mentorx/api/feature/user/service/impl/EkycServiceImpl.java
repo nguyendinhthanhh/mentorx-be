@@ -1,6 +1,8 @@
 package com.mentorx.api.feature.user.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mentorx.api.common.enums.IdentityDocumentType;
+import com.mentorx.api.common.enums.VerificationStatus;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.common.response.ApiResponse;
@@ -71,10 +73,11 @@ public class EkycServiceImpl implements EkycService {
 
             double similarity = faceMatchResponse.similarity();
 
-            profile.setIdentityDocumentType("CCCD");
+            profile.setIdentityDocumentType(IdentityDocumentType.CCCD);
             profile.setIdentityDocumentUrl(frontUrl);
             profile.setIdentityDocumentBackUrl(backUrl);
             profile.setPortraitUrl(selfieUrl);
+            profile.setIdentityStatus(VerificationStatus.PENDING);
 
             String name = idData.name();
             String dobStr = idData.dob();

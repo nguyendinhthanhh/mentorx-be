@@ -1,5 +1,6 @@
 package com.mentorx.api.feature.mentor.service.impl;
 
+import com.mentorx.api.common.security.MentorModeAccessService;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.feature.mentor.dto.request.MentorAvailabilityRequest;
@@ -31,11 +32,13 @@ public class MentorAvailabilityServiceImpl implements MentorAvailabilityService 
     private final MentorAvailabilityRepository mentorAvailabilityRepository;
     private final MentorBlockedDateRepository mentorBlockedDateRepository;
     private final MentorProfileRepository mentorProfileRepository;
+    private final MentorModeAccessService mentorModeAccessService;
 
     @Override
     @Transactional
     public MentorAvailabilityResponse createAvailability(UUID userId, MentorAvailabilityRequest request) {
         log.info("Creating availability for user: {}", userId);
+        mentorModeAccessService.requireApprovedMentorContentAccess(userId);
 
         // Get mentor profile by user ID
         MentorProfile mentorProfile = mentorProfileRepository.findByUserId(userId)
@@ -80,6 +83,9 @@ public class MentorAvailabilityServiceImpl implements MentorAvailabilityService 
 
         MentorAvailability availability = mentorAvailabilityRepository.findById(availabilityId)
                 .orElseThrow(() -> new AppException(ErrorCode.AVAILABILITY_NOT_FOUND));
+        MentorProfile mentorProfile = mentorProfileRepository.findById(availability.getMentorProfileId())
+                .orElseThrow(() -> new AppException(ErrorCode.MENTOR_PROFILE_NOT_FOUND));
+        mentorModeAccessService.requireApprovedMentorContentAccess(mentorProfile.getUser().getId());
 
         // Validate time range
         if (request.getStartTime().isAfter(request.getEndTime()) || 
@@ -116,11 +122,12 @@ public class MentorAvailabilityServiceImpl implements MentorAvailabilityService 
     public void deleteAvailability(UUID availabilityId) {
         log.info("Deleting availability: {}", availabilityId);
 
-        if (!mentorAvailabilityRepository.existsById(availabilityId)) {
-            throw new AppException(ErrorCode.AVAILABILITY_NOT_FOUND);
-        }
-
-        mentorAvailabilityRepository.deleteById(availabilityId);
+        MentorAvailability availability = mentorAvailabilityRepository.findById(availabilityId)
+                .orElseThrow(() -> new AppException(ErrorCode.AVAILABILITY_NOT_FOUND));
+        MentorProfile mentorProfile = mentorProfileRepository.findById(availability.getMentorProfileId())
+                .orElseThrow(() -> new AppException(ErrorCode.MENTOR_PROFILE_NOT_FOUND));
+        mentorModeAccessService.requireApprovedMentorContentAccess(mentorProfile.getUser().getId());
+        mentorAvailabilityRepository.delete(availability);
         log.info("Availability deleted successfully: {}", availabilityId);
     }
 
@@ -190,6 +197,7 @@ public class MentorAvailabilityServiceImpl implements MentorAvailabilityService 
     @Transactional
     public MentorBlockedDateResponse blockDate(UUID userId, MentorBlockedDateRequest request) {
         log.info("Blocking date for user: {}", userId);
+        mentorModeAccessService.requireApprovedMentorContentAccess(userId);
 
         // Get mentor profile by user ID
         MentorProfile mentorProfile = mentorProfileRepository.findByUserId(userId)
@@ -217,11 +225,12 @@ public class MentorAvailabilityServiceImpl implements MentorAvailabilityService 
     public void unblockDate(UUID blockedDateId) {
         log.info("Unblocking date: {}", blockedDateId);
 
-        if (!mentorBlockedDateRepository.existsById(blockedDateId)) {
-            throw new AppException(ErrorCode.BLOCKED_DATE_NOT_FOUND);
-        }
-
-        mentorBlockedDateRepository.deleteById(blockedDateId);
+        MentorBlockedDate blockedDate = mentorBlockedDateRepository.findById(blockedDateId)
+                .orElseThrow(() -> new AppException(ErrorCode.BLOCKED_DATE_NOT_FOUND));
+        MentorProfile mentorProfile = mentorProfileRepository.findById(blockedDate.getMentorProfileId())
+                .orElseThrow(() -> new AppException(ErrorCode.MENTOR_PROFILE_NOT_FOUND));
+        mentorModeAccessService.requireApprovedMentorContentAccess(mentorProfile.getUser().getId());
+        mentorBlockedDateRepository.delete(blockedDate);
         log.info("Date unblocked successfully: {}", blockedDateId);
     }
 

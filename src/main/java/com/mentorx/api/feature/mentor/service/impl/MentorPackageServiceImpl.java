@@ -1,5 +1,6 @@
 package com.mentorx.api.feature.mentor.service.impl;
 
+import com.mentorx.api.common.security.MentorModeAccessService;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.feature.mentor.dto.request.MentorPackageRequest;
@@ -25,11 +26,13 @@ public class MentorPackageServiceImpl implements MentorPackageService {
 
     private final MentorPackageRepository mentorPackageRepository;
     private final MentorProfileRepository mentorProfileRepository;
+    private final MentorModeAccessService mentorModeAccessService;
 
     @Override
     @Transactional
     public MentorPackageResponse createPackage(UUID userId, MentorPackageRequest request) {
         log.info("Creating package for user: {}", userId);
+        mentorModeAccessService.requireApprovedMentorContentAccess(userId);
 
         // Get mentor profile by user ID
         MentorProfile mentorProfile = mentorProfileRepository.findByUserId(userId)
@@ -60,6 +63,9 @@ public class MentorPackageServiceImpl implements MentorPackageService {
 
         MentorPackage mentorPackage = mentorPackageRepository.findById(packageId)
                 .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_NOT_FOUND));
+        MentorProfile mentorProfile = mentorProfileRepository.findById(mentorPackage.getMentorProfileId())
+                .orElseThrow(() -> new AppException(ErrorCode.MENTOR_PROFILE_NOT_FOUND));
+        mentorModeAccessService.requireApprovedMentorContentAccess(mentorProfile.getUser().getId());
 
         mentorPackage.setTitle(request.getTitle());
         mentorPackage.setDescription(request.getDescription());
@@ -82,11 +88,12 @@ public class MentorPackageServiceImpl implements MentorPackageService {
     public void deletePackage(UUID packageId) {
         log.info("Deleting package: {}", packageId);
 
-        if (!mentorPackageRepository.existsById(packageId)) {
-            throw new AppException(ErrorCode.PACKAGE_NOT_FOUND);
-        }
-
-        mentorPackageRepository.deleteById(packageId);
+        MentorPackage mentorPackage = mentorPackageRepository.findById(packageId)
+                .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_NOT_FOUND));
+        MentorProfile mentorProfile = mentorProfileRepository.findById(mentorPackage.getMentorProfileId())
+                .orElseThrow(() -> new AppException(ErrorCode.MENTOR_PROFILE_NOT_FOUND));
+        mentorModeAccessService.requireApprovedMentorContentAccess(mentorProfile.getUser().getId());
+        mentorPackageRepository.delete(mentorPackage);
         log.info("Package deleted successfully: {}", packageId);
     }
 
@@ -97,6 +104,9 @@ public class MentorPackageServiceImpl implements MentorPackageService {
 
         MentorPackage mentorPackage = mentorPackageRepository.findById(packageId)
                 .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_NOT_FOUND));
+        MentorProfile mentorProfile = mentorProfileRepository.findById(mentorPackage.getMentorProfileId())
+                .orElseThrow(() -> new AppException(ErrorCode.MENTOR_PROFILE_NOT_FOUND));
+        mentorModeAccessService.requireApprovedMentorContentAccess(mentorProfile.getUser().getId());
 
         mentorPackage.setIsActive(!mentorPackage.getIsActive());
         MentorPackage updated = mentorPackageRepository.save(mentorPackage);

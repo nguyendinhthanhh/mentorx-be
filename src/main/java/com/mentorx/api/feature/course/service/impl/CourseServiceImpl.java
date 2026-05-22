@@ -1,5 +1,6 @@
 package com.mentorx.api.feature.course.service.impl;
 
+import com.mentorx.api.common.security.MentorModeAccessService;
 import com.mentorx.api.common.enums.CourseStatus;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
@@ -28,10 +29,12 @@ public class CourseServiceImpl implements CourseService {
 
     private final CourseRepository courseRepository;
     private final UserRepository userRepository;
+    private final MentorModeAccessService mentorModeAccessService;
 
     @Override
     @Transactional
     public CourseResponse create(CourseCreateRequest request) {
+        mentorModeAccessService.requireApprovedMentorContentAccess(request.getInstructorId());
         User instructor = userRepository.findById(request.getInstructorId())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
@@ -61,6 +64,7 @@ public class CourseServiceImpl implements CourseService {
     @Transactional
     public CourseResponse update(UUID courseId, CourseUpdateRequest request) {
         Course course = findCourse(courseId);
+        mentorModeAccessService.requireApprovedMentorContentAccess(course.getInstructor().getId());
         if (request.getCategoryId() != null) course.setCategoryId(request.getCategoryId());
         if (request.getTitle() != null) course.setTitle(request.getTitle());
         if (request.getDescription() != null) course.setDescription(request.getDescription());
@@ -83,6 +87,7 @@ public class CourseServiceImpl implements CourseService {
     @Transactional
     public void delete(UUID courseId) {
         Course course = findCourse(courseId);
+        mentorModeAccessService.requireApprovedMentorContentAccess(course.getInstructor().getId());
         course.setDeletedAt(LocalDateTime.now());
         courseRepository.save(course);
     }

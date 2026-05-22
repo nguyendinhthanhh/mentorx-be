@@ -41,6 +41,24 @@ public class WalletTransaction extends BaseEntity {
     @Column(name = "balance_after_mxc", nullable = false, precision = 15, scale = 4)
     private BigDecimal balanceAfterMxc;
 
+    @Column(name = "original_amount", precision = 19, scale = 6)
+    private BigDecimal originalAmount;
+
+    @Column(name = "original_currency", length = 10)
+    private String originalCurrency;
+
+    @Column(name = "exchange_rate_to_vnd", precision = 19, scale = 6)
+    private BigDecimal exchangeRateToVnd;
+
+    @Column(name = "converted_amount_vnd", precision = 19, scale = 2)
+    private BigDecimal convertedAmountVnd;
+
+    @Column(name = "gateway", length = 30)
+    private String gateway;
+
+    @Column(name = "gateway_transaction_id", length = 255)
+    private String gatewayTransactionId;
+
     @Column(name = "reference_id")
     private UUID referenceId;
 

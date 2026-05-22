@@ -62,9 +62,13 @@ public class OnboardingFlowService {
         if (Boolean.TRUE.equals(user.getIsOnboarded())) {
             return;
         }
-        user.setOnboardingState(null);
-        user.setIsOnboarded(true);
-        user.setStatus(UserStatus.ACTIVE);
+        if (user.getOnboardingState() == null) {
+            user.setOnboardingState(OnboardingJsonState.fresh());
+        }
+        if (user.getStatus() == UserStatus.PENDING) {
+            user.setStatus(UserStatus.ACTIVE);
+        }
+        user.setIsOnboarded(false);
         userRepository.save(user);
     }
 }

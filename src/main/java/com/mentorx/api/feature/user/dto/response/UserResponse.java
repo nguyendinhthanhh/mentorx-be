@@ -2,7 +2,9 @@ package com.mentorx.api.feature.user.dto.response;
 
 import com.mentorx.api.common.enums.MentorStatus;
 import com.mentorx.api.common.enums.SupportedLanguage;
+import com.mentorx.api.common.enums.UserMode;
 import com.mentorx.api.common.enums.UserStatus;
+import com.mentorx.api.common.enums.VerificationStatus;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -29,5 +31,13 @@ public record UserResponse(
     LocalDateTime createdAt,
     LocalDateTime updatedAt,
     List<UserRoleResponse> roles,
-    MentorProfileResponse mentorProfile
+    MentorProfileResponse mentorProfile,
+    VerificationStatus expertiseStatus,
+    VerificationStatus identityStatus,
+    VerificationStatus payoutStatus,
+    Boolean verifiedMentorBadge,
+    Boolean canSwitchToMentorMode,
+    Boolean canRequestWithdrawal,
+    List<UserMode> availableModes,
+    UserMode currentMode
 ) {}

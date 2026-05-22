@@ -13,6 +13,7 @@ public record DepositOrderResponse(
         String gatewayOrderId,
         BigDecimal realAmount,
         String realCurrency,
+        BigDecimal convertedAmountVnd,
         BigDecimal mxcAmount,
         BigDecimal exchangeRate,
         TxnStatus txnStatus,

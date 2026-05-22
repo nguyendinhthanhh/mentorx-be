@@ -1,6 +1,7 @@
 package com.mentorx.api.feature.user.entity;
 
 import com.mentorx.api.common.entity.BaseEntity;
+import com.mentorx.api.common.enums.PayoutMethod;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -33,6 +34,28 @@ public class UserBankAccount extends BaseEntity {
 
     @Column(name = "branch_name", length = 200)
     private String branchName;
+
+    @Column(name = "payout_country", length = 10)
+    private String payoutCountry;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payout_method", length = 40)
+    private PayoutMethod payoutMethod;
+
+    @Column(name = "iban", length = 80)
+    private String iban;
+
+    @Column(name = "swift_code", length = 40)
+    private String swiftCode;
+
+    @Column(name = "paypal_email", length = 255)
+    private String paypalEmail;
+
+    @Column(name = "wise_email", length = 255)
+    private String wiseEmail;
+
+    @Column(name = "stripe_connect_account_id", length = 255)
+    private String stripeConnectAccountId;
 
     @Column(name = "is_default", nullable = false)
     @Builder.Default

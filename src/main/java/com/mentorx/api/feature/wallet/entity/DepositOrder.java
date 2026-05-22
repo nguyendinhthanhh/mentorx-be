@@ -37,7 +37,7 @@ public class DepositOrder extends BaseEntity {
     @Column(name = "gateway_txn_id", length = 255)
     private String gatewayTxnId;
 
-    @Column(name = "real_amount", nullable = false, precision = 15, scale = 2)
+    @Column(name = "real_amount", nullable = false, precision = 19, scale = 6)
     private BigDecimal realAmount;
 
     @Column(name = "real_currency", nullable = false, length = 3)
@@ -47,8 +47,11 @@ public class DepositOrder extends BaseEntity {
     @Column(name = "mxc_amount", nullable = false, precision = 15, scale = 4)
     private BigDecimal mxcAmount;
 
-    @Column(name = "exchange_rate", nullable = false, precision = 15, scale = 4)
+    @Column(name = "exchange_rate", nullable = false, precision = 19, scale = 6)
     private BigDecimal exchangeRate;
+
+    @Column(name = "converted_amount_vnd", nullable = false, precision = 19, scale = 2)
+    private BigDecimal convertedAmountVnd;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "txn_status", nullable = false)
