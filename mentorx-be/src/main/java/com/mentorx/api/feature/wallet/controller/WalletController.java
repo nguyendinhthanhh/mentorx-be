@@ -142,7 +142,10 @@ public class WalletController {
                 feeAmount,
                 request.bankName(),
                 request.bankAccountNo(),
-                request.bankAccountName()
+                request.bankAccountName(),
+                request.payoutCountry(),
+                request.payoutMethod(),
+                request.payoutReference()
         );
 
         return ResponseEntity.status(HttpStatus.CREATED)

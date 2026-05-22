@@ -111,7 +111,7 @@ export default function MomoReturnPage() {
                 <ArrowRight className="h-4 w-4" />
               </button>
               <button
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate('/profile')}
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 Back to dashboard
@@ -141,7 +141,7 @@ export default function MomoReturnPage() {
                 Try again
               </button>
               <button
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate('/profile')}
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 Back to dashboard

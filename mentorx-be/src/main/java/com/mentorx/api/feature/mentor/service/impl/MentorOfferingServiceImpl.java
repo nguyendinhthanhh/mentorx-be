@@ -1,5 +1,6 @@
 package com.mentorx.api.feature.mentor.service.impl;
 
+import com.mentorx.api.common.security.MentorModeAccessService;
 import com.mentorx.api.common.enums.CourseStatus;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
@@ -26,11 +27,13 @@ public class MentorOfferingServiceImpl implements MentorOfferingService {
 
     private final MentorOfferingRepository mentorOfferingRepository;
     private final MentorProfileRepository mentorProfileRepository;
+    private final MentorModeAccessService mentorModeAccessService;
 
     @Override
     @Transactional
     public MentorOfferingResponse createCourse(UUID userId, MentorOfferingRequest request) {
         log.info("Creating course for user: {}", userId);
+        mentorModeAccessService.requireApprovedMentorContentAccess(userId);
 
         // Get mentor profile by user ID
         MentorProfile mentorProfile = mentorProfileRepository.findByUserId(userId)
@@ -60,6 +63,9 @@ public class MentorOfferingServiceImpl implements MentorOfferingService {
 
         MentorOffering mentorOffering = mentorOfferingRepository.findById(courseId)
                 .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_FOUND));
+        MentorProfile mentorProfile = mentorProfileRepository.findById(mentorOffering.getMentorProfileId())
+                .orElseThrow(() -> new AppException(ErrorCode.MENTOR_PROFILE_NOT_FOUND));
+        mentorModeAccessService.requireApprovedMentorContentAccess(mentorProfile.getUser().getId());
 
         mentorOffering.setTitle(request.getTitle());
         mentorOffering.setDescription(request.getDescription());
@@ -80,11 +86,12 @@ public class MentorOfferingServiceImpl implements MentorOfferingService {
     public void deleteCourse(UUID courseId) {
         log.info("Deleting course: {}", courseId);
 
-        if (!mentorOfferingRepository.existsById(courseId)) {
-            throw new AppException(ErrorCode.COURSE_NOT_FOUND);
-        }
-
-        mentorOfferingRepository.deleteById(courseId);
+        MentorOffering mentorOffering = mentorOfferingRepository.findById(courseId)
+                .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_FOUND));
+        MentorProfile mentorProfile = mentorProfileRepository.findById(mentorOffering.getMentorProfileId())
+                .orElseThrow(() -> new AppException(ErrorCode.MENTOR_PROFILE_NOT_FOUND));
+        mentorModeAccessService.requireApprovedMentorContentAccess(mentorProfile.getUser().getId());
+        mentorOfferingRepository.delete(mentorOffering);
         log.info("Course deleted successfully: {}", courseId);
     }
 
@@ -95,6 +102,9 @@ public class MentorOfferingServiceImpl implements MentorOfferingService {
 
         MentorOffering mentorOffering = mentorOfferingRepository.findById(courseId)
                 .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_FOUND));
+        MentorProfile mentorProfile = mentorProfileRepository.findById(mentorOffering.getMentorProfileId())
+                .orElseThrow(() -> new AppException(ErrorCode.MENTOR_PROFILE_NOT_FOUND));
+        mentorModeAccessService.requireApprovedMentorContentAccess(mentorProfile.getUser().getId());
 
         mentorOffering.setStatus(CourseStatus.PUBLISHED);
         MentorOffering updated = mentorOfferingRepository.save(mentorOffering);
@@ -110,6 +120,9 @@ public class MentorOfferingServiceImpl implements MentorOfferingService {
 
         MentorOffering mentorOffering = mentorOfferingRepository.findById(courseId)
                 .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_FOUND));
+        MentorProfile mentorProfile = mentorProfileRepository.findById(mentorOffering.getMentorProfileId())
+                .orElseThrow(() -> new AppException(ErrorCode.MENTOR_PROFILE_NOT_FOUND));
+        mentorModeAccessService.requireApprovedMentorContentAccess(mentorProfile.getUser().getId());
 
         mentorOffering.setStatus(CourseStatus.ARCHIVED);
         MentorOffering updated = mentorOfferingRepository.save(mentorOffering);

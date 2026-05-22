@@ -8,6 +8,7 @@ import { useCallback, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { CredentialResponse, GoogleLogin } from '@react-oauth/google'
+import { canAccessAdminWorkspace } from '@/utils/roleRedirect'
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -38,15 +39,10 @@ export default function LoginForm() {
       setTokens(response.accessToken, response.refreshToken)
       setUser(response.user)
       
-      // Redirect based on user role
-      const userRoles = response.user.roles.map(r => r.roleName.toUpperCase())
-      
-      if (userRoles.includes('ADMIN')) {
+      if (canAccessAdminWorkspace(response.user)) {
         navigate('/admin/dashboard')
-      } else if (userRoles.includes('MENTOR') || response.user.mentorStatus === 'APPROVED') {
-        navigate('/mentor/dashboard')
       } else {
-        navigate('/dashboard')
+        navigate('/profile')
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Invalid email or password. Please try again.')
@@ -69,14 +65,10 @@ export default function LoginForm() {
         setTokens(response.accessToken, response.refreshToken)
         setUser(response.user)
 
-        const userRoles = response.user.roles.map(r => r.roleName.toUpperCase())
-
-        if (userRoles.includes('ADMIN')) {
+        if (canAccessAdminWorkspace(response.user)) {
           navigate('/admin/dashboard')
-        } else if (userRoles.includes('MENTOR') || response.user.mentorStatus === 'APPROVED') {
-          navigate('/mentor/dashboard')
         } else {
-          navigate('/dashboard')
+          navigate('/profile')
         }
       } catch (err: any) {
         setError(err.response?.data?.message || 'Google login failed. Please try again.')

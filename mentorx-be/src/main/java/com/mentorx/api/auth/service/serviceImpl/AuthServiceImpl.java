@@ -24,11 +24,15 @@ import com.mentorx.api.common.util.HashUtil;
 import com.mentorx.api.feature.user.dto.response.UserResponse;
 import com.mentorx.api.feature.user.entity.EmailVerificationToken;
 import com.mentorx.api.feature.user.entity.PasswordResetToken;
+import com.mentorx.api.feature.user.entity.Role;
 import com.mentorx.api.feature.user.entity.User;
+import com.mentorx.api.feature.user.entity.UserRole;
 import com.mentorx.api.feature.user.mapper.UserMapper;
 import com.mentorx.api.feature.user.repository.EmailVerificationTokenRepository;
 import com.mentorx.api.feature.user.repository.PasswordResetTokenRepository;
+import com.mentorx.api.feature.user.repository.RoleRepository;
 import com.mentorx.api.feature.user.repository.UserRepository;
+import com.mentorx.api.feature.user.repository.UserRoleRepository;
 import com.mentorx.api.feature.wallet.service.WalletService;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
@@ -45,6 +49,7 @@ import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -63,6 +68,8 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final PasswordResetEmailDispatcher passwordResetEmailDispatcher;
     private final JavaMailSender mailSender;
+    private final RoleRepository roleRepository;
+    private final UserRoleRepository userRoleRepository;
 
     @Value("${jwt.refresh-token-expiry}")
     private Long refreshTokenExpiryMs;
@@ -94,12 +101,13 @@ public class AuthServiceImpl implements AuthService {
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .fullName((request.firstName() + " " + request.lastName()).trim())
                 .displayName(request.firstName())
-                .status(UserStatus.PENDING)
+                .status(UserStatus.ACTIVE)
                 .isEmailVerified(false)
                 .mentorStatus(MentorStatus.NONE)
                 .preferredLanguage(SupportedLanguage.vi)
                 .build();
         user = userRepository.save(user);
+        assignUserRoleIfMissing(user);
         sendVerificationEmailForUser(user);
 
         // Create wallets for new user
@@ -182,7 +190,7 @@ public class AuthServiceImpl implements AuthService {
                 org.springframework.security.core.userdetails.User.builder()
                         .username(user.getEmail())
                         .password(user.getPasswordHash() != null ? user.getPasswordHash() : "OAUTH2_USER")
-                        .authorities("ROLE_USER")
+                        .authorities(resolveAuthorities(user))
                         .build()
         );
 
@@ -225,6 +233,7 @@ public class AuthServiceImpl implements AuthService {
                     .mentorStatus(MentorStatus.NONE)
                     .preferredLanguage(SupportedLanguage.vi)
                     .build());
+            assignUserRoleIfMissing(user);
 
             try {
                 walletService.createWallet(user.getId(), WalletAccountType.USER_AVAILABLE);
@@ -368,10 +377,11 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private AuthResponse buildAuthResponse(User user) {
+        user.setUserRoles(userRoleRepository.findByUserIdWithRole(user.getId()));
         var principal = org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())
                 .password(user.getPasswordHash() != null ? user.getPasswordHash() : "OAUTH2_USER")
-                .authorities("ROLE_USER")
+                .authorities(resolveAuthorities(user))
                 .build();
 
         String accessToken = jwtUtil.generateAccessToken(principal);
@@ -392,6 +402,40 @@ public class AuthServiceImpl implements AuthService {
                 .expiresIn(900L)
                 .user(userResponse)
                 .build();
+    }
+
+    private void assignUserRoleIfMissing(User user) {
+        Role userRole = roleRepository.findByRoleName("USER")
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Role not found: USER"));
+        if (!userRoleRepository.existsByUserIdAndRoleId(user.getId(), userRole.getId())) {
+            userRoleRepository.save(UserRole.builder()
+                    .userId(user.getId())
+                    .roleId(userRole.getId())
+                    .user(user)
+                    .role(userRole)
+                    .grantedAt(LocalDateTime.now())
+                    .build());
+        }
+    }
+
+    private String[] resolveAuthorities(User user) {
+        if (user.getUserRoles() == null || user.getUserRoles().isEmpty()) {
+            return new String[]{"ROLE_USER"};
+        }
+
+        List<String> authorities = user.getUserRoles().stream()
+                .map(UserRole::getRole)
+                .filter(role -> role != null && StringUtils.hasText(role.getRoleName()))
+                .map(Role::getRoleName)
+                .map(String::trim)
+                .map(String::toUpperCase)
+                .map(roleName -> "ROLE_" + roleName)
+                .distinct()
+                .toList();
+
+        return authorities.isEmpty()
+                ? new String[]{"ROLE_USER"}
+                : authorities.toArray(String[]::new);
     }
 
     private void sendVerificationEmailForUser(User user) {

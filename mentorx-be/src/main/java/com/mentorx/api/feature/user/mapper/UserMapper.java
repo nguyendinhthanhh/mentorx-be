@@ -15,8 +15,17 @@ import java.util.List;
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface UserMapper {
 
+    @Mapping(target = "mentorStatus", expression = "java(com.mentorx.api.feature.user.mapper.UserModeMapper.normalizeMentorStatus(user.getMentorStatus()))")
     @Mapping(target = "roles", source = "userRoles")
     @Mapping(target = "mentorProfile", ignore = true)
+    @Mapping(target = "expertiseStatus", expression = "java(com.mentorx.api.feature.user.mapper.UserModeMapper.determineExpertiseStatus(user))")
+    @Mapping(target = "identityStatus", expression = "java(com.mentorx.api.feature.user.mapper.UserModeMapper.determineIdentityStatus(user))")
+    @Mapping(target = "payoutStatus", expression = "java(com.mentorx.api.feature.user.mapper.UserModeMapper.determinePayoutStatus(user))")
+    @Mapping(target = "verifiedMentorBadge", expression = "java(com.mentorx.api.feature.user.mapper.UserModeMapper.isVerifiedMentorBadge(user))")
+    @Mapping(target = "canSwitchToMentorMode", expression = "java(com.mentorx.api.feature.user.mapper.UserModeMapper.canSwitchToMentorMode(user))")
+    @Mapping(target = "canRequestWithdrawal", expression = "java(com.mentorx.api.feature.user.mapper.UserModeMapper.canRequestWithdrawal(user))")
+    @Mapping(target = "availableModes", expression = "java(com.mentorx.api.feature.user.mapper.UserModeMapper.determineAvailableModes(user))")
+    @Mapping(target = "currentMode", expression = "java(com.mentorx.api.feature.user.mapper.UserModeMapper.determineCurrentMode(user))")
     UserResponse toUserResponse(User user);
 
     List<UserResponse> toUserResponseList(List<User> users);

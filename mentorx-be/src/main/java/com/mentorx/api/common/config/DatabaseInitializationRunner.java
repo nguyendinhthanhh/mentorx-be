@@ -46,10 +46,12 @@ public class DatabaseInitializationRunner {
                 ensureOnboardingColumnsIfNeeded();
                 ensureUserSavesTableIfNeeded();
                 ensureMentorVerificationColumnsIfNeeded();
+                ensureUserBankAccountPayoutColumnsIfNeeded();
                 ensureMentorStatusEnumValuesIfNeeded();
                 ensureDepositGatewayConstraintUpdated();
                 ensureExchangeRateTablesIfNeeded();
                 ensureWalletMonetarySnapshotColumnsIfNeeded();
+                ensureWithdrawalPayoutColumnsIfNeeded();
                 ensureEmailVerificationTablesIfNeeded();
                 ensurePasswordResetTablesIfNeeded();
                 return;
@@ -60,10 +62,12 @@ public class DatabaseInitializationRunner {
                 ensureOnboardingColumnsIfNeeded();
                 ensureUserSavesTableIfNeeded();
                 ensureMentorVerificationColumnsIfNeeded();
+                ensureUserBankAccountPayoutColumnsIfNeeded();
                 ensureMentorStatusEnumValuesIfNeeded();
                 ensureDepositGatewayConstraintUpdated();
                 ensureExchangeRateTablesIfNeeded();
                 ensureWalletMonetarySnapshotColumnsIfNeeded();
+                ensureWithdrawalPayoutColumnsIfNeeded();
                 ensureEmailVerificationTablesIfNeeded();
                 ensurePasswordResetTablesIfNeeded();
                 return;
@@ -97,10 +101,12 @@ public class DatabaseInitializationRunner {
             ensureOnboardingColumnsIfNeeded();
             ensureUserSavesTableIfNeeded();
             ensureMentorVerificationColumnsIfNeeded();
+            ensureUserBankAccountPayoutColumnsIfNeeded();
             ensureMentorStatusEnumValuesIfNeeded();
             ensureDepositGatewayConstraintUpdated();
             ensureExchangeRateTablesIfNeeded();
             ensureWalletMonetarySnapshotColumnsIfNeeded();
+            ensureWithdrawalPayoutColumnsIfNeeded();
             ensureEmailVerificationTablesIfNeeded();
             ensurePasswordResetTablesIfNeeded();
         };
@@ -142,6 +148,16 @@ public class DatabaseInitializationRunner {
         jdbcTemplate.execute("ALTER TABLE wallet_transactions ADD COLUMN IF NOT EXISTS converted_amount_vnd NUMERIC(19, 2)");
         jdbcTemplate.execute("ALTER TABLE wallet_transactions ADD COLUMN IF NOT EXISTS gateway VARCHAR(30)");
         jdbcTemplate.execute("ALTER TABLE wallet_transactions ADD COLUMN IF NOT EXISTS gateway_transaction_id VARCHAR(255)");
+    }
+
+    private void ensureWithdrawalPayoutColumnsIfNeeded() {
+        if (!isSchemaAlreadyCreated()) {
+            return;
+        }
+        log.info("Ensuring withdrawal payout columns exist...");
+        jdbcTemplate.execute("ALTER TABLE withdrawal_requests ADD COLUMN IF NOT EXISTS payout_country VARCHAR(10)");
+        jdbcTemplate.execute("ALTER TABLE withdrawal_requests ADD COLUMN IF NOT EXISTS payout_method VARCHAR(40)");
+        jdbcTemplate.execute("ALTER TABLE withdrawal_requests ADD COLUMN IF NOT EXISTS payout_reference VARCHAR(255)");
     }
 
     private void ensureDepositGatewayConstraintUpdated() {
@@ -207,6 +223,20 @@ public class DatabaseInitializationRunner {
                 """);
     }
 
+    private void ensureUserBankAccountPayoutColumnsIfNeeded() {
+        if (!isSchemaAlreadyCreated()) {
+            return;
+        }
+        log.info("Ensuring user bank account payout columns exist...");
+        jdbcTemplate.execute("ALTER TABLE user_bank_accounts ADD COLUMN IF NOT EXISTS payout_country VARCHAR(10)");
+        jdbcTemplate.execute("ALTER TABLE user_bank_accounts ADD COLUMN IF NOT EXISTS payout_method VARCHAR(40)");
+        jdbcTemplate.execute("ALTER TABLE user_bank_accounts ADD COLUMN IF NOT EXISTS iban VARCHAR(80)");
+        jdbcTemplate.execute("ALTER TABLE user_bank_accounts ADD COLUMN IF NOT EXISTS swift_code VARCHAR(40)");
+        jdbcTemplate.execute("ALTER TABLE user_bank_accounts ADD COLUMN IF NOT EXISTS paypal_email VARCHAR(255)");
+        jdbcTemplate.execute("ALTER TABLE user_bank_accounts ADD COLUMN IF NOT EXISTS wise_email VARCHAR(255)");
+        jdbcTemplate.execute("ALTER TABLE user_bank_accounts ADD COLUMN IF NOT EXISTS stripe_connect_account_id VARCHAR(255)");
+    }
+
     private void ensureMentorVerificationColumnsIfNeeded() {
         if (!isSchemaAlreadyCreated()) {
             return;
@@ -240,6 +270,30 @@ public class DatabaseInitializationRunner {
         jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS identity_document_back_url TEXT");
         jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS verification_metadata JSONB");
         jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS expertise_status VARCHAR(30) NOT NULL DEFAULT 'NOT_SUBMITTED'");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS expertise_review_note TEXT");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS expertise_rejection_reason TEXT");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS expertise_reviewed_by UUID REFERENCES users(id)");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS expertise_reviewed_at TIMESTAMPTZ");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS resubmission_allowed BOOLEAN NOT NULL DEFAULT TRUE");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS identity_status VARCHAR(30) NOT NULL DEFAULT 'NOT_SUBMITTED'");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS identity_required BOOLEAN NOT NULL DEFAULT FALSE");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS document_number_masked VARCHAR(40)");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS identity_verified_at TIMESTAMPTZ");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS identity_verified_by UUID REFERENCES users(id)");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS identity_rejection_reason TEXT");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS verification_provider VARCHAR(120)");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS payout_status VARCHAR(30) NOT NULL DEFAULT 'NOT_SUBMITTED'");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS payout_country VARCHAR(10)");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS payout_method VARCHAR(40)");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS iban VARCHAR(80)");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS swift_code VARCHAR(40)");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS paypal_email VARCHAR(255)");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS wise_email VARCHAR(255)");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS stripe_connect_account_id VARCHAR(255)");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS payout_rejection_reason TEXT");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS payout_reviewed_by UUID REFERENCES users(id)");
+        jdbcTemplate.execute("ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS payout_reviewed_at TIMESTAMPTZ");
         jdbcTemplate.execute("""
                 CREATE TABLE IF NOT EXISTS mentor_profile_assets (
                     id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -298,7 +352,7 @@ public class DatabaseInitializationRunner {
             log.warn("Could not inspect mentor_status type: {}", e.getMessage());
             return;
         }
-        String[] labels = {"PENDING_KYC", "KYC_SUBMITTED", "KYC_VERIFIED", "KYC_REJECTED", "ACTIVE"};
+        String[] labels = {"NOT_APPLIED", "PENDING_KYC", "KYC_SUBMITTED", "KYC_VERIFIED", "KYC_REJECTED", "ACTIVE"};
         for (String label : labels) {
             addMentorStatusEnumValueIfMissing(label);
         }

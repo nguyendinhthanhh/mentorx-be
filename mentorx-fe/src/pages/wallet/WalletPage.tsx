@@ -41,7 +41,7 @@ export default function WalletPage() {
     { key: 'deposit' as const, label: 'Deposit', icon: ArrowDownCircle, color: 'text-green-600' },
     { key: 'withdraw' as const, label: 'Withdraw', icon: ArrowUpCircle, color: 'text-red-600' },
     { key: 'transfer' as const, label: 'Transfer', icon: Send, color: 'text-blue-600' },
-    { key: 'bank-accounts' as const, label: 'Banks', icon: Landmark, color: 'text-purple-600' },
+    { key: 'bank-accounts' as const, label: 'Payout', icon: Landmark, color: 'text-purple-600' },
   ]
 
   const txnColors: Record<string, { bg: string; text: string; sign: string }> = {
@@ -153,7 +153,13 @@ export default function WalletPage() {
           </div>
 
           {activeTab === 'deposit' && <DepositForm userId={user.userId} onSuccess={handleSuccess} />}
-          {activeTab === 'withdraw' && <WithdrawalForm userId={user.userId} onSuccess={handleSuccess} />}
+          {activeTab === 'withdraw' && (
+            <WithdrawalForm
+              userId={user.userId}
+              onSuccess={handleSuccess}
+              onOpenPayoutSetup={() => setActiveTab('bank-accounts')}
+            />
+          )}
           {activeTab === 'transfer' && <TransferForm userId={user.userId} onSuccess={handleSuccess} />}
           {activeTab === 'bank-accounts' && <BankAccountSettings userId={user.userId} />}
         </div>

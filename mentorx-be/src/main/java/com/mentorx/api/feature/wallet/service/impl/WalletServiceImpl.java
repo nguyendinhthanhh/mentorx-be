@@ -1,14 +1,19 @@
 package com.mentorx.api.feature.wallet.service.impl;
 
 import com.mentorx.api.common.enums.LedgerDirection;
+import com.mentorx.api.common.enums.MentorStatus;
 import com.mentorx.api.common.enums.PaymentGateway;
+import com.mentorx.api.common.enums.PayoutMethod;
 import com.mentorx.api.common.enums.TxnType;
 import com.mentorx.api.common.enums.TxnStatus;
+import com.mentorx.api.common.enums.VerificationStatus;
 import com.mentorx.api.common.enums.WalletAccountType;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.common.util.HashUtil;
+import com.mentorx.api.feature.user.entity.MentorProfile;
 import com.mentorx.api.feature.user.entity.User;
+import com.mentorx.api.feature.user.repository.MentorProfileRepository;
 import com.mentorx.api.feature.user.repository.UserRepository;
 import com.mentorx.api.feature.wallet.dto.request.DepositRequest;
 import com.mentorx.api.feature.wallet.dto.request.TransferRequest;
@@ -58,6 +63,7 @@ public class WalletServiceImpl implements WalletService {
     private final WithdrawalRequestRepository withdrawalRequestRepository;
     private final com.mentorx.api.feature.wallet.repository.WalletBalanceAuditLogRepository auditLogRepository;
     private final MxcConversionService mxcConversionService;
+    private final MentorProfileRepository mentorProfileRepository;
 
     private static final BigDecimal MXC_TO_VND_RATE = BigDecimal.valueOf(1000);
     private static final String BASE_CURRENCY = "VND";
@@ -553,7 +559,31 @@ public class WalletServiceImpl implements WalletService {
 
     @Override
     @Transactional
-    public com.mentorx.api.feature.wallet.entity.WithdrawalRequest requestWithdrawal(UUID userId, BigDecimal amount, BigDecimal feeAmount, String bankName, String bankAccountNo, String bankAccountName) {
+    public com.mentorx.api.feature.wallet.entity.WithdrawalRequest requestWithdrawal(
+            UUID userId,
+            BigDecimal amount,
+            BigDecimal feeAmount,
+            String bankName,
+            String bankAccountNo,
+            String bankAccountName,
+            String payoutCountry,
+            PayoutMethod payoutMethod,
+            String payoutReference
+    ) {
+        User user = userRepository.findById(userId).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        MentorProfile mentorProfile = mentorProfileRepository.findByUserId(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.ACCESS_DENIED, "A mentor profile is required before requesting withdrawals."));
+        if (user.getMentorStatus() != MentorStatus.APPROVED) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "Mentor approval is required before requesting withdrawals.");
+        }
+        if (mentorProfile.getPayoutStatus() != VerificationStatus.APPROVED) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "Set up and approve your payout method before requesting withdrawals.");
+        }
+        if (Boolean.TRUE.equals(mentorProfile.getIdentityRequired())
+                && mentorProfile.getIdentityStatus() != VerificationStatus.APPROVED) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "Identity verification is required before your first withdrawal.");
+        }
+
         Wallet userWallet = getOrCreateUserWallet(userId, WalletAccountType.USER_AVAILABLE);
         Wallet platformRevenue = getSystemWallet(WalletAccountType.PLATFORM_REVENUE);
         Wallet platformFloat = getSystemWallet(WalletAccountType.PLATFORM_FLOAT);
@@ -571,6 +601,9 @@ public class WalletServiceImpl implements WalletService {
                 .bankName(bankName)
                 .bankAccountNo(bankAccountNo)
                 .bankAccountName(bankAccountName)
+                .payoutCountry(blankToNull(payoutCountry))
+                .payoutMethod(payoutMethod)
+                .payoutReference(blankToNull(payoutReference))
                 .status(WithdrawalStatus.PENDING)
                 .build();
         

@@ -190,6 +190,13 @@ export default function DepositForm({ userId: _userId, onSuccess }: DepositFormP
     }
   }
 
+  const previewRateLabel = preview?.originalCurrency === 'VND' ? 'MXC rate' : 'Exchange rate'
+  const previewRateValue = preview
+    ? preview.originalCurrency === 'VND'
+      ? `1 MXC = ${formatFiatCurrency('1000', 'VND')}`
+      : formatExchangeRate(preview.exchangeRateToVnd, preview.originalCurrency, 'VND')
+    : ''
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
@@ -292,7 +299,7 @@ export default function DepositForm({ userId: _userId, onSuccess }: DepositFormP
             ) : preview ? (
               <div className="grid gap-3">
                 <PreviewRow label="You pay" value={formatFiatCurrency(preview.originalAmount, preview.originalCurrency)} />
-                <PreviewRow label="Exchange rate" value={formatExchangeRate(preview.exchangeRateToVnd, preview.originalCurrency, 'VND')} />
+                <PreviewRow label={previewRateLabel} value={previewRateValue} />
                 <PreviewRow label="Converted amount" value={formatFiatCurrency(preview.convertedAmountVnd, 'VND')} />
                 <PreviewRow label="You receive" value={formatMxc(preview.amountMxc)} highlight />
               </div>

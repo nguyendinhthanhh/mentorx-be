@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { UserResponse } from '@/types'
+import { UserMode, UserResponse } from '@/types'
+import { canSwitchToMentorMode, getAvailableModes } from '@/utils/roleRedirect'
 
 const ONBOARDING_SKIP_SESSION_KEY = 'mentorx-onboarding-skipped-session'
 
@@ -23,8 +24,10 @@ interface AuthState {
   accessToken: string | null
   refreshToken: string | null
   isAuthenticated: boolean
+  currentMode: UserMode
   skippedOnboardingThisSession: boolean
   setUser: (user: UserResponse) => void
+  setCurrentMode: (mode: UserMode) => void
   setTokens: (accessToken: string, refreshToken: string) => void
   skipOnboardingForSession: () => void
   clearSkippedOnboarding: () => void
@@ -39,16 +42,48 @@ export const useAuthStore = create<AuthState>()(
       accessToken: null,
       refreshToken: null,
       isAuthenticated: false,
+      currentMode: UserMode.USER,
       skippedOnboardingThisSession: readSkippedOnboardingSession(),
 
       setUser: (user) =>
         set((state) => {
           const skippedOnboardingThisSession = user.isOnboarded ? false : state.skippedOnboardingThisSession
+          const availableModes = getAvailableModes(user)
+          const requestedMode = user.currentMode || state.currentMode
+          const currentMode =
+            requestedMode === UserMode.MENTOR && availableModes.includes(UserMode.MENTOR)
+              ? UserMode.MENTOR
+              : UserMode.USER
           writeSkippedOnboardingSession(skippedOnboardingThisSession)
           return {
-            user,
+            user: {
+              ...user,
+              availableModes,
+              currentMode,
+            },
             isAuthenticated: true,
+            currentMode,
             skippedOnboardingThisSession,
+          }
+        }),
+
+      setCurrentMode: (mode) =>
+        set((state) => {
+          const availableModes = getAvailableModes(state.user)
+          const currentMode =
+            mode === UserMode.MENTOR && availableModes.includes(UserMode.MENTOR)
+              ? UserMode.MENTOR
+              : UserMode.USER
+
+          return {
+            currentMode,
+            user: state.user
+              ? {
+                  ...state.user,
+                  availableModes,
+                  currentMode,
+                }
+              : state.user,
           }
         }),
 
@@ -62,6 +97,7 @@ export const useAuthStore = create<AuthState>()(
         set({
           accessToken,
           refreshToken,
+          currentMode: UserMode.USER,
           skippedOnboardingThisSession: false,
         })
       },
@@ -90,6 +126,7 @@ export const useAuthStore = create<AuthState>()(
             accessToken: null,
             refreshToken: null,
             isAuthenticated: false,
+            currentMode: UserMode.USER,
             skippedOnboardingThisSession: false,
           }
         }),
@@ -100,9 +137,19 @@ export const useAuthStore = create<AuthState>()(
           const user = await authApi.getCurrentUser()
           set((state) => {
             const skippedOnboardingThisSession = user.isOnboarded ? false : state.skippedOnboardingThisSession
+            const availableModes = getAvailableModes(user)
+            const currentMode =
+              state.currentMode === UserMode.MENTOR && canSwitchToMentorMode(user)
+                ? UserMode.MENTOR
+                : UserMode.USER
             writeSkippedOnboardingSession(skippedOnboardingThisSession)
             return {
-              user,
+              user: {
+                ...user,
+                availableModes,
+                currentMode,
+              },
+              currentMode,
               skippedOnboardingThisSession,
             }
           })
@@ -118,6 +165,7 @@ export const useAuthStore = create<AuthState>()(
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
+        currentMode: state.currentMode,
       }),
     }
   )
