@@ -1,6 +1,7 @@
 package com.mentorx.api.feature.course.controller;
 
 import com.mentorx.api.common.enums.CourseStatus;
+import com.mentorx.api.common.enums.SupportedLanguage;
 import com.mentorx.api.common.response.ApiResponse;
 import com.mentorx.api.feature.course.dto.request.CourseCreateRequest;
 import com.mentorx.api.feature.course.dto.request.CourseUpdateRequest;
@@ -52,18 +53,27 @@ public class CourseController {
             @RequestParam(required = false) CourseStatus status,
             @RequestParam(required = false) UUID instructorId,
             @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) SupportedLanguage language,
+            @RequestParam(required = false) String level,
+            @RequestParam(required = false) String skill,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(ApiResponse.success(
-                courseService.getAllCourses(status, instructorId, categoryId, PageRequest.of(page, size))
+                courseService.getAllCourses(status, instructorId, categoryId, language, level, skill, PageRequest.of(page, size))
         ));
     }
 
     @GetMapping("/published")
     public ResponseEntity<ApiResponse<Page<CourseResponse>>> getPublished(
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) SupportedLanguage language,
+            @RequestParam(required = false) String level,
+            @RequestParam(required = false) String skill,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(ApiResponse.success(courseService.getPublished(PageRequest.of(page, size))));
+        return ResponseEntity.ok(ApiResponse.success(
+                courseService.getPublished(categoryId, language, level, skill, PageRequest.of(page, size))
+        ));
     }
 
     @GetMapping("/instructor/{instructorId}")

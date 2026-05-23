@@ -124,6 +124,8 @@ public class MentorProfileController {
             @Parameter(description = "Minimum rating") @RequestParam(required = false) BigDecimal minRating,
             @Parameter(description = "Maximum hourly rate") @RequestParam(required = false) BigDecimal maxHourlyRate,
             @Parameter(description = "Availability") @RequestParam(required = false) String availability,
+            @Parameter(description = "Primary domain keyword") @RequestParam(required = false) String primaryDomain,
+            @Parameter(description = "Skill keyword") @RequestParam(required = false) String skill,
             @Parameter(description = "Page number") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Page size") @RequestParam(defaultValue = "20") int size,
             @Parameter(description = "Sort by") @RequestParam(defaultValue = "averageRating") String sortBy,
@@ -134,7 +136,7 @@ public class MentorProfileController {
         Pageable pageable = PageRequest.of(page, size, sort);
         
         Page<MentorProfileResponse> mentors = mentorProfileService.getMentorsWithFilters(
-                minRating, maxHourlyRate, availability, pageable);
+                minRating, maxHourlyRate, availability, primaryDomain, skill, pageable);
         return ResponseEntity.ok(ApiResponse.success(mentors));
     }
 

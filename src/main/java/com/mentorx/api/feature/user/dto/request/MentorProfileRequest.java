@@ -40,6 +40,14 @@ public record MentorProfileRequest(
     @Size(max = 120, message = "Primary domain must not exceed 120 characters")
     String primaryDomain,
 
+    List<@Size(min = 1, max = 60, message = "Each skill must be between 1 and 60 characters") String> skills,
+
+    @Size(min = 50, max = 500, message = "Professional bio must be 50 to 500 characters")
+    String professionalBio,
+
+    @Size(min = 30, max = 500, message = "Help description must be 30 to 500 characters")
+    String helpDescription,
+
     String linkedinUrl,
 
     String githubUrl,
