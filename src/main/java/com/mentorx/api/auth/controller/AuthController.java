@@ -11,10 +11,8 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -108,20 +106,6 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> verifyEmail(
             @Parameter(description = "Verification token") @RequestParam String token) {
         authService.verifyEmail(token);
-        return ResponseEntity.ok(ApiResponse.success("Email verified successfully", null));
-    }
-
-    @PostMapping("/dev-verify")
-    @Operation(summary = "Development email verification", description = "Verify the authenticated user's email without an email token")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<Void>> devVerifyEmail(
-            @Parameter(description = "User email") @RequestParam String email,
-            Authentication authentication) {
-        if (authentication == null || !email.equalsIgnoreCase(authentication.getName())) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(ApiResponse.error("Cannot verify another user's email"));
-        }
-        authService.devVerifyEmail(email);
         return ResponseEntity.ok(ApiResponse.success("Email verified successfully", null));
     }
 
