@@ -51,10 +51,11 @@ public class JobController {
     public ResponseEntity<ApiResponse<Page<JobResponse>>> getOpenJobs(
             @RequestParam(required = false) JobType jobType,
             @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) String skill,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(ApiResponse.success(
-                jobService.getOpenJobs(jobType, categoryId, PageRequest.of(page, size))
+                jobService.getOpenJobs(jobType, categoryId, skill, PageRequest.of(page, size))
         ));
     }
 
@@ -64,10 +65,11 @@ public class JobController {
             @RequestParam(required = false) JobStatus status,
             @RequestParam(required = false) JobType jobType,
             @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) String skill,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(ApiResponse.success(
-                jobService.getAllJobs(status, jobType, categoryId, PageRequest.of(page, size))
+                jobService.getAllJobs(status, jobType, categoryId, skill, PageRequest.of(page, size))
         ));
     }
 

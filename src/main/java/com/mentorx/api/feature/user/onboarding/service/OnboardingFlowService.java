@@ -68,7 +68,7 @@ public class OnboardingFlowService {
         if (user.getStatus() == UserStatus.PENDING) {
             user.setStatus(UserStatus.ACTIVE);
         }
-        user.setIsOnboarded(false);
+        user.setIsOnboarded(true);
         userRepository.save(user);
     }
 }

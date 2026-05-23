@@ -5,9 +5,12 @@ import com.mentorx.api.feature.course.entity.Course;
 import com.mentorx.api.feature.course.repository.CourseRepository;
 import com.mentorx.api.feature.feed.dto.response.CourseRecommendationResponse;
 import com.mentorx.api.feature.feed.service.CourseRecommendationService;
-import com.mentorx.api.feature.feed.service.MatchingEngineService;
-import com.mentorx.api.feature.system.entity.Category;
+import com.mentorx.api.feature.matching.repository.UserInterestProfileRepository;
+import com.mentorx.api.feature.system.entity.Skill;
+import com.mentorx.api.feature.system.entity.UserSkill;
 import com.mentorx.api.feature.system.repository.CategoryRepository;
+import com.mentorx.api.feature.system.repository.UserSkillRepository;
+import com.mentorx.api.feature.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -16,64 +19,64 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.*;
+import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
-/**
- * Implementation of CourseRecommendationService
- * Provides personalized course recommendations using the matching engine
- * Filters by BOTH skill level AND interest categories (multi-criteria filtering)
- * 
- * @author MentorX Development Team
- * @since 2.2.0
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class CourseRecommendationServiceImpl implements CourseRecommendationService {
 
-    private final CourseRepository courseRepository;
-    private final CategoryRepository categoryRepository;
-    private final MatchingEngineService matchingEngineService;
-
-    private static final BigDecimal MATCH_THRESHOLD = new BigDecimal("85.00");
+    private static final BigDecimal MATCH_THRESHOLD = new BigDecimal("40.00");
     private static final int DEFAULT_LIMIT = 10;
+
+    private final CourseRepository courseRepository;
+    private final UserInterestProfileRepository userInterestProfileRepository;
+    private final UserSkillRepository userSkillRepository;
+    private final CategoryRepository categoryRepository;
+    private final UserRepository userRepository;
 
     @Override
     public List<CourseRecommendationResponse> getRecommendedCourses(UUID userId, int limit) {
-        log.info("Getting {} recommended courses for user: {}", limit, userId);
+        Set<Integer> interestedCategoryIds = userInterestProfileRepository.findByUserIdOrderByInterestScoreDesc(userId).stream()
+                .map(item -> item.getCategory().getId())
+                .collect(Collectors.toSet());
+        Set<String> preferredSkills = getUserSkills(userId);
+        String preferredLanguage = getPrimaryLanguage(userId);
 
-        // Get user's skill level and interested categories
-        String userLevel = matchingEngineService.getUserSkillLevel(userId);
-        List<Integer> interestedCategories = matchingEngineService.getUserInterestedCategories(userId);
+        Pageable pageable = PageRequest.of(0, 150);
+        List<Course> courses = courseRepository.findByStatusAndDeletedAtIsNull(CourseStatus.PUBLISHED, pageable).getContent();
 
-        if (interestedCategories.isEmpty()) {
-            log.warn("User {} has no interest profiles, returning empty recommendations", userId);
-            return Collections.emptyList();
+        List<CourseRecommendationResponse> personalized = courses.stream()
+                .map(course -> calculateCourseMatchInternal(course, interestedCategoryIds, preferredSkills, preferredLanguage))
+                .filter(Objects::nonNull)
+                .filter(item -> item.getMatchScore().compareTo(MATCH_THRESHOLD) >= 0)
+                .sorted((a, b) -> b.getMatchScore().compareTo(a.getMatchScore()))
+                .limit(limit)
+                .collect(Collectors.toList());
+
+        if (!personalized.isEmpty()) {
+            return personalized;
         }
 
-        log.debug("User {} level: {}, interested in {} categories", userId, userLevel, interestedCategories.size());
-
-        // Get published courses (we'll filter and score them)
-        Pageable pageable = PageRequest.of(0, 100); // Get top 100 courses to score
-        List<Course> courses = courseRepository
-            .findByStatusAndDeletedAtIsNull(CourseStatus.PUBLISHED, pageable)
-            .getContent();
-
-        log.debug("Found {} published courses to score", courses.size());
-
-        // Calculate match scores and filter
-        List<CourseRecommendationResponse> recommendations = courses.stream()
-            .map(course -> calculateCourseMatchInternal(userId, course, userLevel, interestedCategories))
-            .filter(Objects::nonNull)
-            .filter(rec -> rec.getMatchScore().compareTo(MATCH_THRESHOLD) >= 0)
-            .sorted((a, b) -> b.getMatchScore().compareTo(a.getMatchScore()))
-            .limit(limit)
-            .collect(Collectors.toList());
-
-        log.info("Returning {} course recommendations for user: {}", recommendations.size(), userId);
-        return recommendations;
+        // Fallback: popular/trending content when preferences are sparse.
+        return courses.stream()
+                .map(course -> calculateCourseMatchInternal(course, interestedCategoryIds, preferredSkills, preferredLanguage))
+                .filter(Objects::nonNull)
+                .sorted((a, b) -> {
+                    int enrollCompare = Integer.compare(b.getTotalEnrollments(), a.getTotalEnrollments());
+                    if (enrollCompare != 0) return enrollCompare;
+                    return b.getAverageRating().compareTo(a.getAverageRating());
+                })
+                .limit(limit)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -83,92 +86,117 @@ public class CourseRecommendationServiceImpl implements CourseRecommendationServ
 
     @Override
     public CourseRecommendationResponse calculateCourseMatch(UUID userId, UUID courseId) {
-        log.debug("Calculating match score for user {} and course {}", userId, courseId);
-
-        Course course = courseRepository.findById(courseId)
-            .orElse(null);
-
+        Course course = courseRepository.findById(courseId).orElse(null);
         if (course == null || course.getStatus() != CourseStatus.PUBLISHED || course.getDeletedAt() != null) {
-            log.warn("Course {} not found or not published", courseId);
             return null;
         }
 
-        String userLevel = matchingEngineService.getUserSkillLevel(userId);
-        List<Integer> interestedCategories = matchingEngineService.getUserInterestedCategories(userId);
-
-        return calculateCourseMatchInternal(userId, course, userLevel, interestedCategories);
+        Set<Integer> interestedCategoryIds = userInterestProfileRepository.findByUserIdOrderByInterestScoreDesc(userId).stream()
+                .map(item -> item.getCategory().getId())
+                .collect(Collectors.toSet());
+        Set<String> preferredSkills = getUserSkills(userId);
+        String preferredLanguage = getPrimaryLanguage(userId);
+        return calculateCourseMatchInternal(course, interestedCategoryIds, preferredSkills, preferredLanguage);
     }
 
-    /**
-     * Internal method to calculate match score for a course
-     * Implements multi-criteria filtering: skill level AND category
-     */
     private CourseRecommendationResponse calculateCourseMatchInternal(
-            UUID userId,
             Course course,
-            String userLevel,
-            List<Integer> interestedCategories) {
+            Set<Integer> interestedCategoryIds,
+            Set<String> preferredSkills,
+            String preferredLanguage
+    ) {
+        BigDecimal score = BigDecimal.ZERO;
 
-        // Multi-criteria filtering: Check BOTH level AND category
-        // Requirement 4.2: Courses must match both skill level AND interest categories
-
-        // Filter 1: Check skill level match
-        if (course.getLevel() == null || !course.getLevel().equalsIgnoreCase(userLevel)) {
-            log.debug("Course {} level {} doesn't match user level {}", 
-                course.getId(), course.getLevel(), userLevel);
-            return null;
+        if (course.getCategoryId() != null && interestedCategoryIds.contains(course.getCategoryId())) {
+            score = score.add(new BigDecimal("40"));
         }
 
-        // Filter 2: Check category match
-        if (course.getCategoryId() == null || !interestedCategories.contains(course.getCategoryId())) {
-            log.debug("Course {} category {} not in user's interested categories", 
-                course.getId(), course.getCategoryId());
-            return null;
+        Set<String> courseSkills = normalizeSkills(course.getSkills());
+        score = score.add(calculateSkillScore(preferredSkills, courseSkills));
+
+        if (course.getLanguage() != null && preferredLanguage != null
+                && course.getLanguage().name().equalsIgnoreCase(preferredLanguage)) {
+            score = score.add(new BigDecimal("10"));
         }
 
-        // Both filters passed - calculate match score
-        // For courses, we don't have explicit skills, so we use empty set
-        // The score will be based primarily on level match and rating
-        Set<String> courseSkills = Collections.emptySet();
+        score = score.add(calculatePopularityScore(course));
+        score = score.min(new BigDecimal("100")).setScale(2, RoundingMode.HALF_UP);
 
-        BigDecimal matchScore = matchingEngineService.calculateMatchScore(
-            userId,
-            courseSkills,
-            course.getLevel(),
-            course.getAverageRating(),
-            course.getCategoryId()
-        );
-
-        // Get category name
         String categoryName = null;
         if (course.getCategoryId() != null) {
             categoryName = categoryRepository.findById(course.getCategoryId())
-                .map(Category::getLabelEn)
-                .orElse(null);
+                    .map(category -> category.getLabelEn() != null ? category.getLabelEn() : category.getLabelVi())
+                    .orElse(null);
         }
 
-        // Build response
         return CourseRecommendationResponse.builder()
-            .courseId(course.getId())
-            .title(course.getTitle())
-            .slug(course.getSlug())
-            .description(course.getDescription())
-            .thumbnailUrl(course.getThumbnailUrl())
-            .price(course.getPriceMxc())
-            .instructorName(course.getInstructor().getFullName())
-            .instructorId(course.getInstructor().getId())
-            .averageRating(course.getAverageRating())
-            .totalReviews(course.getTotalReviews())
-            .totalEnrollments(course.getTotalEnrollments())
-            .totalDurationMinutes(course.getTotalDurationMin())
-            .totalLessons(course.getTotalLessons() != null ? course.getTotalLessons().intValue() : 0)
-            .level(course.getLevel())
-            .language(course.getLanguage().name())
-            .skills(Collections.emptyList()) // Courses don't have explicit skills in current schema
-            .categoryId(course.getCategoryId())
-            .categoryName(categoryName)
-            .matchScore(matchScore)
-            .isCertificate(course.getIsCertificate())
-            .build();
+                .courseId(course.getId())
+                .title(course.getTitle())
+                .slug(course.getSlug())
+                .description(course.getDescription())
+                .thumbnailUrl(course.getThumbnailUrl())
+                .price(course.getPriceMxc())
+                .instructorName(course.getInstructor().getFullName())
+                .instructorId(course.getInstructor().getId())
+                .averageRating(course.getAverageRating())
+                .totalReviews(course.getTotalReviews())
+                .totalEnrollments(course.getTotalEnrollments())
+                .totalDurationMinutes(course.getTotalDurationMin())
+                .totalLessons(course.getTotalLessons() != null ? course.getTotalLessons().intValue() : 0)
+                .level(course.getLevel())
+                .language(course.getLanguage() != null ? course.getLanguage().name() : null)
+                .skills(new ArrayList<>(courseSkills))
+                .categoryId(course.getCategoryId())
+                .categoryName(categoryName)
+                .matchScore(score)
+                .isCertificate(course.getIsCertificate())
+                .build();
+    }
+
+    private Set<String> getUserSkills(UUID userId) {
+        return userSkillRepository.findByUserId(userId).stream()
+                .map(UserSkill::getSkill)
+                .map(Skill::getLabelEn)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .map(String::toLowerCase)
+                .collect(Collectors.toSet());
+    }
+
+    private String getPrimaryLanguage(UUID userId) {
+        return userRepository.findById(userId)
+                .map(user -> user.getPreferredLanguage() != null ? user.getPreferredLanguage().name() : null)
+                .orElse(null);
+    }
+
+    private Set<String> normalizeSkills(List<String> skills) {
+        if (skills == null) return new HashSet<>();
+        return skills.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .map(String::toLowerCase)
+                .collect(Collectors.toSet());
+    }
+
+    private BigDecimal calculateSkillScore(Set<String> preferredSkills, Set<String> courseSkills) {
+        if (preferredSkills.isEmpty() || courseSkills.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        long overlap = courseSkills.stream().filter(preferredSkills::contains).count();
+        if (overlap <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return BigDecimal.valueOf(overlap * 10L).min(new BigDecimal("30"));
+    }
+
+    private BigDecimal calculatePopularityScore(Course course) {
+        BigDecimal rating = course.getAverageRating() == null ? BigDecimal.ZERO : course.getAverageRating();
+        BigDecimal ratingScore = rating
+                .divide(new BigDecimal("5"), 4, RoundingMode.HALF_UP)
+                .multiply(new BigDecimal("6"));
+        BigDecimal enrollmentScore = BigDecimal.valueOf(Math.min(4, Math.max(0, course.getTotalEnrollments() / 20)));
+        return ratingScore.add(enrollmentScore);
     }
 }

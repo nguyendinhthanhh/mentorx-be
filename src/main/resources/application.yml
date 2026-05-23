@@ -77,6 +77,11 @@ spring:
         size: 5
       thread-name-prefix: mentorx-scheduler-
 
+  servlet:
+    multipart:
+      max-file-size: ${SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE:10MB}
+      max-request-size: ${SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE:10MB}
+
   cache:
     type: simple  # Use simple in-memory cache by default (Redis when "redis" profile is active)
     cache-names:

@@ -25,8 +25,9 @@ public interface MentorProfileService {
 
     Page<MentorProfileResponse> getPendingMentorApplications(Pageable pageable);
 
-    Page<MentorProfileResponse> getMentorsWithFilters(BigDecimal minRating, BigDecimal maxHourlyRate, 
-                                                     String availability, Pageable pageable);
+    Page<MentorProfileResponse> getMentorsWithFilters(BigDecimal minRating, BigDecimal maxHourlyRate,
+                                                     String availability, String primaryDomain,
+                                                     String skillKeyword, Pageable pageable);
 
     List<MentorProfileResponse> getFeaturedMentors();
 

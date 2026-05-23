@@ -24,14 +24,19 @@ import com.mentorx.api.feature.user.repository.UserRoleRepository;
 import com.mentorx.api.feature.user.service.MentorProfileService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Slf4j
@@ -48,6 +53,7 @@ public class MentorProfileServiceImpl implements MentorProfileService {
     private final UserRoleRepository userRoleRepository;
     private final UserBankAccountRepository userBankAccountRepository;
     private final MentorModeAccessService mentorModeAccessService;
+    private final Environment environment;
     private static final String MENTOR_SAVE_TARGET_TYPE = "MENTOR_PROFILE";
 
     @Override
@@ -72,6 +78,7 @@ public class MentorProfileServiceImpl implements MentorProfileService {
         profile.setLocation(request.location());
         profile.setLanguages(request.languages());
         applyProfessionalFields(profile, request, false);
+        validateMentorApplicationPayload(profile);
 
         if (user.getMentorStatus() != MentorStatus.APPROVED) {
             user.setMentorStatus(MentorStatus.PENDING);
@@ -103,6 +110,7 @@ public class MentorProfileServiceImpl implements MentorProfileService {
         if (request.location() != null) profile.setLocation(request.location());
         if (request.languages() != null) profile.setLanguages(request.languages());
         applyProfessionalFields(profile, request, true);
+        validateMentorApplicationPayload(profile);
 
         User user = profile.getUser();
         if (user.getMentorStatus() == MentorStatus.REJECTED) {
@@ -146,8 +154,17 @@ public class MentorProfileServiceImpl implements MentorProfileService {
     }
 
     @Override
-    public Page<MentorProfileResponse> getMentorsWithFilters(BigDecimal minRating, BigDecimal maxHourlyRate, String availability, Pageable pageable) {
-        return mentorProfileRepository.findApprovedWithFilters(minRating, maxHourlyRate, availability, pageable)
+    public Page<MentorProfileResponse> getMentorsWithFilters(BigDecimal minRating, BigDecimal maxHourlyRate,
+                                                             String availability, String primaryDomain,
+                                                             String skillKeyword, Pageable pageable) {
+        return mentorProfileRepository.findApprovedWithAdvancedFilters(
+                        minRating,
+                        maxHourlyRate,
+                        normalizeNullable(availability),
+                        normalizeNullable(primaryDomain),
+                        normalizeNullable(skillKeyword),
+                        pageable
+                )
                 .map(this::toResponse);
     }
 
@@ -380,6 +397,9 @@ public class MentorProfileServiceImpl implements MentorProfileService {
                 profile.getCurrentTitle(),
                 profile.getCurrentCompany(),
                 profile.getPrimaryDomain(),
+                profile.getSkills(),
+                profile.getProfessionalBio(),
+                profile.getHelpDescription(),
                 profile.getLinkedinUrl(),
                 profile.getGithubUrl(),
                 profile.getPortfolioEvidenceUrl(),
@@ -427,6 +447,9 @@ public class MentorProfileServiceImpl implements MentorProfileService {
         if (!patchOnly || request.currentTitle() != null) profile.setCurrentTitle(request.currentTitle());
         if (!patchOnly || request.currentCompany() != null) profile.setCurrentCompany(request.currentCompany());
         if (!patchOnly || request.primaryDomain() != null) profile.setPrimaryDomain(request.primaryDomain());
+        if (!patchOnly || request.skills() != null) profile.setSkills(normalizeSkills(request.skills()));
+        if (!patchOnly || request.professionalBio() != null) profile.setProfessionalBio(request.professionalBio());
+        if (!patchOnly || request.helpDescription() != null) profile.setHelpDescription(request.helpDescription());
         if (!patchOnly || request.linkedinUrl() != null) profile.setLinkedinUrl(request.linkedinUrl());
         if (!patchOnly || request.githubUrl() != null) profile.setGithubUrl(request.githubUrl());
         if (!patchOnly || request.portfolioEvidenceUrl() != null) profile.setPortfolioEvidenceUrl(request.portfolioEvidenceUrl());
@@ -445,6 +468,124 @@ public class MentorProfileServiceImpl implements MentorProfileService {
                 && profile.getExpertiseStatus() == VerificationStatus.NOT_SUBMITTED) {
             profile.setExpertiseStatus(VerificationStatus.PENDING);
         }
+    }
+
+    private String normalizeNullable(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private List<String> normalizeSkills(List<String> skills) {
+        if (skills == null) {
+            return null;
+        }
+        return skills.stream()
+                .filter(item -> item != null && !item.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+    }
+
+    private void validateMentorApplicationPayload(MentorProfile profile) {
+        requireNonBlank(profile.getHeadline(), "Headline is required.");
+        requireNonBlank(profile.getPrimaryDomain(), "Primary domain is required.");
+        if (profile.getSkills() == null || profile.getSkills().isEmpty()) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "At least one skill is required.");
+        }
+        requireLength(profile.getProfessionalBio(), 50, 500, "Professional bio must be 50 to 500 characters.");
+        requireLength(profile.getHelpDescription(), 30, 500, "Help description must be 30 to 500 characters.");
+        if (profile.getYearsOfExperience() == null) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Years of experience is required.");
+        }
+        requireNonBlank(profile.getAvailability(), "Availability is required.");
+        requireNonBlank(profile.getLocation(), "Location / timezone is required.");
+        if (profile.getLanguages() == null || profile.getLanguages().isEmpty()) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "At least one language is required.");
+        }
+        if (!Boolean.TRUE.equals(profile.getMentorAgreementAccepted())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "You must confirm your professional information accuracy.");
+        }
+        if (!Boolean.TRUE.equals(profile.getDisputePolicyAccepted())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "You must agree to moderation and dispute policies.");
+        }
+
+        validateTextFieldNotUrl(profile.getHeadline(), "Headline");
+        validateTextFieldNotUrl(profile.getCurrentTitle(), "Current title");
+        validateTextFieldNotUrl(profile.getCurrentCompany(), "Current company");
+
+        validateUrl(profile.getLinkedinUrl(), "LinkedIn profile", "linkedin.com");
+        validateUrl(profile.getGithubUrl(), "GitHub profile", "github.com");
+        validateUrl(profile.getPortfolioUrl(), "Portfolio", null);
+        validateUrl(profile.getPortfolioEvidenceUrl(), "Proof of work", null);
+
+        if (isBlank(profile.getLinkedinUrl())
+                && isBlank(profile.getGithubUrl())
+                && isBlank(profile.getPortfolioUrl())
+                && isBlank(profile.getCvUrl())
+                && isBlank(profile.getCertificateUrl())
+                && isBlank(profile.getPortfolioEvidenceUrl())) {
+            throw new AppException(
+                    ErrorCode.BAD_REQUEST,
+                    "At least one proof item is required: LinkedIn, GitHub, Portfolio, CV, Certificate, or Proof of work."
+            );
+        }
+    }
+
+    private void requireNonBlank(String value, String message) {
+        if (isBlank(value)) {
+            throw new AppException(ErrorCode.BAD_REQUEST, message);
+        }
+    }
+
+    private void requireLength(String value, int min, int max, String message) {
+        String trimmed = value == null ? "" : value.trim();
+        if (trimmed.length() < min || trimmed.length() > max) {
+            throw new AppException(ErrorCode.BAD_REQUEST, message);
+        }
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    private void validateTextFieldNotUrl(String value, String fieldName) {
+        if (isBlank(value)) return;
+        String lower = value.trim().toLowerCase(Locale.ROOT);
+        if (lower.startsWith("http://") || lower.startsWith("https://") || lower.startsWith("www.")) {
+            throw new AppException(ErrorCode.BAD_REQUEST, fieldName + " must be plain text, not a URL.");
+        }
+    }
+
+    private void validateUrl(String value, String fieldName, String requiredHost) {
+        if (isBlank(value)) return;
+        URI uri;
+        try {
+            uri = new URI(value.trim());
+        } catch (URISyntaxException ex) {
+            throw new AppException(ErrorCode.BAD_REQUEST, fieldName + " is not a valid URL.");
+        }
+
+        String scheme = uri.getScheme();
+        String host = uri.getHost();
+        if (scheme == null || host == null || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"))) {
+            throw new AppException(ErrorCode.BAD_REQUEST, fieldName + " must be a valid http/https URL.");
+        }
+
+        String hostLower = host.toLowerCase(Locale.ROOT);
+        if (!isDevelopmentProfile() && (hostLower.equals("localhost") || hostLower.equals("127.0.0.1") || hostLower.endsWith(".local"))) {
+            throw new AppException(ErrorCode.BAD_REQUEST, fieldName + " cannot use localhost URL outside development.");
+        }
+
+        if (requiredHost != null && !(hostLower.equals(requiredHost) || hostLower.endsWith("." + requiredHost))) {
+            throw new AppException(ErrorCode.BAD_REQUEST, fieldName + " must use " + requiredHost + ".");
+        }
+    }
+
+    private boolean isDevelopmentProfile() {
+        return Arrays.stream(environment.getActiveProfiles()).anyMatch(profile -> "dev".equalsIgnoreCase(profile));
     }
 
     private void assignMentorRoleIfMissing(User user, User approver) {
