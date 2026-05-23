@@ -2,6 +2,8 @@ package com.mentorx.api.feature.wallet.service;
 
 import com.mentorx.api.common.enums.TxnType;
 import com.mentorx.api.common.enums.WalletAccountType;
+import com.mentorx.api.common.enums.PaymentGateway;
+import com.mentorx.api.common.enums.PayoutMethod;
 import com.mentorx.api.feature.wallet.dto.request.DepositRequest;
 import com.mentorx.api.feature.wallet.dto.request.TransferRequest;
 import com.mentorx.api.feature.wallet.dto.request.WithdrawalRequest;
@@ -30,6 +32,30 @@ public interface WalletService {
 
     WalletTransactionResponse deposit(UUID userId, DepositRequest request);
 
+    com.mentorx.api.feature.wallet.entity.DepositOrder createDepositOrder(
+            UUID userId,
+            BigDecimal originalAmount,
+            String originalCurrency,
+            PaymentGateway gateway,
+            String gatewayOrderId,
+            String gatewayTxnId,
+            String note
+    );
+
+    void completeDepositOrder(
+            com.mentorx.api.feature.wallet.entity.DepositOrder order,
+            String gatewayTxnId,
+            String gatewayResponse,
+            String note
+    );
+
+    void failDepositOrder(
+            com.mentorx.api.feature.wallet.entity.DepositOrder order,
+            String gatewayTxnId,
+            String gatewayResponse,
+            String note
+    );
+
     WalletTransactionResponse withdraw(UUID userId, com.mentorx.api.feature.wallet.dto.request.WithdrawalRequest request);
 
     WalletTransactionResponse transfer(UUID fromUserId, TransferRequest request);
@@ -57,6 +83,8 @@ public interface WalletService {
 
     BigDecimal getUserPendingBalance(UUID userId);
 
+    BigDecimal getUserEscrowBalance(UUID userId);
+
     void freezeWallet(UUID walletId, String reason);
 
     void unfreezeWallet(UUID walletId);
@@ -79,7 +107,17 @@ public interface WalletService {
 
     void processCoursePurchase(UUID studentId, UUID courseId, UUID instructorId, BigDecimal amount, BigDecimal platformFee);
 
-    com.mentorx.api.feature.wallet.entity.WithdrawalRequest requestWithdrawal(UUID userId, BigDecimal amount, BigDecimal feeAmount, String bankName, String bankAccountNo, String bankAccountName);
+    com.mentorx.api.feature.wallet.entity.WithdrawalRequest requestWithdrawal(
+            UUID userId,
+            BigDecimal amount,
+            BigDecimal feeAmount,
+            String bankName,
+            String bankAccountNo,
+            String bankAccountName,
+            String payoutCountry,
+            PayoutMethod payoutMethod,
+            String payoutReference
+    );
 
     void completeWithdrawal(UUID requestId, String gatewayTxnId);
 

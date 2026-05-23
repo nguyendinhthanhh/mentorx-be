@@ -1,10 +1,13 @@
 package com.mentorx.api.feature.user.dto;
 
-import com.mentorx.api.common.enums.MentorStatus;
+import com.mentorx.api.common.enums.IdentityDocumentType;
+import com.mentorx.api.common.enums.VerificationStatus;
 import java.time.LocalDateTime;
 
 public record KycStatusResponse(
-    MentorStatus mentorStatus,
+    VerificationStatus identityStatus,
+    Boolean identityRequired,
+    IdentityDocumentType documentType,
     String livenessResult,
     Double livenessScore,
     String faceMatchingResult,
@@ -12,10 +15,10 @@ public record KycStatusResponse(
     LocalDateTime submittedAt,
     LocalDateTime approvedAt,
     String rejectionReason,
-    String identityDocumentUrl,
-    String identityDocumentBackUrl,
-    String portraitUrl,
     String legalName,
-    String dateOfBirth
+    String dateOfBirth,
+    String countryOfResidence,
+    String documentNumberMasked,
+    String verificationProvider
 ) {
 }

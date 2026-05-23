@@ -1,7 +1,9 @@
 package com.mentorx.api.feature.user.service;
 
 import com.mentorx.api.feature.user.dto.request.MentorProfileRequest;
+import com.mentorx.api.feature.user.dto.response.UserResponse;
 import com.mentorx.api.feature.user.dto.response.MentorProfileResponse;
+import com.mentorx.api.feature.user.entity.MentorProfile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -23,8 +25,9 @@ public interface MentorProfileService {
 
     Page<MentorProfileResponse> getPendingMentorApplications(Pageable pageable);
 
-    Page<MentorProfileResponse> getMentorsWithFilters(BigDecimal minRating, BigDecimal maxHourlyRate, 
-                                                     String availability, Pageable pageable);
+    Page<MentorProfileResponse> getMentorsWithFilters(BigDecimal minRating, BigDecimal maxHourlyRate,
+                                                     String availability, String primaryDomain,
+                                                     String skillKeyword, Pageable pageable);
 
     List<MentorProfileResponse> getFeaturedMentors();
 
@@ -37,6 +40,8 @@ public interface MentorProfileService {
     MentorProfileResponse rejectMentorApplication(UUID userId, String rejectionReason, UUID rejectedBy);
 
     MentorProfileResponse requestMentorApplicationRevision(UUID userId, String revisionReason, UUID requestedBy);
+
+    MentorProfileResponse suspendMentor(UUID userId, String suspensionReason, UUID suspendedBy);
 
     void setFeaturedStatus(UUID userId, boolean featured);
 
@@ -51,4 +56,8 @@ public interface MentorProfileService {
     long getApprovedMentorsCount();
 
     long getPendingApplicationsCount();
+
+    UserResponse getCurrentApplicationStatus(UUID userId);
+
+    MentorProfileResponse toResponse(MentorProfile profile);
 }

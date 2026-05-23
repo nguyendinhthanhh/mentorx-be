@@ -24,5 +24,7 @@ public interface UserBankAccountService {
 
     BankAccountResponse verifyAccount(UUID id, String verifiedBy);
 
+    BankAccountResponse rejectAccount(UUID id, String rejectedBy, String reason);
+
     long countByUserId(UUID userId);
 }

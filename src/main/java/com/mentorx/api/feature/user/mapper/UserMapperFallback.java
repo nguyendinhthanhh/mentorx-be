@@ -46,7 +46,15 @@ public class UserMapperFallback implements UserMapper {
                 user.getCreatedAt(),
                 user.getUpdatedAt(),
                 roles,
-                null
+                null,
+                UserModeMapper.determineExpertiseStatus(user),
+                UserModeMapper.determineIdentityStatus(user),
+                UserModeMapper.determinePayoutStatus(user),
+                UserModeMapper.isVerifiedMentorBadge(user),
+                UserModeMapper.canSwitchToMentorMode(user),
+                UserModeMapper.canRequestWithdrawal(user),
+                UserModeMapper.determineAvailableModes(user),
+                UserModeMapper.determineCurrentMode(user)
         );
     }
 

@@ -18,7 +18,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestTemplate;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -46,13 +45,36 @@ import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.common.security.JwtUtil;
 import com.mentorx.api.common.util.HashUtil;
 import com.mentorx.api.feature.user.dto.response.UserResponse;
+import com.mentorx.api.feature.user.entity.EmailVerificationToken;
+import com.mentorx.api.feature.user.entity.PasswordResetToken;
+import com.mentorx.api.feature.user.entity.Role;
 import com.mentorx.api.feature.user.entity.User;
+import com.mentorx.api.feature.user.entity.UserRole;
 import com.mentorx.api.feature.user.mapper.UserMapper;
+import com.mentorx.api.feature.user.repository.EmailVerificationTokenRepository;
+import com.mentorx.api.feature.user.repository.PasswordResetTokenRepository;
+import com.mentorx.api.feature.user.repository.RoleRepository;
 import com.mentorx.api.feature.user.repository.UserRepository;
+import com.mentorx.api.feature.user.repository.UserRoleRepository;
 import com.mentorx.api.feature.wallet.service.WalletService;
 
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.MailAuthenticationException;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -66,13 +88,20 @@ public class AuthServiceImpl implements AuthService {
     private final JwtUtil jwtUtil;
     private final UserMapper userMapper;
     private final WalletService walletService;
-    private final RestTemplate restTemplate;
+    private final EmailVerificationTokenRepository emailVerificationTokenRepository;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final PasswordResetEmailDispatcher passwordResetEmailDispatcher;
+    private final JavaMailSender mailSender;
+    private final RoleRepository roleRepository;
+    private final UserRoleRepository userRoleRepository;
+
 
     @Value("${jwt.refresh-token-expiry}")
     private Long refreshTokenExpiryMs;
 
     @Value("${spring.security.oauth2.client.registration.google.client-id:default-client-id}")
     private String googleClientId;
+
 
     @Value("${spring.security.oauth2.client.registration.google.client-secret}")
     private String googleClientSecret;
@@ -82,6 +111,19 @@ public class AuthServiceImpl implements AuthService {
 
     @Value("${spring.security.oauth2.client.registration.github.client-secret}")
     private String githubClientSecret;
+
+    @Value("${app.frontend-base-url:http://localhost:3000}")
+    private String frontendBaseUrl;
+
+    @Value("${spring.mail.username:}")
+    private String mailUsername;
+
+    @Value("${spring.mail.password:}")
+    private String mailPassword;
+
+    @Value("${app.mail.from:}")
+    private String configuredFromEmail;
+
 
     @Override
     @Transactional
@@ -96,11 +138,13 @@ public class AuthServiceImpl implements AuthService {
                 .fullName((request.firstName() + " " + request.lastName()).trim())
                 .displayName(request.firstName())
                 .status(UserStatus.ACTIVE)
-                .isEmailVerified(true)
+                .isEmailVerified(false)
                 .mentorStatus(MentorStatus.NONE)
                 .preferredLanguage(SupportedLanguage.vi)
                 .build();
         user = userRepository.save(user);
+        assignUserRoleIfMissing(user);
+        sendVerificationEmailForUser(user);
 
         // Create wallets for new user
         try {
@@ -299,7 +343,7 @@ public class AuthServiceImpl implements AuthService {
                 org.springframework.security.core.userdetails.User.builder()
                         .username(user.getEmail())
                         .password(user.getPasswordHash() != null ? user.getPasswordHash() : "OAUTH2_USER")
-                        .authorities("ROLE_USER")
+                        .authorities(resolveAuthorities(user))
                         .build()
         );
 
@@ -342,6 +386,7 @@ public class AuthServiceImpl implements AuthService {
                     .mentorStatus(MentorStatus.NONE)
                     .preferredLanguage(SupportedLanguage.vi)
                     .build());
+            assignUserRoleIfMissing(user);
 
             try {
                 walletService.createWallet(user.getId(), WalletAccountType.USER_AVAILABLE);
@@ -356,35 +401,105 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public void sendPasswordResetEmail(String email) {
-        log.info("Password reset requested for {}", email);
-    }
+        User user = userRepository.findByEmailAndDeletedAtIsNull(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "No account was found for this email address."));
 
-    @Override
-    public void resetPassword(String token, String newPassword) {
-        log.info("Reset password with token {}", token);
-    }
+        passwordResetEmailDispatcher.validateConfiguration();
 
-    @Override
-    public void sendEmailVerification(String email) {
-        log.info("Email verification requested for {}", email);
-    }
+        passwordResetTokenRepository.invalidateActiveTokensByUserId(user.getId(), "Superseded by a newer password reset request");
 
-    @Override
-    public void verifyEmail(String token) {
-        log.info("Verify email token {}", token);
+        PasswordResetToken token = PasswordResetToken.createToken(user, user.getEmail());
+        token = passwordResetTokenRepository.save(token);
+
+        String resetUrl = frontendBaseUrl + "/reset-password?token=" + token.getToken();
+        String recipientName = StringUtils.hasText(user.getDisplayName()) ? user.getDisplayName().trim() : user.getFullName();
+        passwordResetEmailDispatcher.sendPasswordResetEmailAsync(user.getEmail(), recipientName, resetUrl);
+        log.info("Password reset email queued for {}", user.getEmail());
     }
 
     @Override
     @Transactional
-    public void devVerifyEmail(String email) {
+    public void resetPassword(String token, String newPassword) {
+        validatePasswordStrength(newPassword);
+
+        PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(token)
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_TOKEN));
+
+        resetToken.recordAttempt();
+
+        if (resetToken.hasExceededMaxAttempts()) {
+            resetToken.invalidate("Maximum reset attempts exceeded");
+            passwordResetTokenRepository.save(resetToken);
+            throw new AppException(ErrorCode.INVALID_TOKEN, "This reset link is no longer valid.");
+        }
+
+        if (!resetToken.isValid()) {
+            passwordResetTokenRepository.save(resetToken);
+            if (resetToken.isExpired()) {
+                throw new AppException(ErrorCode.TOKEN_EXPIRED, "This reset link has expired. Request a new password reset email.");
+            }
+            throw new AppException(ErrorCode.INVALID_TOKEN, "This reset link is invalid or has already been used.");
+        }
+
+        User user = resetToken.getUser();
+        if (StringUtils.hasText(user.getPasswordHash()) && passwordEncoder.matches(newPassword, user.getPasswordHash())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Choose a new password that is different from your current password.");
+        }
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        resetToken.markAsUsed(null, null);
+        passwordResetTokenRepository.save(resetToken);
+        passwordResetTokenRepository.invalidateActiveTokensByUserId(user.getId(), "Password changed successfully");
+        refreshTokenRepository.revokeAllByUserId(user.getId(), LocalDateTime.now());
+        log.info("Password reset completed for user {}", user.getEmail());
+    }
+
+    @Override
+    @Transactional
+    public void sendEmailVerification(String email) {
         User user = userRepository.findByEmailAndDeletedAtIsNull(email)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        if (Boolean.TRUE.equals(user.getIsEmailVerified())) {
+            log.info("User {} already verified, skip resend verification email", email);
+            return;
+        }
+
+        sendVerificationEmailForUser(user);
+    }
+
+    @Override
+    @Transactional
+    public void verifyEmail(String token) {
+        EmailVerificationToken verificationToken = emailVerificationTokenRepository.findByToken(token)
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_TOKEN));
+
+        verificationToken.recordAttempt();
+
+        if (verificationToken.hasExceededMaxAttempts()) {
+            emailVerificationTokenRepository.save(verificationToken);
+            throw new AppException(ErrorCode.INVALID_TOKEN);
+        }
+
+        if (!verificationToken.isValid()) {
+            emailVerificationTokenRepository.save(verificationToken);
+            throw new AppException(ErrorCode.TOKEN_EXPIRED);
+        }
+
+        User user = verificationToken.getUser();
         user.setIsEmailVerified(true);
         if (user.getStatus() == UserStatus.PENDING) {
             user.setStatus(UserStatus.ACTIVE);
         }
+
+        verificationToken.markAsUsed(null, null);
         userRepository.save(user);
+        emailVerificationTokenRepository.save(verificationToken);
+        emailVerificationTokenRepository.invalidateActiveTokensByUserId(user.getId());
+        log.info("Email verified successfully for user {}", user.getEmail());
     }
 
     @Override
@@ -440,10 +555,11 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private AuthResponse buildAuthResponse(User user) {
+        user.setUserRoles(userRoleRepository.findByUserIdWithRole(user.getId()));
         var principal = org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())
                 .password(user.getPasswordHash() != null ? user.getPasswordHash() : "OAUTH2_USER")
-                .authorities("ROLE_USER")
+                .authorities(resolveAuthorities(user))
                 .build();
 
         String accessToken = jwtUtil.generateAccessToken(principal);
@@ -464,5 +580,238 @@ public class AuthServiceImpl implements AuthService {
                 .expiresIn(900L)
                 .user(userResponse)
                 .build();
+    }
+
+    private void assignUserRoleIfMissing(User user) {
+        Role userRole = roleRepository.findByRoleName("USER")
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Role not found: USER"));
+        if (!userRoleRepository.existsByUserIdAndRoleId(user.getId(), userRole.getId())) {
+            userRoleRepository.save(UserRole.builder()
+                    .userId(user.getId())
+                    .roleId(userRole.getId())
+                    .user(user)
+                    .role(userRole)
+                    .grantedAt(LocalDateTime.now())
+                    .build());
+        }
+    }
+
+    private String[] resolveAuthorities(User user) {
+        if (user.getUserRoles() == null || user.getUserRoles().isEmpty()) {
+            return new String[]{"ROLE_USER"};
+        }
+
+        List<String> authorities = user.getUserRoles().stream()
+                .map(UserRole::getRole)
+                .filter(role -> role != null && StringUtils.hasText(role.getRoleName()))
+                .map(Role::getRoleName)
+                .map(String::trim)
+                .map(String::toUpperCase)
+                .map(roleName -> "ROLE_" + roleName)
+                .distinct()
+                .toList();
+
+        return authorities.isEmpty()
+                ? new String[]{"ROLE_USER"}
+                : authorities.toArray(String[]::new);
+    }
+
+    private void sendVerificationEmailForUser(User user) {
+        emailVerificationTokenRepository.invalidateActiveTokensByUserId(user.getId());
+
+        EmailVerificationToken token = EmailVerificationToken.createToken(user, user.getEmail());
+        token = emailVerificationTokenRepository.save(token);
+
+        String verifyUrl = frontendBaseUrl + "/verify-email?token=" + token.getToken();
+
+        try {
+            String fromAddress = resolveMailFromAddress();
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
+            helper.setFrom(fromAddress);
+            helper.setTo(user.getEmail());
+            helper.setSubject("Confirm your MentorX email address");
+            helper.setText(
+                    buildVerificationEmailText(user, verifyUrl),
+                    buildVerificationEmailHtml(user, verifyUrl)
+            );
+            mailSender.send(message);
+            log.info("Verification email sent to {}", user.getEmail());
+        } catch (MailAuthenticationException ex) {
+            log.error("SMTP authentication failed while sending verification email to {}. Fallback link: {}", user.getEmail(), verifyUrl, ex);
+            throw new AppException(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
+                    "Gmail rejected the SMTP login. Check SMTP_USERNAME, SMTP_PASSWORD, and confirm the password is a valid Gmail App Password.",
+                    ex
+            );
+        } catch (Exception ex) {
+            log.error("Failed to send verification email to {}. Fallback link: {}", user.getEmail(), verifyUrl, ex);
+            throw new AppException(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
+                    "Email service is not configured correctly. Set a valid SMTP account and app password before resending verification emails.",
+                    ex
+            );
+        }
+    }
+
+    private String buildVerificationEmailText(User user, String verifyUrl) {
+        String recipientName = StringUtils.hasText(user.getDisplayName()) ? user.getDisplayName().trim() : "there";
+        return "Hi " + recipientName + ",\n\n"
+                + "Welcome to MentorX! We're excited to have you on board.\n\n"
+                + "Please verify your email address to unlock all features of your account:\n"
+                + verifyUrl + "\n\n"
+                + "This link will expire in 24 hours for your security.\n\n"
+                + "Best regards,\nThe MentorX Team";
+    }
+
+    private String buildVerificationEmailHtml(User user, String verifyUrl) {
+        String recipientName = escapeHtml(StringUtils.hasText(user.getDisplayName()) ? user.getDisplayName().trim() : "there");
+        String escapedVerifyUrl = escapeHtml(verifyUrl);
+
+        return """
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <meta charset="utf-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <title>Verify your email</title>
+                </head>
+                <body style="margin: 0; padding: 0; background-color: #f9fafb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+                  <table border="0" cellpadding="0" cellspacing="0" width="100%%" style="background-color: #f9fafb; padding: 40px 20px;">
+                    <tr>
+                      <td align="center">
+                        <table border="0" cellpadding="0" cellspacing="0" width="100%%" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
+                          
+                          <!-- Header -->
+                          <tr>
+                            <td align="center" style="padding: 40px 0 30px 0; background-color: #0a0a0a;">
+                              <table border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" style="background: #2563eb; border-radius: 12px; padding: 12px; width: 32px; height: 32px;">
+                                    <span style="color: #ffffff; font-size: 24px; font-weight: bold; font-family: monospace;">M</span>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td align="center" style="padding-top: 16px;">
+                                    <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600; letter-spacing: -0.5px;">MentorX</h1>
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                          </tr>
+
+                          <!-- Body -->
+                          <tr>
+                            <td style="padding: 40px 40px 30px 40px;">
+                              <p style="margin: 0 0 20px 0; color: #1f2937; font-size: 16px; line-height: 24px;">
+                                Hi <strong>%s</strong>,
+                              </p>
+                              <p style="margin: 0 0 30px 0; color: #4b5563; font-size: 16px; line-height: 24px;">
+                                Welcome to MentorX! We're thrilled to have you. Before you can start exploring mentors, jobs, and courses, we just need to verify your email address.
+                              </p>
+                              
+                              <table border="0" cellpadding="0" cellspacing="0" width="100%%">
+                                <tr>
+                                  <td align="center">
+                                    <a href="%s" style="display: inline-block; padding: 16px 32px; background-color: #2563eb; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);">
+                                      Verify Email Address
+                                    </a>
+                                  </td>
+                                </tr>
+                              </table>
+
+                              <div style="margin-top: 40px; padding-top: 30px; border-top: 1px solid #e5e7eb;">
+                                <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 14px;">
+                                  Or copy and paste this link into your browser:
+                                </p>
+                                <p style="margin: 0; word-break: break-all;">
+                                  <a href="%s" style="color: #2563eb; font-size: 14px; text-decoration: underline;">%s</a>
+                                </p>
+                              </div>
+                            </td>
+                          </tr>
+
+                          <!-- Footer -->
+                          <tr>
+                            <td align="center" style="padding: 30px 40px; background-color: #f3f4f6;">
+                              <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 13px;">
+                                This link expires in 24 hours.
+                              </p>
+                              <p style="margin: 0; color: #9ca3af; font-size: 12px;">
+                                If you didn't create a MentorX account, please ignore this email.<br>
+                                &copy; MentorX platform. All rights reserved.
+                              </p>
+                            </td>
+                          </tr>
+
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </body>
+                </html>
+                """.formatted(recipientName, escapedVerifyUrl, escapedVerifyUrl, escapedVerifyUrl);
+    }
+
+    private String resolveMailFromAddress() {
+        String resolvedUsername = normalizeMailCredential(mailUsername);
+        String resolvedPassword = normalizeMailCredential(mailPassword);
+
+        if (!StringUtils.hasText(resolvedUsername) || !StringUtils.hasText(resolvedPassword)) {
+            throw new AppException(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
+                    "Email service is not configured. Missing SMTP_USERNAME or SMTP_PASSWORD."
+            );
+        }
+
+        String sender = StringUtils.hasText(configuredFromEmail) ? configuredFromEmail.trim() : resolvedUsername;
+        try {
+            InternetAddress address = new InternetAddress(sender, true);
+            address.validate();
+            return address.getAddress();
+        } catch (Exception ex) {
+            throw new AppException(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
+                    "Email sender address is invalid. Check spring.mail.username or app.mail.from.",
+                    ex
+            );
+        }
+    }
+
+    private String normalizeMailCredential(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+
+        String normalized = value.trim();
+        if (normalized.length() >= 2) {
+            boolean wrappedInDoubleQuotes = normalized.startsWith("\"") && normalized.endsWith("\"");
+            boolean wrappedInSingleQuotes = normalized.startsWith("'") && normalized.endsWith("'");
+            if (wrappedInDoubleQuotes || wrappedInSingleQuotes) {
+                normalized = normalized.substring(1, normalized.length() - 1).trim();
+            }
+        }
+        return normalized;
+    }
+
+    private void validatePasswordStrength(String password) {
+        if (!StringUtils.hasText(password) || password.length() < 8) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Password must be at least 8 characters long.");
+        }
+        if (!password.chars().anyMatch(Character::isUpperCase)) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Password must contain at least one uppercase letter.");
+        }
+        if (!password.chars().anyMatch(Character::isDigit)) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Password must contain at least one number.");
+        }
+    }
+
+    private String escapeHtml(String value) {
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 }

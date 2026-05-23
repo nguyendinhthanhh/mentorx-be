@@ -5,7 +5,9 @@ import com.mentorx.api.common.enums.CourseStatus;
 import com.mentorx.api.common.enums.SupportedLanguage;
 import com.mentorx.api.feature.user.entity.User;
 import jakarta.persistence.Column;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Entity;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
@@ -20,6 +22,8 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "courses")
@@ -36,6 +40,12 @@ public class Course extends BaseEntity {
 
     @Column(name = "category_id")
     private Integer categoryId;
+
+    @ElementCollection
+    @CollectionTable(name = "course_skills", joinColumns = @JoinColumn(name = "course_id"))
+    @Column(name = "skill", length = 120)
+    @Builder.Default
+    private List<String> skills = new ArrayList<>();
 
     @Column(nullable = false, length = 255)
     private String title;

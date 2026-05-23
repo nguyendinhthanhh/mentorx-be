@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -30,7 +31,11 @@ public class CourseCreateRequest {
     @Size(max = 5000, message = "Description must not exceed 5000 characters")
     private String description;
 
+    @NotNull(message = "Category is required")
     private Integer categoryId;
+
+    @Size(min = 1, message = "At least one skill is required")
+    private List<@Size(max = 120, message = "Skill must not exceed 120 characters") String> skills;
 
     private String thumbnailUrl;
 

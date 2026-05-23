@@ -1,5 +1,6 @@
 package com.mentorx.api.feature.wallet.dto.response;
 
+import com.mentorx.api.common.enums.PayoutMethod;
 import com.mentorx.api.common.enums.WithdrawalStatus;
 
 import java.math.BigDecimal;
@@ -18,6 +19,9 @@ public record WithdrawalResponse(
         String bankName,
         String bankAccountNo,
         String bankAccountName,
+        String payoutCountry,
+        PayoutMethod payoutMethod,
+        String payoutReference,
         WithdrawalStatus status,
         String gatewayTxnId,
         LocalDateTime reviewedAt,
