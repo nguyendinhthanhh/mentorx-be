@@ -1,10 +1,9 @@
 package com.mentorx.api.feature.payment.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mentorx.api.common.enums.PaymentGateway;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
-import com.mentorx.api.common.enums.PaymentGateway;
-import com.mentorx.api.common.enums.TxnStatus;
 import com.mentorx.api.feature.payment.config.MomoConfig;
 import com.mentorx.api.feature.payment.dto.request.MomoPaymentRequest;
 import com.mentorx.api.feature.payment.dto.response.MomoCallbackResponse;
@@ -26,9 +25,9 @@ import org.springframework.web.client.RestTemplate;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -44,12 +43,14 @@ public class MomoServiceImpl implements MomoService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
-    private static final BigDecimal EXCHANGE_RATE = new BigDecimal("0.0001");
+    private static final String BASE_CURRENCY = "VND";
 
     @Override
     @Transactional
     public MomoPaymentResponse createPayment(MomoPaymentRequest request, HttpServletRequest httpRequest) {
         try {
+            enforceVndGatewayCurrency(request.getCurrency(), "MoMo");
+
             String email = SecurityContextHolder.getContext().getAuthentication().getName();
             User user = userRepository.findByEmail(email)
                     .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
@@ -61,21 +62,39 @@ public class MomoServiceImpl implements MomoService {
             String extraData = request.getExtraData() != null ? request.getExtraData() : "";
             String requestType = "captureWallet";
 
-            // Create deposit order
-            BigDecimal mxcAmount = request.getAmount().multiply(EXCHANGE_RATE).setScale(4, RoundingMode.HALF_UP);
-            DepositOrder depositOrder = DepositOrder.builder()
-                    .user(user)
-                    .gateway(PaymentGateway.MOMO)
-                    .gatewayOrderId(orderId)
-                    .realAmount(request.getAmount())
-                    .realCurrency("VND")
-                    .mxcAmount(mxcAmount)
-                    .exchangeRate(EXCHANGE_RATE)
-                    .txnStatus(TxnStatus.PENDING)
-                    .build();
-            depositOrderRepository.save(depositOrder);
+            walletService.createDepositOrder(
+                    user.getId(),
+                    request.getAmount(),
+                    BASE_CURRENCY,
+                    PaymentGateway.MOMO,
+                    orderId,
+                    null,
+                    orderInfo
+            );
 
-            // Create signature
+            DepositOrder depositOrder = depositOrderRepository.findByGatewayOrderId(orderId)
+                    .orElseThrow(() -> new AppException(ErrorCode.DEPOSIT_ORDER_NOT_FOUND));
+
+            return createPaymentForOrder(depositOrder, httpRequest);
+        } catch (Exception e) {
+            log.error("Error creating MoMo payment", e);
+            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @Override
+    @Transactional
+    public MomoPaymentResponse createPaymentForOrder(DepositOrder depositOrder, HttpServletRequest httpRequest) {
+        try {
+            enforceVndGatewayCurrency(depositOrder.getRealCurrency(), "MoMo");
+
+            String orderId = depositOrder.getGatewayOrderId();
+            String requestId = UUID.randomUUID().toString();
+            String amount = depositOrder.getConvertedAmountVnd().setScale(0, BigDecimal.ROUND_HALF_UP).toPlainString();
+            String orderInfo = defaultOrderInfo(depositOrder);
+            String extraData = "";
+            String requestType = "captureWallet";
+
             String rawHash = "accessKey=" + momoConfig.getAccessKey() +
                     "&amount=" + amount +
                     "&extraData=" + extraData +
@@ -89,7 +108,6 @@ public class MomoServiceImpl implements MomoService {
 
             String signature = hmacSha256(momoConfig.getSecretKey(), rawHash);
 
-            // Prepare request body
             Map<String, Object> body = new HashMap<>();
             body.put("partnerCode", momoConfig.getPartnerCode());
             body.put("partnerName", "MentorX");
@@ -112,11 +130,10 @@ public class MomoServiceImpl implements MomoService {
             if (response == null || !"0".equals(response.getResultCode())) {
                 String errorMsg = response != null ? response.getMessage() : "Empty response from MoMo";
                 log.error("MoMo payment creation failed: {}", errorMsg);
-                throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR);
+                throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, errorMsg);
             }
 
             return response;
-
         } catch (Exception e) {
             log.error("Error creating MoMo payment", e);
             throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR);
@@ -164,36 +181,29 @@ public class MomoServiceImpl implements MomoService {
         DepositOrder order = depositOrderRepository.findByGatewayOrderId(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.DEPOSIT_ORDER_NOT_FOUND));
 
-        if (order.getTxnStatus() != TxnStatus.PENDING) {
+        if (order.getTxnStatus() != com.mentorx.api.common.enums.TxnStatus.PENDING) {
             log.info("Order {} already processed with status: {}", orderId, order.getTxnStatus());
             return;
         }
 
-        order.setGatewayTxnId(transId);
+        String gatewayPayload = null;
         try {
-            order.setGatewayResponse(objectMapper.writeValueAsString(params));
+            gatewayPayload = objectMapper.writeValueAsString(params);
         } catch (Exception e) {
             log.error("Error serializing MoMo response", e);
         }
 
         if ("0".equals(resultCode)) {
             log.info("MoMo payment success for order: {}", orderId);
-            order.setTxnStatus(TxnStatus.COMPLETED);
-            order.setReconciledAt(java.time.LocalDateTime.now());
-            depositOrderRepository.save(order);
-
-            // Credit wallet
-            walletService.depositCallback(order);
-        } else {
-            log.warn("MoMo payment failed/cancelled for order: {}. Code: {}, Message: {}", orderId, resultCode, message);
-            order.setTxnStatus(TxnStatus.FAILED);
-            depositOrderRepository.save(order);
+            walletService.completeDepositOrder(order, transId, gatewayPayload, "Deposit via MoMo");
+            return;
         }
 
+        log.warn("MoMo payment failed/cancelled for order: {}. Code: {}, Message: {}", orderId, resultCode, message);
+        walletService.failDepositOrder(order, transId, gatewayPayload, "MoMo payment failed: " + message);
     }
 
     private String hmacSha256(String key, String data) {
-
         try {
             Mac sha256_HMAC = Mac.getInstance("HmacSHA256");
             SecretKeySpec secret_key = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
@@ -208,5 +218,16 @@ public class MomoServiceImpl implements MomoService {
             log.error("Error generating HMAC-SHA256", e);
             return null;
         }
+    }
+
+    private void enforceVndGatewayCurrency(String currency, String gatewayName) {
+        String normalized = currency == null || currency.isBlank() ? BASE_CURRENCY : currency.trim().toUpperCase(Locale.ROOT);
+        if (!BASE_CURRENCY.equals(normalized)) {
+            throw new AppException(ErrorCode.BAD_REQUEST, gatewayName + " currently supports only VND payments");
+        }
+    }
+
+    private String defaultOrderInfo(DepositOrder depositOrder) {
+        return "Nap tien MentorX via MoMo - " + depositOrder.getRealAmount().stripTrailingZeros().toPlainString() + " " + depositOrder.getRealCurrency();
     }
 }

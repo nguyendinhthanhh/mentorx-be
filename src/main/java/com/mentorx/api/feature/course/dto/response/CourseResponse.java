@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -21,6 +22,7 @@ public class CourseResponse {
     private UUID instructorId;
     private String instructorName;
     private Integer categoryId;
+    private List<String> skills;
     private String title;
     private String slug;
     private String description;

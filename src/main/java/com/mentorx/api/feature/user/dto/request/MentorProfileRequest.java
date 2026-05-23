@@ -3,7 +3,6 @@ package com.mentorx.api.feature.user.dto.request;
 import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.List;
 
 public record MentorProfileRequest(
@@ -21,10 +20,6 @@ public record MentorProfileRequest(
     @Size(max = 50, message = "Availability must not exceed 50 characters")
     String availability,
 
-    @Min(value = 1, message = "Response time must be at least 1 hour")
-    @Max(value = 168, message = "Response time cannot exceed 168 hours (1 week)")
-    Short responseTimeHours,
-
     String cvUrl,
 
     String portfolioUrl,
@@ -36,26 +31,6 @@ public record MentorProfileRequest(
 
     List<String> languages,
 
-    @Size(max = 150, message = "Legal name must not exceed 150 characters")
-    String legalName,
-
-    LocalDate dateOfBirth,
-
-    @Size(max = 100, message = "Country of residence must not exceed 100 characters")
-    String countryOfResidence,
-
-    @Size(max = 50, message = "Identity document type must not exceed 50 characters")
-    String identityDocumentType,
-
-    String identityDocumentUrl,
-
-    String portraitUrl,
-
-    @Size(max = 30, message = "Phone number must not exceed 30 characters")
-    String phoneNumber,
-
-    Boolean phoneVerified,
-
     @Size(max = 150, message = "Current title must not exceed 150 characters")
     String currentTitle,
 
@@ -65,6 +40,14 @@ public record MentorProfileRequest(
     @Size(max = 120, message = "Primary domain must not exceed 120 characters")
     String primaryDomain,
 
+    List<@Size(min = 1, max = 60, message = "Each skill must be between 1 and 60 characters") String> skills,
+
+    @Size(min = 50, max = 500, message = "Professional bio must be 50 to 500 characters")
+    String professionalBio,
+
+    @Size(min = 30, max = 500, message = "Help description must be 30 to 500 characters")
+    String helpDescription,
+
     String linkedinUrl,
 
     String githubUrl,
@@ -72,21 +55,6 @@ public record MentorProfileRequest(
     String portfolioEvidenceUrl,
 
     String certificateUrl,
-
-    @Size(max = 150, message = "Bank account name must not exceed 150 characters")
-    String bankAccountName,
-
-    @Size(max = 150, message = "Bank name must not exceed 150 characters")
-    String bankName,
-
-    @Size(max = 80, message = "Bank account number must not exceed 80 characters")
-    String bankAccountNumber,
-
-    @Size(max = 150, message = "Bank branch must not exceed 150 characters")
-    String bankBranch,
-
-    @Size(max = 80, message = "Tax ID must not exceed 80 characters")
-    String taxId,
 
     Boolean mentorAgreementAccepted,
 

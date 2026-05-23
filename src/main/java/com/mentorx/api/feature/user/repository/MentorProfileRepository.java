@@ -1,6 +1,7 @@
 package com.mentorx.api.feature.user.repository;
 
 import com.mentorx.api.common.enums.MentorStatus;
+import com.mentorx.api.common.enums.VerificationStatus;
 import com.mentorx.api.feature.user.entity.MentorProfile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -10,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,6 +34,32 @@ public interface MentorProfileRepository extends JpaRepository<MentorProfile, UU
                                                 @Param("availability") String availability,
                                                 Pageable pageable);
 
+    @Query(
+            value = "SELECT mp.* FROM mentor_profiles mp " +
+                    "JOIN users u ON u.id = mp.user_id " +
+                    "WHERE u.mentor_status = 'APPROVED' " +
+                    "AND (:minRating IS NULL OR mp.average_rating >= :minRating) " +
+                    "AND (:maxHourlyRate IS NULL OR mp.hourly_rate_mxc <= :maxHourlyRate) " +
+                    "AND (:availability IS NULL OR LOWER(mp.availability) = LOWER(:availability)) " +
+                    "AND (:primaryDomain IS NULL OR LOWER(mp.primary_domain) LIKE LOWER(CONCAT('%', :primaryDomain, '%'))) " +
+                    "AND (:skillKeyword IS NULL OR LOWER(CAST(mp.skills AS text)) LIKE LOWER(CONCAT('%', :skillKeyword, '%')))",
+            countQuery = "SELECT COUNT(*) FROM mentor_profiles mp " +
+                    "JOIN users u ON u.id = mp.user_id " +
+                    "WHERE u.mentor_status = 'APPROVED' " +
+                    "AND (:minRating IS NULL OR mp.average_rating >= :minRating) " +
+                    "AND (:maxHourlyRate IS NULL OR mp.hourly_rate_mxc <= :maxHourlyRate) " +
+                    "AND (:availability IS NULL OR LOWER(mp.availability) = LOWER(:availability)) " +
+                    "AND (:primaryDomain IS NULL OR LOWER(mp.primary_domain) LIKE LOWER(CONCAT('%', :primaryDomain, '%'))) " +
+                    "AND (:skillKeyword IS NULL OR LOWER(CAST(mp.skills AS text)) LIKE LOWER(CONCAT('%', :skillKeyword, '%')))",
+            nativeQuery = true
+    )
+    Page<MentorProfile> findApprovedWithAdvancedFilters(@Param("minRating") BigDecimal minRating,
+                                                        @Param("maxHourlyRate") BigDecimal maxHourlyRate,
+                                                        @Param("availability") String availability,
+                                                        @Param("primaryDomain") String primaryDomain,
+                                                        @Param("skillKeyword") String skillKeyword,
+                                                        Pageable pageable);
+
     @Query("SELECT mp FROM MentorProfile mp WHERE mp.user.mentorStatus = 'APPROVED' AND mp.isFeatured = true")
     List<MentorProfile> findFeatured();
 
@@ -46,4 +74,10 @@ public interface MentorProfileRepository extends JpaRepository<MentorProfile, UU
 
     @Query("SELECT COUNT(mp) FROM MentorProfile mp WHERE mp.user.mentorStatus = :status")
     long countByMentorStatus(@Param("status") MentorStatus status);
+
+    @Query("SELECT mp FROM MentorProfile mp WHERE mp.identityStatus IN :statuses")
+    Page<MentorProfile> findByIdentityStatuses(@Param("statuses") Collection<VerificationStatus> statuses, Pageable pageable);
+
+    @Query("SELECT mp FROM MentorProfile mp WHERE mp.payoutStatus IN :statuses")
+    Page<MentorProfile> findByPayoutStatuses(@Param("statuses") Collection<VerificationStatus> statuses, Pageable pageable);
 }

@@ -32,6 +32,7 @@ public record ProposalResponse(
         Boolean isFeatured,
         BigDecimal score,
         Boolean isCounterProposal,
+        Integer viewCount,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {}

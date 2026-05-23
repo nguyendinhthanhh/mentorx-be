@@ -38,4 +38,47 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
            "AND (:categoryId IS NULL OR j.categoryId = :categoryId) " +
            "ORDER BY j.publishedAt DESC, j.createdAt DESC")
     Page<Job> findOpenWithFilters(@Param("jobType") JobType jobType, @Param("categoryId") Integer categoryId, Pageable pageable);
+
+    @Query(
+            value = "SELECT * FROM jobs j " +
+                    "WHERE j.deleted_at IS NULL " +
+                    "AND j.status = 'OPEN' " +
+                    "AND (:jobType IS NULL OR j.job_type = CAST(:jobType AS varchar)) " +
+                    "AND (:categoryId IS NULL OR j.category_id = :categoryId) " +
+                    "AND (:skillKeyword IS NULL OR LOWER(CAST(j.required_skills AS text)) LIKE LOWER(CONCAT('%', :skillKeyword, '%'))) " +
+                    "ORDER BY j.published_at DESC NULLS LAST, j.created_at DESC",
+            countQuery = "SELECT COUNT(*) FROM jobs j " +
+                    "WHERE j.deleted_at IS NULL " +
+                    "AND j.status = 'OPEN' " +
+                    "AND (:jobType IS NULL OR j.job_type = CAST(:jobType AS varchar)) " +
+                    "AND (:categoryId IS NULL OR j.category_id = :categoryId) " +
+                    "AND (:skillKeyword IS NULL OR LOWER(CAST(j.required_skills AS text)) LIKE LOWER(CONCAT('%', :skillKeyword, '%')))",
+            nativeQuery = true
+    )
+    Page<Job> findOpenWithAdvancedFilters(@Param("jobType") String jobType,
+                                          @Param("categoryId") Integer categoryId,
+                                          @Param("skillKeyword") String skillKeyword,
+                                          Pageable pageable);
+
+    @Query(
+            value = "SELECT * FROM jobs j " +
+                    "WHERE j.deleted_at IS NULL " +
+                    "AND (:status IS NULL OR j.status = CAST(:status AS varchar)) " +
+                    "AND (:jobType IS NULL OR j.job_type = CAST(:jobType AS varchar)) " +
+                    "AND (:categoryId IS NULL OR j.category_id = :categoryId) " +
+                    "AND (:skillKeyword IS NULL OR LOWER(CAST(j.required_skills AS text)) LIKE LOWER(CONCAT('%', :skillKeyword, '%'))) " +
+                    "ORDER BY j.published_at DESC NULLS LAST, j.created_at DESC",
+            countQuery = "SELECT COUNT(*) FROM jobs j " +
+                    "WHERE j.deleted_at IS NULL " +
+                    "AND (:status IS NULL OR j.status = CAST(:status AS varchar)) " +
+                    "AND (:jobType IS NULL OR j.job_type = CAST(:jobType AS varchar)) " +
+                    "AND (:categoryId IS NULL OR j.category_id = :categoryId) " +
+                    "AND (:skillKeyword IS NULL OR LOWER(CAST(j.required_skills AS text)) LIKE LOWER(CONCAT('%', :skillKeyword, '%')))",
+            nativeQuery = true
+    )
+    Page<Job> findAllWithAdvancedFilters(@Param("status") String status,
+                                         @Param("jobType") String jobType,
+                                         @Param("categoryId") Integer categoryId,
+                                         @Param("skillKeyword") String skillKeyword,
+                                         Pageable pageable);
 }

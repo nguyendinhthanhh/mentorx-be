@@ -102,12 +102,13 @@ public class OnboardingCompleteService {
     private void applyRoleAndRbac(User user, OnboardingDraftPayload draft) {
         String rc = draft.getRoleChoice();
         boolean wantMentor = "MENTOR".equals(rc) || "BOTH".equals(rc);
-        user.setIsMentor(wantMentor);
+        if (!wantMentor && user.getMentorStatus() != null && user.getMentorStatus().name().equals("APPROVED")) {
+            user.setIsMentor(true);
+        } else if (!wantMentor) {
+            user.setIsMentor(false);
+        }
 
         assignRoleIfMissing(user, "USER");
-        if (wantMentor) {
-            assignRoleIfMissing(user, "MENTOR");
-        }
     }
 
     private void assignRoleIfMissing(User user, String roleName) {

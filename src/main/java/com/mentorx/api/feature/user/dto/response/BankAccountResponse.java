@@ -1,5 +1,6 @@
 package com.mentorx.api.feature.user.dto.response;
 
+import com.mentorx.api.common.enums.PayoutMethod;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Builder;
 
@@ -15,6 +16,13 @@ public record BankAccountResponse(
         String accountNumber,
         String accountHolderName,
         String branchName,
+        String payoutCountry,
+        PayoutMethod payoutMethod,
+        String iban,
+        String swiftCode,
+        String paypalEmail,
+        String wiseEmail,
+        String stripeConnectAccountId,
         Boolean isDefault,
         Boolean isVerified,
 

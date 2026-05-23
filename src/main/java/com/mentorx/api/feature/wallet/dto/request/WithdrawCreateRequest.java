@@ -1,8 +1,10 @@
 package com.mentorx.api.feature.wallet.dto.request;
 
+import com.mentorx.api.common.enums.PayoutMethod;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 
@@ -18,6 +20,14 @@ public record WithdrawCreateRequest(
         String bankAccountNo,
 
         @NotBlank(message = "Bank account name is required")
-        String bankAccountName
+        String bankAccountName,
+
+        @Size(max = 10, message = "Payout country must not exceed 10 characters")
+        String payoutCountry,
+
+        PayoutMethod payoutMethod,
+
+        @Size(max = 255, message = "Payout reference must not exceed 255 characters")
+        String payoutReference
 ) {
 }

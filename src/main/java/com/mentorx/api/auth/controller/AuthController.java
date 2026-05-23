@@ -3,6 +3,7 @@ package com.mentorx.api.auth.controller;
 import com.mentorx.api.auth.dto.request.LoginRequest;
 import com.mentorx.api.auth.dto.request.RefreshTokenRequest;
 import com.mentorx.api.auth.dto.request.RegisterRequest;
+import com.mentorx.api.auth.dto.request.ResetPasswordRequest;
 import com.mentorx.api.auth.dto.response.AuthResponse;
 import com.mentorx.api.auth.service.AuthService;
 import com.mentorx.api.common.response.ApiResponse;
@@ -89,9 +90,8 @@ public class AuthController {
     @PostMapping("/reset-password")
     @Operation(summary = "Reset password", description = "Reset password using reset token")
     public ResponseEntity<ApiResponse<Void>> resetPassword(
-            @Parameter(description = "Reset token") @RequestParam String token,
-            @Parameter(description = "New password") @RequestParam String newPassword) {
-        authService.resetPassword(token, newPassword);
+            @Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request.token(), request.newPassword());
         return ResponseEntity.ok(ApiResponse.success("Password reset successful", null));
     }
 
@@ -108,20 +108,6 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> verifyEmail(
             @Parameter(description = "Verification token") @RequestParam String token) {
         authService.verifyEmail(token);
-        return ResponseEntity.ok(ApiResponse.success("Email verified successfully", null));
-    }
-
-    @PostMapping("/dev-verify")
-    @Operation(summary = "Development email verification", description = "Verify the authenticated user's email without an email token")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<Void>> devVerifyEmail(
-            @Parameter(description = "User email") @RequestParam String email,
-            Authentication authentication) {
-        if (authentication == null || !email.equalsIgnoreCase(authentication.getName())) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(ApiResponse.error("Cannot verify another user's email"));
-        }
-        authService.devVerifyEmail(email);
         return ResponseEntity.ok(ApiResponse.success("Email verified successfully", null));
     }
 
