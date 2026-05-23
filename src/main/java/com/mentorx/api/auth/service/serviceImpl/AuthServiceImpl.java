@@ -88,6 +88,7 @@ public class AuthServiceImpl implements AuthService {
     private final JavaMailSender mailSender;
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
+    private final RestTemplate restTemplate;
 
 
     @Value("${jwt.refresh-token-expiry}")
@@ -96,7 +97,6 @@ public class AuthServiceImpl implements AuthService {
     @Value("${spring.security.oauth2.client.registration.google.client-id:default-client-id}")
     private String googleClientId;
 
-    private RestTemplate restTemplate;
 
     @Value("${spring.security.oauth2.client.registration.google.client-secret}")
     private String googleClientSecret;
