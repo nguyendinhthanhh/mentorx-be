@@ -37,7 +37,15 @@ public class JobServiceImpl implements JobService {
     public JobResponse create(JobCreateRequest request) {
         JobStatus status = request.status() != null ? request.status() : JobStatus.OPEN;
         if (status == JobStatus.OPEN) {
-            validateOpenJobRequirements(request.title(), request.description(), request.budgetType(), request.jobType());
+            validateOpenJobRequirements(
+                    request.title(),
+                    request.description(),
+                    request.budgetType(),
+                    request.jobType(),
+                    request.categoryId(),
+                    request.customCategoryName(),
+                    request.requiredSkills()
+            );
             validateBudget(request.budgetType(), request.budgetMinMxc(), request.budgetMaxMxc(), request.hourlyRateMxc());
         }
 
@@ -117,7 +125,10 @@ public class JobServiceImpl implements JobService {
                 request.title() != null ? request.title() : job.getTitle(),
                 request.description() != null ? request.description() : job.getDescription(),
                 request.budgetType() != null ? request.budgetType() : job.getBudgetType(),
-                request.jobType() != null ? request.jobType() : job.getJobType()
+                request.jobType() != null ? request.jobType() : job.getJobType(),
+                request.categoryId() != null ? request.categoryId() : job.getCategoryId(),
+                request.customCategoryName() != null ? request.customCategoryName() : job.getCustomCategoryName(),
+                request.requiredSkills() != null ? request.requiredSkills() : job.getRequiredSkills()
             );
             validateBudget(
                 job.getBudgetType(), 
@@ -162,13 +173,24 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
-    public Page<JobResponse> getOpenJobs(JobType jobType, Integer categoryId, Pageable pageable) {
-        return jobRepository.findOpenWithFilters(jobType, categoryId, pageable).map(this::toResponse);
+    public Page<JobResponse> getOpenJobs(JobType jobType, Integer categoryId, String skillKeyword, Pageable pageable) {
+        return jobRepository.findOpenWithAdvancedFilters(
+                jobType != null ? jobType.name() : null,
+                categoryId,
+                normalizeText(skillKeyword),
+                pageable
+        ).map(this::toResponse);
     }
 
     @Override
-    public Page<JobResponse> getAllJobs(JobStatus status, JobType jobType, Integer categoryId, Pageable pageable) {
-        return jobRepository.findAllWithFilters(status, jobType, categoryId, pageable).map(this::toResponse);
+    public Page<JobResponse> getAllJobs(JobStatus status, JobType jobType, Integer categoryId, String skillKeyword, Pageable pageable) {
+        return jobRepository.findAllWithAdvancedFilters(
+                status != null ? status.name() : null,
+                jobType != null ? jobType.name() : null,
+                categoryId,
+                normalizeText(skillKeyword),
+                pageable
+        ).map(this::toResponse);
     }
 
     @Override
@@ -282,7 +304,15 @@ public class JobServiceImpl implements JobService {
         }
     }
 
-    private void validateOpenJobRequirements(String title, String description, BudgetType budgetType, JobType jobType) {
+    private void validateOpenJobRequirements(
+            String title,
+            String description,
+            BudgetType budgetType,
+            JobType jobType,
+            Integer categoryId,
+            String customCategoryName,
+            List<String> requiredSkills
+    ) {
         if (title == null || title.isBlank()) {
             throw new AppException(ErrorCode.VALIDATION_ERROR);
         }
@@ -294,6 +324,12 @@ public class JobServiceImpl implements JobService {
         }
         if (jobType == null) {
             throw new AppException(ErrorCode.VALIDATION_ERROR);
+        }
+        if (categoryId == null && (customCategoryName == null || customCategoryName.isBlank())) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Job domain/category is required");
+        }
+        if (requiredSkills == null || normalizeList(requiredSkills).isEmpty()) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "At least one required skill is required");
         }
     }
 }

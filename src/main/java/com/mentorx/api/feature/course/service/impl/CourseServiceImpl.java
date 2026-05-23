@@ -2,6 +2,7 @@ package com.mentorx.api.feature.course.service.impl;
 
 import com.mentorx.api.common.security.MentorModeAccessService;
 import com.mentorx.api.common.enums.CourseStatus;
+import com.mentorx.api.common.enums.SupportedLanguage;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.feature.course.dto.request.CourseCreateRequest;
@@ -20,6 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -41,6 +45,7 @@ public class CourseServiceImpl implements CourseService {
         Course course = Course.builder()
                 .instructor(instructor)
                 .categoryId(request.getCategoryId())
+                .skills(normalizeSkills(request.getSkills()))
                 .title(request.getTitle())
                 .slug(request.getSlug())
                 .description(request.getDescription())
@@ -66,6 +71,7 @@ public class CourseServiceImpl implements CourseService {
         Course course = findCourse(courseId);
         mentorModeAccessService.requireApprovedMentorContentAccess(course.getInstructor().getId());
         if (request.getCategoryId() != null) course.setCategoryId(request.getCategoryId());
+        if (request.getSkills() != null) course.setSkills(normalizeSkills(request.getSkills()));
         if (request.getTitle() != null) course.setTitle(request.getTitle());
         if (request.getDescription() != null) course.setDescription(request.getDescription());
         if (request.getThumbnailUrl() != null) course.setThumbnailUrl(request.getThumbnailUrl());
@@ -93,13 +99,31 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
-    public Page<CourseResponse> getAllCourses(CourseStatus status, UUID instructorId, Integer categoryId, Pageable pageable) {
-        return courseRepository.findAllWithFilters(status, instructorId, categoryId, pageable).map(this::toResponse);
+    public Page<CourseResponse> getAllCourses(CourseStatus status,
+                                              UUID instructorId,
+                                              Integer categoryId,
+                                              SupportedLanguage language,
+                                              String levelKeyword,
+                                              String skillKeyword,
+                                              Pageable pageable) {
+        String normalizedLevelKeyword = normalizeKeyword(levelKeyword);
+        String normalizedSkillKeyword = normalizeKeyword(skillKeyword);
+        return courseRepository
+                .findAllWithFilters(status, instructorId, categoryId, language, normalizedLevelKeyword, normalizedSkillKeyword, pageable)
+                .map(this::toResponse);
     }
 
     @Override
-    public Page<CourseResponse> getPublished(Pageable pageable) {
-        return courseRepository.findByStatusAndDeletedAtIsNull(CourseStatus.PUBLISHED, pageable).map(this::toResponse);
+    public Page<CourseResponse> getPublished(Integer categoryId,
+                                             SupportedLanguage language,
+                                             String levelKeyword,
+                                             String skillKeyword,
+                                             Pageable pageable) {
+        String normalizedLevelKeyword = normalizeKeyword(levelKeyword);
+        String normalizedSkillKeyword = normalizeKeyword(skillKeyword);
+        return courseRepository
+                .findPublishedWithFilters(CourseStatus.PUBLISHED, categoryId, language, normalizedLevelKeyword, normalizedSkillKeyword, pageable)
+                .map(this::toResponse);
     }
 
     @Override
@@ -136,6 +160,7 @@ public class CourseServiceImpl implements CourseService {
                 .instructorId(course.getInstructor().getId())
                 .instructorName(course.getInstructor().getFullName())
                 .categoryId(course.getCategoryId())
+                .skills(course.getSkills())
                 .title(course.getTitle())
                 .slug(course.getSlug())
                 .description(course.getDescription())
@@ -158,5 +183,28 @@ public class CourseServiceImpl implements CourseService {
                 .updatedAt(course.getUpdatedAt())
                 .deletedAt(course.getDeletedAt())
                 .build();
+    }
+
+    private List<String> normalizeSkills(List<String> skills) {
+        if (skills == null) {
+            return new ArrayList<>();
+        }
+        LinkedHashSet<String> deduped = new LinkedHashSet<>();
+        for (String skill : skills) {
+            if (skill == null) continue;
+            String normalized = skill.trim();
+            if (!normalized.isBlank()) {
+                deduped.add(normalized);
+            }
+        }
+        return new ArrayList<>(deduped);
+    }
+
+    private String normalizeKeyword(String input) {
+        if (input == null) {
+            return null;
+        }
+        String trimmed = input.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }
