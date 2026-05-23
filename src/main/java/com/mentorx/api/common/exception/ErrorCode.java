@@ -106,6 +106,7 @@ public enum ErrorCode {
     NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "Notification not found"),
     
     // Authentication errors
+    EMAIL_NOT_VERIFIED(HttpStatus.FORBIDDEN, "Please verify your email before logging in"),
     TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "Token has expired"),
     INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "Invalid token"),
     REFRESH_TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, "Refresh token not found"),

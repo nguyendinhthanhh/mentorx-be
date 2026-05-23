@@ -44,10 +44,13 @@ import com.mentorx.api.common.enums.WalletAccountType;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.common.security.JwtUtil;
+import com.mentorx.api.common.service.EmailService;
 import com.mentorx.api.common.util.HashUtil;
 import com.mentorx.api.feature.user.dto.response.UserResponse;
+import com.mentorx.api.feature.user.entity.EmailVerificationToken;
 import com.mentorx.api.feature.user.entity.User;
 import com.mentorx.api.feature.user.mapper.UserMapper;
+import com.mentorx.api.feature.user.repository.EmailVerificationTokenRepository;
 import com.mentorx.api.feature.user.repository.UserRepository;
 import com.mentorx.api.feature.wallet.service.WalletService;
 
@@ -67,6 +70,8 @@ public class AuthServiceImpl implements AuthService {
     private final UserMapper userMapper;
     private final WalletService walletService;
     private final RestTemplate restTemplate;
+    private final EmailService emailService;
+    private final EmailVerificationTokenRepository emailVerificationTokenRepository;
 
     @Value("${jwt.refresh-token-expiry}")
     private Long refreshTokenExpiryMs;
@@ -83,6 +88,9 @@ public class AuthServiceImpl implements AuthService {
     @Value("${spring.security.oauth2.client.registration.github.client-secret}")
     private String githubClientSecret;
 
+    @Value("${app.base-url:http://localhost:3000}")
+    private String baseUrl;
+
     @Override
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -95,8 +103,8 @@ public class AuthServiceImpl implements AuthService {
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .fullName((request.firstName() + " " + request.lastName()).trim())
                 .displayName(request.firstName())
-                .status(UserStatus.ACTIVE)
-                .isEmailVerified(true)
+                .status(UserStatus.PENDING)
+                .isEmailVerified(false)
                 .mentorStatus(MentorStatus.NONE)
                 .preferredLanguage(SupportedLanguage.vi)
                 .build();
@@ -124,6 +132,9 @@ public class AuthServiceImpl implements AuthService {
 
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new AppException(ErrorCode.INVALID_CREDENTIALS);
+        }
+        if (user.getStatus() == UserStatus.PENDING && !user.getIsEmailVerified()) {
+            throw new AppException(ErrorCode.EMAIL_NOT_VERIFIED);
         }
         if (user.getStatus() != UserStatus.ACTIVE) {
             throw new AppException(ErrorCode.USER_INACTIVE);
@@ -366,25 +377,44 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public void sendEmailVerification(String email) {
-        log.info("Email verification requested for {}", email);
-    }
+        User user = userRepository.findByEmailAndDeletedAtIsNull(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-    @Override
-    public void verifyEmail(String token) {
-        log.info("Verify email token {}", token);
+        if (user.getIsEmailVerified()) {
+            log.info("Email already verified for user: {}", user.getId());
+            return;
+        }
+
+        emailVerificationTokenRepository.invalidatePreviousTokens(user.getId());
+
+        EmailVerificationToken verificationToken = EmailVerificationToken.createToken(user, user.getEmail());
+        emailVerificationTokenRepository.save(verificationToken);
+
+        emailService.sendVerificationEmail(user.getEmail(), user.getDisplayName(),
+                verificationToken.getToken(), baseUrl);
     }
 
     @Override
     @Transactional
-    public void devVerifyEmail(String email) {
-        User user = userRepository.findByEmailAndDeletedAtIsNull(email)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-        user.setIsEmailVerified(true);
-        if (user.getStatus() == UserStatus.PENDING) {
-            user.setStatus(UserStatus.ACTIVE);
+    public void verifyEmail(String token) {
+        EmailVerificationToken verificationToken = emailVerificationTokenRepository
+                .findByTokenAndIsUsedFalse(token)
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_TOKEN));
+        
+        if (verificationToken.isExpired()) {
+            throw new AppException(ErrorCode.INVALID_TOKEN);
         }
+
+        User user = verificationToken.getUser();
+        verificationToken.markAsUsed(null, null);
+        user.setIsEmailVerified(true);
+        user.setStatus(UserStatus.ACTIVE);
         userRepository.save(user);
+        emailVerificationTokenRepository.save(verificationToken);
+
+        log.info("Email verified successfully for user: {}", user.getId());
     }
 
     @Override
