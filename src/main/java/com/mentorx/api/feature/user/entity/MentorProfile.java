@@ -158,6 +158,16 @@ public class MentorProfile extends BaseEntity {
     @Column(name = "primary_domain", length = 120)
     private String primaryDomain;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "skills", columnDefinition = "jsonb")
+    private List<String> skills;
+
+    @Column(name = "professional_bio", columnDefinition = "TEXT")
+    private String professionalBio;
+
+    @Column(name = "help_description", columnDefinition = "TEXT")
+    private String helpDescription;
+
     @Column(name = "linkedin_url")
     private String linkedinUrl;
 
