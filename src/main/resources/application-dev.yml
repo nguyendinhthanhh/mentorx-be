@@ -8,13 +8,13 @@ spring:
       client:
         registration:
           google:
-            client-id: ${GOOGLE_CLIENT_ID}
+            client-id: ${GOOGLE_CLIENT_ID:564448517069-orgmrm1ttnjo3froa8p13jbpr12c97ng.apps.googleusercontent.com}
             client-secret: ${GOOGLE_CLIENT_SECRET}
             scope: openid,profile,email
             redirect-uri: "{baseUrl}/oauth2/callback/{registrationId}"
           github:
-            client-id: ${GITHUB_CLIENT_ID}
-            client-secret: ${GITHUB_CLIENT_SECRET}
+            client-id: ${GITHUB_CLIENT_ID:Ov23liscKHa2zvqhNxMs}
+            client-secret: ${GITHUB_CLIENT_SECRET:bcf5a8f077b83ef760a76cee3b0fbd40a6685c63}
             scope: user:email,read:user
             redirect-uri: "{baseUrl}/oauth2/callback/{registrationId}"
     
