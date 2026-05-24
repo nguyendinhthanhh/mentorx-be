@@ -79,7 +79,6 @@ public class AuthServiceImpl implements AuthService {
     private final WalletService walletService;
     private final EmailVerificationTokenRepository emailVerificationTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
-    private final PasswordResetEmailDispatcher passwordResetEmailDispatcher;
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
     private final RestTemplate restTemplate;
@@ -388,8 +387,6 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmailAndDeletedAtIsNull(email)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "No account was found for this email address."));
 
-        passwordResetEmailDispatcher.validateConfiguration();
-
         passwordResetTokenRepository.invalidateActiveTokensByUserId(user.getId(), "Superseded by a newer password reset request");
 
         PasswordResetToken token = PasswordResetToken.createToken(user, user.getEmail());
@@ -397,7 +394,7 @@ public class AuthServiceImpl implements AuthService {
 
         String resetUrl = frontendBaseUrl + "/reset-password?token=" + token.getToken();
         String recipientName = StringUtils.hasText(user.getDisplayName()) ? user.getDisplayName().trim() : user.getFullName();
-        passwordResetEmailDispatcher.sendPasswordResetEmailAsync(user.getEmail(), recipientName, resetUrl);
+        emailService.sendPasswordResetEmail(user.getEmail(), recipientName, resetUrl);
         log.info("Password reset email queued for {}", user.getEmail());
     }
 
@@ -457,6 +454,33 @@ public class AuthServiceImpl implements AuthService {
         passwordResetTokenRepository.invalidateActiveTokensByUserId(user.getId(), "Password changed successfully");
         refreshTokenRepository.revokeAllByUserId(user.getId(), LocalDateTime.now());
         log.info("Password reset completed for user {}", user.getEmail());
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(UUID userId, String currentPassword, String newPassword) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        if (!StringUtils.hasText(user.getPasswordHash())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Cannot change password. You signed up using a social login.");
+        }
+
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Current password is incorrect.");
+        }
+
+        validatePasswordStrength(newPassword);
+
+        if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "New password must be different from your current password.");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        refreshTokenRepository.revokeAllByUserId(user.getId(), LocalDateTime.now());
+        log.info("Password changed for user {}", user.getEmail());
     }
 
     @Override
