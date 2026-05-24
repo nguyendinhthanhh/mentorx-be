@@ -4,6 +4,7 @@ import com.mentorx.api.auth.dto.request.LoginRequest;
 import com.mentorx.api.auth.dto.request.RefreshTokenRequest;
 import com.mentorx.api.auth.dto.request.RegisterRequest;
 import com.mentorx.api.auth.dto.request.ResetPasswordRequest;
+import com.mentorx.api.auth.dto.request.ChangePasswordRequest;
 import com.mentorx.api.auth.dto.response.AuthResponse;
 import com.mentorx.api.auth.service.AuthService;
 import com.mentorx.api.common.response.ApiResponse;
@@ -91,6 +92,16 @@ public class AuthController {
             @Valid @RequestBody ResetPasswordRequest request) {
         authService.resetPassword(request.token(), request.newPassword());
         return ResponseEntity.ok(ApiResponse.success("Password reset successful", null));
+    }
+
+    @PostMapping("/change-password")
+    @Operation(summary = "Change password", description = "Change password for authenticated user")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @Parameter(description = "User ID") @RequestParam UUID userId,
+            @Valid @RequestBody ChangePasswordRequest request) {
+        authService.changePassword(userId, request.currentPassword(), request.newPassword());
+        return ResponseEntity.ok(ApiResponse.success("Password changed successfully", null));
     }
 
     @PostMapping("/send-verification")
