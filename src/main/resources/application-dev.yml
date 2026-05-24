@@ -3,6 +3,20 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:mentorx_db}}
     username: ${POSTGRES_USER:postgres}
     password: ${POSTGRES_PASSWORD:12345}
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:421374526010-euk4tm97v4t877eeh4di44ea80079hg6.apps.googleusercontent.com}
+            client-secret: ${GOOGLE_CLIENT_SECRET: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}
+            scope: openid,profile,email
+            redirect-uri: "{baseUrl}/oauth2/callback/{registrationId}"
+          github:
+            client-id: ${GITHUB_CLIENT_ID:your-github-client-id}
+            client-secret: ${GITHUB_CLIENT_SECRET:your-github-client-secret}
+            scope: user:email,read:user
+            redirect-uri: "{baseUrl}/oauth2/callback/{registrationId}"
     
   jpa:
     hibernate:
