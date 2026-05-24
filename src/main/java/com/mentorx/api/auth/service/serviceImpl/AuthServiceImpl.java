@@ -628,6 +628,9 @@ public class AuthServiceImpl implements AuthService {
         if (!password.chars().anyMatch(Character::isDigit)) {
             throw new AppException(ErrorCode.BAD_REQUEST, "Password must contain at least one number.");
         }
+        if (!password.matches(".*[!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>\\/?`~].*")) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Password must contain at least one special character.");
+        }
     }
     
 }
