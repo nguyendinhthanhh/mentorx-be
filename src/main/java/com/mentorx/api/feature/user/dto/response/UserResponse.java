@@ -1,5 +1,6 @@
 package com.mentorx.api.feature.user.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.mentorx.api.common.enums.MentorStatus;
 import com.mentorx.api.common.enums.SupportedLanguage;
 import com.mentorx.api.common.enums.UserMode;
@@ -21,7 +22,7 @@ public record UserResponse(
     String countryCode,
     SupportedLanguage preferredLanguage,
     UserStatus status,
-    Boolean isEmailVerified,
+    @JsonProperty("emailVerified") Boolean isEmailVerified,
     Boolean isMentor,
     MentorStatus mentorStatus,
     Boolean is2faEnabled,

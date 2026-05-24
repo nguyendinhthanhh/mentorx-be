@@ -2,7 +2,6 @@ package com.mentorx.api.auth.service.serviceImpl;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
@@ -15,9 +14,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.mail.MailAuthenticationException;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,6 +46,7 @@ import com.mentorx.api.common.enums.WalletAccountType;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.common.security.JwtUtil;
+import com.mentorx.api.common.service.EmailService;
 import com.mentorx.api.common.util.HashUtil;
 import com.mentorx.api.feature.user.dto.response.UserResponse;
 import com.mentorx.api.feature.user.entity.EmailVerificationToken;
@@ -65,8 +62,6 @@ import com.mentorx.api.feature.user.repository.UserRepository;
 import com.mentorx.api.feature.user.repository.UserRoleRepository;
 import com.mentorx.api.feature.wallet.service.WalletService;
 
-import jakarta.mail.internet.InternetAddress;
-import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -85,10 +80,10 @@ public class AuthServiceImpl implements AuthService {
     private final EmailVerificationTokenRepository emailVerificationTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final PasswordResetEmailDispatcher passwordResetEmailDispatcher;
-    private final JavaMailSender mailSender;
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
     private final RestTemplate restTemplate;
+    private final EmailService emailService;
 
 
     @Value("${jwt.refresh-token-expiry}")
@@ -110,16 +105,6 @@ public class AuthServiceImpl implements AuthService {
     @Value("${app.frontend-base-url:http://localhost:3000}")
     private String frontendBaseUrl;
 
-    @Value("${spring.mail.username:}")
-    private String mailUsername;
-
-    @Value("${spring.mail.password:}")
-    private String mailPassword;
-
-    @Value("${app.mail.from:}")
-    private String configuredFromEmail;
-
-
     @Override
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -132,14 +117,13 @@ public class AuthServiceImpl implements AuthService {
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .fullName((request.firstName() + " " + request.lastName()).trim())
                 .displayName(request.firstName())
-                .status(UserStatus.ACTIVE)
+                .status(UserStatus.PENDING)
                 .isEmailVerified(false)
                 .mentorStatus(MentorStatus.NONE)
                 .preferredLanguage(SupportedLanguage.vi)
                 .build();
         user = userRepository.save(user);
         assignUserRoleIfMissing(user);
-        sendVerificationEmailForUser(user);
 
         // Create wallets for new user
         try {
@@ -163,6 +147,9 @@ public class AuthServiceImpl implements AuthService {
 
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new AppException(ErrorCode.INVALID_CREDENTIALS);
+        }
+        if (user.getStatus() == UserStatus.PENDING && !user.getIsEmailVerified()) {
+            throw new AppException(ErrorCode.EMAIL_NOT_VERIFIED);
         }
         if (user.getStatus() != UserStatus.ACTIVE) {
             throw new AppException(ErrorCode.USER_INACTIVE);
@@ -416,6 +403,26 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
+    public void sendEmailVerification(String email) {
+        User user = userRepository.findByEmailAndDeletedAtIsNull(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        if (user.getIsEmailVerified()) {
+            log.info("Email already verified for user: {}", user.getId());
+            return;
+        }
+
+        emailVerificationTokenRepository.invalidatePreviousTokens(user.getId());
+
+        EmailVerificationToken verificationToken = EmailVerificationToken.createToken(user, user.getEmail());
+        emailVerificationTokenRepository.save(verificationToken);
+
+        emailService.sendVerificationEmail(user.getEmail(), user.getDisplayName(),
+                verificationToken.getToken(), frontendBaseUrl);
+    }
+
+    @Override
+    @Transactional
     public void resetPassword(String token, String newPassword) {
         validatePasswordStrength(newPassword);
 
@@ -454,47 +461,23 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public void sendEmailVerification(String email) {
-        User user = userRepository.findByEmailAndDeletedAtIsNull(email)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-
-        if (Boolean.TRUE.equals(user.getIsEmailVerified())) {
-            log.info("User {} already verified, skip resend verification email", email);
-            return;
-        }
-
-        sendVerificationEmailForUser(user);
-    }
-
-    @Override
-    @Transactional
     public void verifyEmail(String token) {
-        EmailVerificationToken verificationToken = emailVerificationTokenRepository.findByToken(token)
+        EmailVerificationToken verificationToken = emailVerificationTokenRepository
+                .findByTokenAndIsUsedFalse(token)
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_TOKEN));
-
-        verificationToken.recordAttempt();
-
-        if (verificationToken.hasExceededMaxAttempts()) {
-            emailVerificationTokenRepository.save(verificationToken);
+        
+        if (verificationToken.isExpired()) {
             throw new AppException(ErrorCode.INVALID_TOKEN);
         }
 
-        if (!verificationToken.isValid()) {
-            emailVerificationTokenRepository.save(verificationToken);
-            throw new AppException(ErrorCode.TOKEN_EXPIRED);
-        }
-
         User user = verificationToken.getUser();
-        user.setIsEmailVerified(true);
-        if (user.getStatus() == UserStatus.PENDING) {
-            user.setStatus(UserStatus.ACTIVE);
-        }
-
         verificationToken.markAsUsed(null, null);
+        user.setIsEmailVerified(true);
+        user.setStatus(UserStatus.ACTIVE);
         userRepository.save(user);
         emailVerificationTokenRepository.save(verificationToken);
-        emailVerificationTokenRepository.invalidateActiveTokensByUserId(user.getId());
-        log.info("Email verified successfully for user {}", user.getEmail());
+
+        log.info("Email verified successfully for user: {}", user.getId());
     }
 
     @Override
@@ -611,184 +594,6 @@ public class AuthServiceImpl implements AuthService {
                 : authorities.toArray(String[]::new);
     }
 
-    private void sendVerificationEmailForUser(User user) {
-        emailVerificationTokenRepository.invalidateActiveTokensByUserId(user.getId());
-
-        EmailVerificationToken token = EmailVerificationToken.createToken(user, user.getEmail());
-        token = emailVerificationTokenRepository.save(token);
-
-        String verifyUrl = frontendBaseUrl + "/verify-email?token=" + token.getToken();
-
-        try {
-            String fromAddress = resolveMailFromAddress();
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
-            helper.setFrom(fromAddress);
-            helper.setTo(user.getEmail());
-            helper.setSubject("Confirm your MentorX email address");
-            helper.setText(
-                    buildVerificationEmailText(user, verifyUrl),
-                    buildVerificationEmailHtml(user, verifyUrl)
-            );
-            mailSender.send(message);
-            log.info("Verification email sent to {}", user.getEmail());
-        } catch (MailAuthenticationException ex) {
-            log.error("SMTP authentication failed while sending verification email to {}. Fallback link: {}", user.getEmail(), verifyUrl, ex);
-            throw new AppException(
-                    ErrorCode.INTERNAL_SERVER_ERROR,
-                    "Gmail rejected the SMTP login. Check SMTP_USERNAME, SMTP_PASSWORD, and confirm the password is a valid Gmail App Password.",
-                    ex
-            );
-        } catch (Exception ex) {
-            log.error("Failed to send verification email to {}. Fallback link: {}", user.getEmail(), verifyUrl, ex);
-            throw new AppException(
-                    ErrorCode.INTERNAL_SERVER_ERROR,
-                    "Email service is not configured correctly. Set a valid SMTP account and app password before resending verification emails.",
-                    ex
-            );
-        }
-    }
-
-    private String buildVerificationEmailText(User user, String verifyUrl) {
-        String recipientName = StringUtils.hasText(user.getDisplayName()) ? user.getDisplayName().trim() : "there";
-        return "Hi " + recipientName + ",\n\n"
-                + "Welcome to MentorX! We're excited to have you on board.\n\n"
-                + "Please verify your email address to unlock all features of your account:\n"
-                + verifyUrl + "\n\n"
-                + "This link will expire in 24 hours for your security.\n\n"
-                + "Best regards,\nThe MentorX Team";
-    }
-
-    private String buildVerificationEmailHtml(User user, String verifyUrl) {
-        String recipientName = escapeHtml(StringUtils.hasText(user.getDisplayName()) ? user.getDisplayName().trim() : "there");
-        String escapedVerifyUrl = escapeHtml(verifyUrl);
-
-        return """
-                <!DOCTYPE html>
-                <html>
-                <head>
-                  <meta charset="utf-8">
-                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                  <title>Verify your email</title>
-                </head>
-                <body style="margin: 0; padding: 0; background-color: #f9fafb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
-                  <table border="0" cellpadding="0" cellspacing="0" width="100%%" style="background-color: #f9fafb; padding: 40px 20px;">
-                    <tr>
-                      <td align="center">
-                        <table border="0" cellpadding="0" cellspacing="0" width="100%%" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
-                          
-                          <!-- Header -->
-                          <tr>
-                            <td align="center" style="padding: 40px 0 30px 0; background-color: #0a0a0a;">
-                              <table border="0" cellpadding="0" cellspacing="0">
-                                <tr>
-                                  <td align="center" style="background: #2563eb; border-radius: 12px; padding: 12px; width: 32px; height: 32px;">
-                                    <span style="color: #ffffff; font-size: 24px; font-weight: bold; font-family: monospace;">M</span>
-                                  </td>
-                                </tr>
-                                <tr>
-                                  <td align="center" style="padding-top: 16px;">
-                                    <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600; letter-spacing: -0.5px;">MentorX</h1>
-                                  </td>
-                                </tr>
-                              </table>
-                            </td>
-                          </tr>
-
-                          <!-- Body -->
-                          <tr>
-                            <td style="padding: 40px 40px 30px 40px;">
-                              <p style="margin: 0 0 20px 0; color: #1f2937; font-size: 16px; line-height: 24px;">
-                                Hi <strong>%s</strong>,
-                              </p>
-                              <p style="margin: 0 0 30px 0; color: #4b5563; font-size: 16px; line-height: 24px;">
-                                Welcome to MentorX! We're thrilled to have you. Before you can start exploring mentors, jobs, and courses, we just need to verify your email address.
-                              </p>
-                              
-                              <table border="0" cellpadding="0" cellspacing="0" width="100%%">
-                                <tr>
-                                  <td align="center">
-                                    <a href="%s" style="display: inline-block; padding: 16px 32px; background-color: #2563eb; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);">
-                                      Verify Email Address
-                                    </a>
-                                  </td>
-                                </tr>
-                              </table>
-
-                              <div style="margin-top: 40px; padding-top: 30px; border-top: 1px solid #e5e7eb;">
-                                <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 14px;">
-                                  Or copy and paste this link into your browser:
-                                </p>
-                                <p style="margin: 0; word-break: break-all;">
-                                  <a href="%s" style="color: #2563eb; font-size: 14px; text-decoration: underline;">%s</a>
-                                </p>
-                              </div>
-                            </td>
-                          </tr>
-
-                          <!-- Footer -->
-                          <tr>
-                            <td align="center" style="padding: 30px 40px; background-color: #f3f4f6;">
-                              <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 13px;">
-                                This link expires in 24 hours.
-                              </p>
-                              <p style="margin: 0; color: #9ca3af; font-size: 12px;">
-                                If you didn't create a MentorX account, please ignore this email.<br>
-                                &copy; MentorX platform. All rights reserved.
-                              </p>
-                            </td>
-                          </tr>
-
-                        </table>
-                      </td>
-                    </tr>
-                  </table>
-                </body>
-                </html>
-                """.formatted(recipientName, escapedVerifyUrl, escapedVerifyUrl, escapedVerifyUrl);
-    }
-
-    private String resolveMailFromAddress() {
-        String resolvedUsername = normalizeMailCredential(mailUsername);
-        String resolvedPassword = normalizeMailCredential(mailPassword);
-
-        if (!StringUtils.hasText(resolvedUsername) || !StringUtils.hasText(resolvedPassword)) {
-            throw new AppException(
-                    ErrorCode.INTERNAL_SERVER_ERROR,
-                    "Email service is not configured. Missing SMTP_USERNAME or SMTP_PASSWORD."
-            );
-        }
-
-        String sender = StringUtils.hasText(configuredFromEmail) ? configuredFromEmail.trim() : resolvedUsername;
-        try {
-            InternetAddress address = new InternetAddress(sender, true);
-            address.validate();
-            return address.getAddress();
-        } catch (Exception ex) {
-            throw new AppException(
-                    ErrorCode.INTERNAL_SERVER_ERROR,
-                    "Email sender address is invalid. Check spring.mail.username or app.mail.from.",
-                    ex
-            );
-        }
-    }
-
-    private String normalizeMailCredential(String value) {
-        if (!StringUtils.hasText(value)) {
-            return "";
-        }
-
-        String normalized = value.trim();
-        if (normalized.length() >= 2) {
-            boolean wrappedInDoubleQuotes = normalized.startsWith("\"") && normalized.endsWith("\"");
-            boolean wrappedInSingleQuotes = normalized.startsWith("'") && normalized.endsWith("'");
-            if (wrappedInDoubleQuotes || wrappedInSingleQuotes) {
-                normalized = normalized.substring(1, normalized.length() - 1).trim();
-            }
-        }
-        return normalized;
-    }
-
     private void validatePasswordStrength(String password) {
         if (!StringUtils.hasText(password) || password.length() < 8) {
             throw new AppException(ErrorCode.BAD_REQUEST, "Password must be at least 8 characters long.");
@@ -800,13 +605,5 @@ public class AuthServiceImpl implements AuthService {
             throw new AppException(ErrorCode.BAD_REQUEST, "Password must contain at least one number.");
         }
     }
-
-    private String escapeHtml(String value) {
-        return value
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;")
-                .replace("'", "&#39;");
-    }
+    
 }
