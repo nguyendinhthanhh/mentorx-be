@@ -1,18 +1,17 @@
 package com.mentorx.api.common.security;
 
-import com.mentorx.api.common.exception.AppException;
-import com.mentorx.api.common.exception.ErrorCode;
-import com.mentorx.api.feature.user.entity.User;
-import com.mentorx.api.feature.user.repository.UserRepository;
-import com.mentorx.api.feature.user.repository.UserRoleRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
+import com.mentorx.api.common.exception.AppException;
+import com.mentorx.api.common.exception.ErrorCode;
+import com.mentorx.api.feature.user.entity.User;
+import com.mentorx.api.feature.user.repository.UserRepository;
+import com.mentorx.api.feature.user.repository.UserRoleRepository;
+
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor

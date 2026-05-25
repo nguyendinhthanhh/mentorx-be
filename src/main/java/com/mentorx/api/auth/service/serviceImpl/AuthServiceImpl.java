@@ -377,6 +377,11 @@ public class AuthServiceImpl implements AuthService {
             } catch (Exception e) {
                 log.error("Failed to create wallets for OAuth2 user: {}", user.getId(), e);
             }
+        } else {
+            if (user.getStatus() != UserStatus.ACTIVE) {
+                log.warn("OAuth2 login blocked for {} — status is {}", email, user.getStatus());
+                throw new AppException(ErrorCode.USER_INACTIVE);
+            }
         }
         return buildAuthResponse(user);
     }
