@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -15,4 +16,5 @@ public interface ContractRepository extends JpaRepository<Contract, UUID> {
     Page<Contract> findByClientId(UUID clientId, Pageable pageable);
     Page<Contract> findByMentorId(UUID mentorId, Pageable pageable);
     Page<Contract> findByStatus(ContractStatus status, Pageable pageable);
+    Optional<Contract> findByProposalId(UUID proposalId);
 }

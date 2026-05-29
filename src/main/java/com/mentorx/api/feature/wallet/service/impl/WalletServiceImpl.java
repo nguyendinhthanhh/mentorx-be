@@ -503,6 +503,22 @@ public class WalletServiceImpl implements WalletService {
 
     @Override
     @Transactional
+    public void releaseContractPayment(UUID contractId, UUID mentorId, BigDecimal amountMxc, String description) {
+        Wallet escrowWallet = getSystemWallet(WalletAccountType.ESCROW);
+        Wallet mentorWallet = getOrCreateUserWallet(mentorId, WalletAccountType.USER_AVAILABLE);
+        processDoubleEntryTransaction(
+                escrowWallet.getId(),
+                mentorWallet.getId(),
+                amountMxc,
+                TxnType.JOB_RELEASE,
+                contractId,
+                "contract",
+                description
+        );
+    }
+
+    @Override
+    @Transactional
     public void releaseMilestone(UUID contractId, UUID milestoneId, BigDecimal amount, BigDecimal platformFee, UUID mentorId) {
         Wallet escrowWallet = getSystemWallet(WalletAccountType.ESCROW);
         Wallet platformRevenue = getSystemWallet(WalletAccountType.PLATFORM_REVENUE);

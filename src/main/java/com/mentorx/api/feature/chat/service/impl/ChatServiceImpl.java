@@ -76,8 +76,11 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    public ChatRoomResponse getRoomById(UUID roomId) {
-        return toRoomResponse(findRoom(roomId), null);
+    public ChatRoomResponse getRoomById(UUID roomId, UUID userId) {
+        ChatRoom room = findRoom(roomId);
+        chatRoomMemberRepository.findByChatRoomIdAndUserId(roomId, userId)
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED_CHAT_ACCESS));
+        return toRoomResponse(room, userId);
     }
 
     @Override

@@ -106,6 +106,39 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
 
     @Override
     @Transactional
+    public NegotiationResponse updatePendingNegotiation(UUID negotiationId, NegotiationRequest request) {
+        ProposalNegotiation negotiation = findNegotiation(negotiationId);
+        Proposal proposal = negotiation.getProposal();
+        User sender = findUser(request.senderId());
+
+        if (!proposal.getId().equals(request.proposalId())) {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+
+        if (!negotiation.getSender().getId().equals(sender.getId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED_JOB_ACCESS);
+        }
+
+        if (negotiation.getStatus() != NegotiationStatus.PENDING) {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+
+        negotiation.setMessage(request.message());
+        negotiation.setProposedAmount(request.proposedAmount());
+        negotiation.setProposedHourlyRate(request.proposedHourlyRate());
+        negotiation.setEstimatedDurationDays(request.estimatedDurationDays());
+        negotiation.setProposedStartDate(request.proposedStartDate());
+        negotiation.setProposedDeliveryDate(request.proposedDeliveryDate());
+
+        Job job = proposal.getJob();
+        job.setUpdatedAt(java.time.LocalDateTime.now());
+        jobRepository.save(job);
+
+        return toResponse(negotiationRepository.save(negotiation));
+    }
+
+    @Override
+    @Transactional
     public NegotiationResponse acceptNegotiation(UUID negotiationId, UUID userId) {
         ProposalNegotiation negotiation = findNegotiation(negotiationId);
         

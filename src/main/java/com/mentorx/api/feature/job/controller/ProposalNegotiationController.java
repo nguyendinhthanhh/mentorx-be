@@ -34,6 +34,14 @@ public class ProposalNegotiationController {
                 .body(ApiResponse.success(negotiationService.mentorCounterOffer(request)));
     }
 
+    @PutMapping("/{negotiationId}")
+    public ResponseEntity<ApiResponse<NegotiationResponse>> updatePendingNegotiation(
+            @PathVariable UUID negotiationId,
+            @Valid @RequestBody NegotiationRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                negotiationService.updatePendingNegotiation(negotiationId, request)));
+    }
+
     @PostMapping("/{negotiationId}/accept")
     public ResponseEntity<ApiResponse<NegotiationResponse>> acceptNegotiation(
             @PathVariable UUID negotiationId,
