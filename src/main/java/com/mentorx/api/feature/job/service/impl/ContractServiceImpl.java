@@ -2,6 +2,7 @@ package com.mentorx.api.feature.job.service.impl;
 
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
+import com.mentorx.api.common.enums.JobStatus;
 import com.mentorx.api.feature.job.dto.request.ContractCreateRequest;
 import com.mentorx.api.feature.job.dto.response.ContractResponse;
 import com.mentorx.api.feature.job.entity.Contract;
@@ -14,12 +15,14 @@ import com.mentorx.api.feature.job.repository.ProposalRepository;
 import com.mentorx.api.feature.job.service.ContractService;
 import com.mentorx.api.feature.user.entity.User;
 import com.mentorx.api.feature.user.repository.UserRepository;
+import com.mentorx.api.feature.wallet.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -32,6 +35,7 @@ public class ContractServiceImpl implements ContractService {
     private final JobRepository jobRepository;
     private final ProposalRepository proposalRepository;
     private final UserRepository userRepository;
+    private final WalletService walletService;
 
     @Override
     @Transactional
@@ -130,7 +134,23 @@ public class ContractServiceImpl implements ContractService {
     @Transactional
     public ContractResponse complete(UUID contractId) {
         Contract contract = findContract(contractId);
+        if (Boolean.TRUE.equals(contract.getFundsInEscrow()) && contract.getAmountInEscrow().compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal escrowAmount = contract.getAmountInEscrow();
+            walletService.releaseContractPayment(
+                    contract.getId(),
+                    contract.getMentor().getId(),
+                    escrowAmount,
+                    "Release escrow after client confirmed job completion"
+            );
+            contract.setAmountPaid(contract.getAmountPaid().add(escrowAmount));
+            contract.setAmountInEscrow(BigDecimal.ZERO);
+            contract.setFundsInEscrow(false);
+        }
         contract.complete();
+        Job job = contract.getJob();
+        job.setStatus(JobStatus.COMPLETED);
+        job.setUpdatedAt(LocalDateTime.now());
+        jobRepository.save(job);
         return toResponse(contractRepository.save(contract));
     }
 

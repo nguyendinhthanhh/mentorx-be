@@ -35,8 +35,10 @@ public class ChatController {
     }
 
     @GetMapping("/rooms/{roomId}")
-    public ResponseEntity<ApiResponse<ChatRoomResponse>> getRoomById(@PathVariable UUID roomId) {
-        return ResponseEntity.ok(ApiResponse.success(chatService.getRoomById(roomId)));
+    public ResponseEntity<ApiResponse<ChatRoomResponse>> getRoomById(
+            @PathVariable UUID roomId,
+            @RequestParam UUID userId) {
+        return ResponseEntity.ok(ApiResponse.success(chatService.getRoomById(roomId, userId)));
     }
 
     @GetMapping("/users/{userId}/rooms")

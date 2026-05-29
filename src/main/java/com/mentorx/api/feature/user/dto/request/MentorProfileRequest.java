@@ -1,5 +1,7 @@
 package com.mentorx.api.feature.user.dto.request;
 
+import com.mentorx.api.feature.user.model.ProofLinkItem;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
@@ -53,6 +55,8 @@ public record MentorProfileRequest(
     String githubUrl,
 
     String portfolioEvidenceUrl,
+
+    List<@Valid ProofLinkItem> proofLinks,
 
     String certificateUrl,
 
