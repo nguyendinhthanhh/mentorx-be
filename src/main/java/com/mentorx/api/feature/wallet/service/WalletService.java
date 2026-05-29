@@ -103,6 +103,8 @@ public interface WalletService {
 
     void processJobPayment(UUID clientId, UUID contractId, BigDecimal totalAmountMxc);
 
+    void releaseContractPayment(UUID contractId, UUID mentorId, BigDecimal amountMxc, String description);
+
     void releaseMilestone(UUID contractId, UUID milestoneId, BigDecimal amount, BigDecimal platformFee, UUID mentorId);
 
     void processCoursePurchase(UUID studentId, UUID courseId, UUID instructorId, BigDecimal amount, BigDecimal platformFee);

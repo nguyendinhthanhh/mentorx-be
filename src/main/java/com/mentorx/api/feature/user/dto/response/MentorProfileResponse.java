@@ -3,6 +3,7 @@ package com.mentorx.api.feature.user.dto.response;
 import com.mentorx.api.common.enums.IdentityDocumentType;
 import com.mentorx.api.common.enums.PayoutMethod;
 import com.mentorx.api.common.enums.VerificationStatus;
+import com.mentorx.api.feature.user.model.ProofLinkItem;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -59,6 +60,7 @@ public record MentorProfileResponse(
     String linkedinUrl,
     String githubUrl,
     String portfolioEvidenceUrl,
+    List<ProofLinkItem> proofLinks,
     String certificateUrl,
     VerificationStatus payoutStatus,
     String payoutAccountHolderName,

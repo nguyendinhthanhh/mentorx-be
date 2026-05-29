@@ -3,6 +3,7 @@ package com.mentorx.api.feature.user.entity;
 import com.mentorx.api.common.entity.BaseEntity;
 import com.mentorx.api.common.enums.PayoutMethod;
 import com.mentorx.api.common.enums.VerificationStatus;
+import com.mentorx.api.feature.user.model.ProofLinkItem;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -176,6 +177,10 @@ public class MentorProfile extends BaseEntity {
 
     @Column(name = "portfolio_evidence_url")
     private String portfolioEvidenceUrl;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "proof_links", columnDefinition = "jsonb")
+    private List<ProofLinkItem> proofLinks;
 
     @Column(name = "certificate_url")
     private String certificateUrl;

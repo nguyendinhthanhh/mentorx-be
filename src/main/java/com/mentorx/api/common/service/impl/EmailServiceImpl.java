@@ -215,4 +215,202 @@ public class EmailServiceImpl implements EmailService {
                 </html>
                 """.formatted(name, link, link, link);
     }
+
+    @Override
+    @Async
+    public void sendMentorApprovalEmail(String to, String recipientName, String mentorDashboardUrl) {
+        String subject = "Congratulations! You are now a Mentor on MentorX";
+        String html = buildMentorApprovalTemplate(recipientName, mentorDashboardUrl);
+        String plainText = buildMentorApprovalText(recipientName, mentorDashboardUrl);
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail);
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(plainText, html);
+            mailSender.send(message);
+            log.info("Mentor approval email sent to {}", to);
+        } catch (MessagingException e) {
+            log.error("Failed to send mentor approval email to {}", to, e);
+        }
+    }
+
+    private String buildMentorApprovalText(String recipientName, String mentorDashboardUrl) {
+        String displayName = StringUtils.hasText(recipientName) ? recipientName.trim() : "there";
+        return "Hi " + displayName + ",\n\n"
+                + "Congratulations! Your mentor application has been approved.\n\n"
+                + "You can now access your mentor dashboard here:\n"
+                + mentorDashboardUrl + "\n\n"
+                + "Welcome to the MentorX community!\n\n"
+                + "MentorX Team";
+    }
+
+    private String buildMentorApprovalTemplate(String recipientName, String mentorDashboardUrl) {
+        String safeName = escapeHtml(StringUtils.hasText(recipientName) ? recipientName.trim() : "there");
+        String safeDashboardUrl = escapeHtml(mentorDashboardUrl);
+
+        return """
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <meta charset="utf-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <title>Mentor Application Approved</title>
+                </head>
+                <body style="margin:0;padding:0;background:#f4f7fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
+                  <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="background:#f4f7fb;padding:32px 16px;">
+                    <tr>
+                      <td align="center">
+                        <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="max-width:620px;background:#ffffff;border:1px solid #e2e8f0;border-radius:24px;overflow:hidden;box-shadow:0 18px 50px rgba(15,23,42,0.08);">
+                          <tr>
+                            <td style="padding:24px 32px;background:linear-gradient(135deg,#0f172a 0%%,#10b981 58%%,#059669 100%%);">
+                              <div style="display:inline-flex;align-items:center;gap:12px;">
+                                <div style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.14);text-align:center;line-height:44px;font-size:22px;font-weight:700;color:#ffffff;">M</div>
+                                <div>
+                                  <div style="font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.02em;">MentorX</div>
+                                  <div style="font-size:12px;color:rgba(255,255,255,0.78);">Application Approved</div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding:36px 32px 12px 32px;">
+                              <h1 style="margin:18px 0 12px;font-size:30px;line-height:1.15;letter-spacing:-0.03em;color:#0f172a;">Welcome to MentorX!</h1>
+                              <p style="margin:0;font-size:16px;line-height:1.7;color:#475569;">
+                                Hi <strong>%s</strong>, congratulations! Your mentor application has been approved. You are now an official mentor on MentorX.
+                              </p>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding:24px 32px 8px 32px;">
+                              <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:20px;">
+                                <tr>
+                                  <td style="padding:24px;">
+                                    <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#10b981;margin-bottom:10px;">Get Started</div>
+                                    <p style="margin:0 0 20px;font-size:15px;line-height:1.7;color:#475569;">
+                                      Head over to your mentor dashboard to set up your availability, update your profile, and start accepting mentees.
+                                    </p>
+                                    <a href="%s" style="display:inline-block;padding:14px 22px;border-radius:14px;background:#111827;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;">
+                                      Go to Dashboard
+                                    </a>
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </body>
+                </html>
+                """.formatted(safeName, safeDashboardUrl);
+    }
+
+    @Override
+    @Async
+    public void sendMentorMoreInfoRequestEmail(String to, String recipientName, String reason, String updateUrl) {
+        String subject = "Action Required: Update your MentorX Application";
+        String html = buildMentorMoreInfoTemplate(recipientName, reason, updateUrl);
+        String plainText = buildMentorMoreInfoText(recipientName, reason, updateUrl);
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail);
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(plainText, html);
+            mailSender.send(message);
+            log.info("Mentor more info request email sent to {}", to);
+        } catch (MessagingException e) {
+            log.error("Failed to send mentor more info request email to {}", to, e);
+        }
+    }
+
+    private String buildMentorMoreInfoText(String recipientName, String reason, String updateUrl) {
+        String displayName = StringUtils.hasText(recipientName) ? recipientName.trim() : "there";
+        return "Hi " + displayName + ",\n\n"
+                + "Our moderation team has reviewed your mentor application and needs a little more information before we can approve it.\n\n"
+                + "Moderator note:\n" + reason + "\n\n"
+                + "Please update your profile here:\n"
+                + updateUrl + "\n\n"
+                + "MentorX Team";
+    }
+
+    private String buildMentorMoreInfoTemplate(String recipientName, String reason, String updateUrl) {
+        String safeName = escapeHtml(StringUtils.hasText(recipientName) ? recipientName.trim() : "there");
+        String safeReason = escapeHtml(reason != null ? reason : "Please review and update your application details.");
+        String safeUpdateUrl = escapeHtml(updateUrl);
+
+        return """
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <meta charset="utf-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <title>Application Update Required</title>
+                </head>
+                <body style="margin:0;padding:0;background:#f4f7fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
+                  <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="background:#f4f7fb;padding:32px 16px;">
+                    <tr>
+                      <td align="center">
+                        <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="max-width:620px;background:#ffffff;border:1px solid #e2e8f0;border-radius:24px;overflow:hidden;box-shadow:0 18px 50px rgba(15,23,42,0.08);">
+                          <tr>
+                            <td style="padding:24px 32px;background:linear-gradient(135deg,#0f172a 0%%,#f59e0b 58%%,#d97706 100%%);">
+                              <div style="display:inline-flex;align-items:center;gap:12px;">
+                                <div style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.14);text-align:center;line-height:44px;font-size:22px;font-weight:700;color:#ffffff;">M</div>
+                                <div>
+                                  <div style="font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.02em;">MentorX</div>
+                                  <div style="font-size:12px;color:rgba(255,255,255,0.78);">Application Update Required</div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding:36px 32px 12px 32px;">
+                              <h1 style="margin:18px 0 12px;font-size:30px;line-height:1.15;letter-spacing:-0.03em;color:#0f172a;">Action required on your application</h1>
+                              <p style="margin:0;font-size:16px;line-height:1.7;color:#475569;">
+                                Hi <strong>%s</strong>, our moderation team needs a little more information before we can approve your mentor application.
+                              </p>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding:24px 32px 8px 32px;">
+                              <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;">
+                                <tr>
+                                  <td style="padding:16px;">
+                                    <div style="font-size:13px;font-weight:700;color:#d97706;margin-bottom:8px;">Moderator Note</div>
+                                    <p style="margin:0;font-size:14px;line-height:1.6;color:#92400e;">
+                                      %s
+                                    </p>
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding:16px 32px 24px 32px;">
+                              <a href="%s" style="display:inline-block;padding:14px 22px;border-radius:14px;background:#111827;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;">
+                                Update your application
+                              </a>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding:20px 32px 32px 32px;">
+                              <p style="margin:0;font-size:13px;line-height:1.7;color:#64748b;">
+                                If you have any questions, reply directly to this email to contact MentorX support.
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </body>
+                </html>
+                """.formatted(safeName, safeReason, safeUpdateUrl);
+    }
 }
