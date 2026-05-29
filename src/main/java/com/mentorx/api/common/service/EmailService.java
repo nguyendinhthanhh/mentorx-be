@@ -9,4 +9,10 @@ public interface EmailService {
 
     @Async
     void sendPasswordResetEmail(String to, String recipientName, String resetUrl);
+
+    @Async
+    void sendMentorApprovalEmail(String to, String recipientName, String mentorDashboardUrl);
+
+    @Async
+    void sendMentorMoreInfoRequestEmail(String to, String recipientName, String reason, String updateUrl);
 }

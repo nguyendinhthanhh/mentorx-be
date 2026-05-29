@@ -285,6 +285,7 @@ public class AdminMentorVerificationController {
                 profile.linkedinUrl(),
                 profile.githubUrl(),
                 profile.portfolioEvidenceUrl(),
+                profile.proofLinks(),
                 profile.certificateUrl(),
                 profile.payoutStatus(),
                 profile.payoutAccountHolderName(),

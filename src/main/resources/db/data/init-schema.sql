@@ -218,6 +218,7 @@ CREATE TABLE mentor_profiles (
     linkedin_url        TEXT,
     github_url          TEXT,
     portfolio_evidence_url TEXT,
+    proof_links         JSONB,
     certificate_url     TEXT,
     bank_account_name   VARCHAR(150),
     bank_name           VARCHAR(150),
