@@ -1,17 +1,22 @@
 package com.mentorx.api.feature.review.controller;
 
+import com.mentorx.api.common.exception.AppException;
+import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.common.response.ApiResponse;
 import com.mentorx.api.feature.review.dto.request.ReviewCreateRequest;
 import com.mentorx.api.feature.review.dto.request.ReviewUpdateRequest;
 import com.mentorx.api.feature.review.dto.response.ReviewResponse;
 import com.mentorx.api.feature.review.enums.ReviewTargetType;
 import com.mentorx.api.feature.review.service.ReviewService;
+import com.mentorx.api.feature.user.entity.User;
+import com.mentorx.api.feature.user.repository.UserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -22,10 +27,14 @@ import java.util.UUID;
 public class ReviewController {
 
     private final ReviewService reviewService;
+    private final UserRepository userRepository;
 
     @PostMapping
-    public ResponseEntity<ApiResponse<ReviewResponse>> create(@Valid @RequestBody ReviewCreateRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(reviewService.createReview(request)));
+    public ResponseEntity<ApiResponse<ReviewResponse>> create(
+            @Valid @RequestBody ReviewCreateRequest request,
+            Authentication authentication) {
+        UUID currentUserId = resolveCurrentUser(authentication).getId();
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(reviewService.createReview(currentUserId, request)));
     }
 
     @PutMapping("/{reviewId}")
@@ -57,6 +66,14 @@ public class ReviewController {
         return ResponseEntity.ok(ApiResponse.success(reviewService.getReviewsByReviewer(reviewerId, PageRequest.of(page, size))));
     }
 
+    @GetMapping("/eligibility/mentor/{mentorId}")
+    public ResponseEntity<ApiResponse<Boolean>> canReviewMentor(
+            @PathVariable UUID mentorId,
+            Authentication authentication) {
+        UUID currentUserId = resolveCurrentUser(authentication).getId();
+        return ResponseEntity.ok(ApiResponse.success(reviewService.canReviewMentor(currentUserId, mentorId)));
+    }
+
     @PostMapping("/{reviewId}/vote")
     public ResponseEntity<ApiResponse<ReviewResponse>> vote(
             @PathVariable UUID reviewId,
@@ -68,5 +85,14 @@ public class ReviewController {
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID reviewId) {
         reviewService.deleteReview(reviewId);
         return ResponseEntity.ok(ApiResponse.success("Review deleted", null));
+    }
+
+    private User resolveCurrentUser(Authentication authentication) {
+        if (authentication == null || authentication.getName() == null) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        return userRepository.findByEmail(authentication.getName())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
     }
 }

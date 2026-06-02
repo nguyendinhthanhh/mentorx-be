@@ -45,6 +45,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Locale;
 import java.util.List;
 import java.util.UUID;
@@ -67,6 +69,13 @@ public class WalletServiceImpl implements WalletService {
 
     private static final BigDecimal MXC_TO_VND_RATE = BigDecimal.valueOf(1000);
     private static final String BASE_CURRENCY = "VND";
+    private static final String ACCEPT_CONTRACT_REFERENCE = "ACCEPT_CONTRACT";
+    private static final String RELEASE_CONTRACT_REFERENCE = "RELEASE_CONTRACT";
+    private static final String REFUND_CONTRACT_REFERENCE = "REFUND_CONTRACT";
+    private static final List<WalletAccountType> USER_WALLET_TYPES = List.of(
+            WalletAccountType.USER_AVAILABLE,
+            WalletAccountType.USER_PENDING
+    );
 
     @Value("${app.wallet.secret-key}")
     private String walletSecretKey;
@@ -153,14 +162,18 @@ public class WalletServiceImpl implements WalletService {
 
     @Override
     public List<WalletResponse> getUserWallets(UUID userId) {
-        List<Wallet> wallets = walletRepository.findByUserId(userId);
+        List<Wallet> wallets = new ArrayList<>(
+                walletRepository.findByUserId(userId).stream()
+                        .filter(wallet -> USER_WALLET_TYPES.contains(wallet.getAccountType()))
+                        .toList()
+        );
         
-        // Auto-create missing wallets
-        if (wallets.isEmpty() || wallets.size() < 3) {
+        // Auto-create only user-facing wallets
+        if (wallets.size() < USER_WALLET_TYPES.size()) {
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
             
-            for (WalletAccountType type : WalletAccountType.values()) {
+            for (WalletAccountType type : USER_WALLET_TYPES) {
                 boolean exists = wallets.stream()
                         .anyMatch(w -> w.getAccountType() == type);
                 if (!exists) {
@@ -469,8 +482,8 @@ public class WalletServiceImpl implements WalletService {
     @Override
     @Transactional
     public UUID processDoubleEntryTransaction(UUID fromWalletId, UUID toWalletId, BigDecimal amount, TxnType txnType, UUID referenceId, String referenceType, String description) {
-        Wallet fromWallet = findWalletById(fromWalletId);
-        Wallet toWallet = findWalletById(toWalletId);
+        Wallet fromWallet = findWalletByIdForUpdate(fromWalletId);
+        Wallet toWallet = findWalletByIdForUpdate(toWalletId);
 
         if (fromWallet.getBalanceMxc().compareTo(amount) < 0) {
             throw new AppException(ErrorCode.INSUFFICIENT_BALANCE);
@@ -498,13 +511,27 @@ public class WalletServiceImpl implements WalletService {
     public void processJobPayment(UUID clientId, UUID contractId, BigDecimal totalAmountMxc) {
         Wallet clientWallet = getOrCreateUserWallet(clientId, WalletAccountType.USER_AVAILABLE);
         Wallet escrowWallet = getSystemWallet(WalletAccountType.ESCROW);
-        processDoubleEntryTransaction(clientWallet.getId(), escrowWallet.getId(), totalAmountMxc, TxnType.JOB_PAYMENT, contractId, "contract", "Lock escrow for contract");
+        if (hasOperationLedger(contractId, ACCEPT_CONTRACT_REFERENCE, TxnType.JOB_PAYMENT, LedgerDirection.CREDIT)) {
+            return;
+        }
+        processDoubleEntryTransaction(
+                clientWallet.getId(),
+                escrowWallet.getId(),
+                totalAmountMxc,
+                TxnType.JOB_PAYMENT,
+                contractId,
+                ACCEPT_CONTRACT_REFERENCE,
+                "Lock escrow for contract"
+        );
     }
 
     @Override
     @Transactional
     public void releaseContractPayment(UUID contractId, UUID mentorId, BigDecimal amountMxc, String description) {
-        Wallet escrowWallet = getSystemWallet(WalletAccountType.ESCROW);
+        if (hasOperationLedger(contractId, RELEASE_CONTRACT_REFERENCE, TxnType.JOB_RELEASE, LedgerDirection.CREDIT)) {
+            return;
+        }
+        Wallet escrowWallet = resolveContractEscrowWallet(contractId);
         Wallet mentorWallet = getOrCreateUserWallet(mentorId, WalletAccountType.USER_AVAILABLE);
         processDoubleEntryTransaction(
                 escrowWallet.getId(),
@@ -512,7 +539,7 @@ public class WalletServiceImpl implements WalletService {
                 amountMxc,
                 TxnType.JOB_RELEASE,
                 contractId,
-                "contract",
+                RELEASE_CONTRACT_REFERENCE,
                 description
         );
     }
@@ -670,9 +697,20 @@ public class WalletServiceImpl implements WalletService {
     @Override
     @Transactional
     public void processRefund(UUID contractId, UUID clientId, BigDecimal refundAmount) {
-        Wallet escrowWallet = getSystemWallet(WalletAccountType.ESCROW);
+        if (hasOperationLedger(contractId, REFUND_CONTRACT_REFERENCE, TxnType.JOB_REFUND, LedgerDirection.CREDIT)) {
+            return;
+        }
+        Wallet escrowWallet = resolveContractEscrowWallet(contractId);
         Wallet clientWallet = getOrCreateUserWallet(clientId, WalletAccountType.USER_AVAILABLE);
-        processDoubleEntryTransaction(escrowWallet.getId(), clientWallet.getId(), refundAmount, TxnType.JOB_REFUND, contractId, "contract", "Refund contract");
+        processDoubleEntryTransaction(
+                escrowWallet.getId(),
+                clientWallet.getId(),
+                refundAmount,
+                TxnType.JOB_REFUND,
+                contractId,
+                REFUND_CONTRACT_REFERENCE,
+                "Refund contract"
+        );
     }
 
     @Override
@@ -791,15 +829,39 @@ public class WalletServiceImpl implements WalletService {
         return walletRepository.findById(walletId).orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
     }
 
+    private Wallet findWalletByIdForUpdate(UUID walletId) {
+        return walletRepository.findByIdForUpdate(walletId)
+                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+    }
+
     private Wallet getOrCreateUserWallet(UUID userId, WalletAccountType type) {
-        return walletRepository.findByUserIdAndAccountType(userId, type).orElseGet(() -> {
+        return walletRepository.findByUserIdAndAccountTypeForUpdate(userId, type).orElseGet(() -> {
             User user = userRepository.findById(userId).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
             return walletRepository.save(Wallet.builder().user(user).accountType(type).build());
         });
     }
 
+    private Wallet resolveContractEscrowWallet(UUID contractId) {
+        return transactionRepository.findByReferenceId(contractId).stream()
+                .filter(transaction -> transaction.getTxnType() == TxnType.JOB_PAYMENT)
+                .filter(transaction -> transaction.getDirection() == LedgerDirection.CREDIT)
+                .filter(transaction -> transaction.getWallet().getAccountType() == WalletAccountType.ESCROW)
+                .max(Comparator.comparing(WalletTransaction::getCreatedAt))
+                .map(WalletTransaction::getWallet)
+                .orElseGet(() -> getSystemWallet(WalletAccountType.ESCROW));
+    }
+
     private Wallet getSystemWallet(WalletAccountType type) {
-        return walletRepository.findByAccountType(type).stream().findFirst()
+        return walletRepository.findByUserIsNullAndAccountTypeForUpdate(type)
                 .orElseGet(() -> walletRepository.save(Wallet.builder().accountType(type).build()));
+    }
+
+    private boolean hasOperationLedger(UUID referenceId, String referenceType, TxnType txnType, LedgerDirection direction) {
+        return transactionRepository.existsByReferenceIdAndReferenceTypeAndTxnTypeAndDirection(
+                referenceId,
+                referenceType,
+                txnType,
+                direction
+        );
     }
 }
