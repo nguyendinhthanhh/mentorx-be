@@ -9,7 +9,7 @@ import java.util.UUID;
 
 public record MessageSendRequest(
         @NotNull(message = "Chat room ID is required") UUID chatRoomId,
-        @NotNull(message = "Sender ID is required") UUID senderId,
+        UUID senderId,
         @NotNull(message = "Message type is required") MessageType messageType,
         String content,
         UUID replyToMessageId,

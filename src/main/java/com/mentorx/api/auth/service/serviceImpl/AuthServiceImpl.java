@@ -119,7 +119,7 @@ public class AuthServiceImpl implements AuthService {
                 .status(UserStatus.PENDING)
                 .isEmailVerified(false)
                 .mentorStatus(MentorStatus.NONE)
-                .preferredLanguage(SupportedLanguage.vi)
+                .preferredLanguage(SupportedLanguage.en)
                 .build();
         user = userRepository.save(user);
         assignUserRoleIfMissing(user);
@@ -128,7 +128,6 @@ public class AuthServiceImpl implements AuthService {
         try {
             walletService.createWallet(user.getId(), WalletAccountType.USER_AVAILABLE);
             walletService.createWallet(user.getId(), WalletAccountType.USER_PENDING);
-            walletService.createWallet(user.getId(), WalletAccountType.ESCROW);
             log.info("Created wallets for new user: {}", user.getId());
         } catch (Exception e) {
             log.error("Failed to create wallets for user: {}", user.getId(), e);
@@ -365,14 +364,13 @@ public class AuthServiceImpl implements AuthService {
                     .status(UserStatus.ACTIVE)
                     .isEmailVerified(true)
                     .mentorStatus(MentorStatus.NONE)
-                    .preferredLanguage(SupportedLanguage.vi)
+                    .preferredLanguage(SupportedLanguage.en)
                     .build());
             assignUserRoleIfMissing(user);
 
             try {
                 walletService.createWallet(user.getId(), WalletAccountType.USER_AVAILABLE);
                 walletService.createWallet(user.getId(), WalletAccountType.USER_PENDING);
-                walletService.createWallet(user.getId(), WalletAccountType.ESCROW);
                 log.info("Created wallets for new OAuth2 user: {}", user.getId());
             } catch (Exception e) {
                 log.error("Failed to create wallets for OAuth2 user: {}", user.getId(), e);

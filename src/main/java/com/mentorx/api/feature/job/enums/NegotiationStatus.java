@@ -25,5 +25,10 @@ public enum NegotiationStatus {
     /**
      * A counter-offer was made in response
      */
-    COUNTERED
+    COUNTERED,
+
+    /**
+     * Negotiation was cancelled because the proposal or job is no longer actionable
+     */
+    CANCELLED
 }

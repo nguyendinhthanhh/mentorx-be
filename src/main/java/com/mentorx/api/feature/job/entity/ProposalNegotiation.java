@@ -132,4 +132,12 @@ public class ProposalNegotiation extends BaseEntity {
         this.status = NegotiationStatus.COUNTERED;
         this.respondedAt = LocalDateTime.now();
     }
+
+    /**
+     * Cancels this negotiation because the proposal/job is no longer actionable.
+     */
+    public void cancel() {
+        this.status = NegotiationStatus.CANCELLED;
+        this.respondedAt = LocalDateTime.now();
+    }
 }

@@ -2,6 +2,8 @@ package com.mentorx.api.feature.job.controller;
 
 import com.mentorx.api.feature.job.enums.ContractStatus;
 import com.mentorx.api.common.response.ApiResponse;
+import com.mentorx.api.feature.job.dto.request.ContractCancellationDecisionRequest;
+import com.mentorx.api.feature.job.dto.request.ContractCancellationRequest;
 import com.mentorx.api.feature.job.dto.request.ContractCreateRequest;
 import com.mentorx.api.feature.job.dto.response.ContractResponse;
 import com.mentorx.api.feature.job.service.ContractService;
@@ -31,6 +33,18 @@ public class ContractController {
     @GetMapping("/{contractId}")
     public ResponseEntity<ApiResponse<ContractResponse>> getById(@PathVariable UUID contractId) {
         return ResponseEntity.ok(ApiResponse.success(contractService.getById(contractId)));
+    }
+
+    @GetMapping("/mentor/me")
+    public ResponseEntity<ApiResponse<Page<ContractResponse>>> getCurrentMentorContracts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success(contractService.getCurrentMentorContracts(PageRequest.of(page, size))));
+    }
+
+    @GetMapping("/mentor/me/{contractId}")
+    public ResponseEntity<ApiResponse<ContractResponse>> getCurrentMentorContract(@PathVariable UUID contractId) {
+        return ResponseEntity.ok(ApiResponse.success(contractService.getCurrentMentorContract(contractId)));
     }
 
     @PutMapping("/{contractId}")
@@ -105,5 +119,26 @@ public class ContractController {
             @RequestParam UUID userId,
             @RequestParam String reason) {
         return ResponseEntity.ok(ApiResponse.success(contractService.cancel(contractId, userId, reason)));
+    }
+
+    @PostMapping("/{contractId}/cancellation-request")
+    public ResponseEntity<ApiResponse<ContractResponse>> requestCancellation(
+            @PathVariable UUID contractId,
+            @Valid @RequestBody ContractCancellationRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(contractService.requestCancellation(contractId, request)));
+    }
+
+    @PostMapping("/{contractId}/cancellation-request/approve")
+    public ResponseEntity<ApiResponse<ContractResponse>> approveCancellation(
+            @PathVariable UUID contractId,
+            @Valid @RequestBody ContractCancellationDecisionRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(contractService.approveCancellation(contractId, request)));
+    }
+
+    @PostMapping("/{contractId}/cancellation-request/reject")
+    public ResponseEntity<ApiResponse<ContractResponse>> rejectCancellation(
+            @PathVariable UUID contractId,
+            @Valid @RequestBody ContractCancellationDecisionRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(contractService.rejectCancellation(contractId, request)));
     }
 }
