@@ -2,14 +2,18 @@ package com.mentorx.api.feature.job.service.impl;
 
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
+import com.mentorx.api.common.enums.JobStatus;
+import com.mentorx.api.common.security.MentorModeAccessService;
 import com.mentorx.api.feature.job.dto.request.NegotiationRequest;
 import com.mentorx.api.feature.job.dto.response.NegotiationResponse;
 import com.mentorx.api.feature.job.entity.Proposal;
 import com.mentorx.api.feature.job.entity.ProposalNegotiation;
+import com.mentorx.api.feature.job.enums.ContractStatus;
 import com.mentorx.api.feature.job.enums.NegotiationStatus;
 import com.mentorx.api.feature.job.enums.ProposalStatus;
 import com.mentorx.api.feature.job.enums.SenderType;
 import com.mentorx.api.feature.job.entity.Job;
+import com.mentorx.api.feature.job.repository.ContractRepository;
 import com.mentorx.api.feature.job.repository.JobRepository;
 import com.mentorx.api.feature.job.repository.ProposalNegotiationRepository;
 import com.mentorx.api.feature.job.repository.ProposalRepository;
@@ -34,20 +38,24 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
 
     private final ProposalNegotiationRepository negotiationRepository;
     private final ProposalRepository proposalRepository;
+    private final ContractRepository contractRepository;
     private final JobRepository jobRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final MentorModeAccessService mentorModeAccessService;
 
     @Override
     @Transactional
     public NegotiationResponse clientCounterOffer(NegotiationRequest request) {
         Proposal proposal = findProposal(request.proposalId());
         User client = findUser(request.senderId());
+        requireCurrentUser(request.senderId());
         
         // Verify client owns the job
         if (!proposal.getJob().getClient().getId().equals(client.getId())) {
             throw new AppException(ErrorCode.UNAUTHORIZED_JOB_ACCESS);
         }
+        ensureNegotiationAllowed(proposal);
         
         // Mark previous pending negotiations as countered
         markPreviousAsCountered(request.proposalId());
@@ -76,11 +84,13 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
     public NegotiationResponse mentorCounterOffer(NegotiationRequest request) {
         Proposal proposal = findProposal(request.proposalId());
         User mentor = findUser(request.senderId());
+        requireCurrentUser(request.senderId());
         
         // Verify mentor owns the proposal
         if (!proposal.getMentor().getId().equals(mentor.getId())) {
             throw new AppException(ErrorCode.UNAUTHORIZED_JOB_ACCESS);
         }
+        ensureNegotiationAllowed(proposal);
         
         // Mark previous pending negotiations as countered
         markPreviousAsCountered(request.proposalId());
@@ -110,6 +120,7 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
         ProposalNegotiation negotiation = findNegotiation(negotiationId);
         Proposal proposal = negotiation.getProposal();
         User sender = findUser(request.senderId());
+        requireCurrentUser(request.senderId());
 
         if (!proposal.getId().equals(request.proposalId())) {
             throw new AppException(ErrorCode.BAD_REQUEST);
@@ -122,28 +133,19 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
         if (negotiation.getStatus() != NegotiationStatus.PENDING) {
             throw new AppException(ErrorCode.BAD_REQUEST);
         }
-
-        negotiation.setMessage(request.message());
-        negotiation.setProposedAmount(request.proposedAmount());
-        negotiation.setProposedHourlyRate(request.proposedHourlyRate());
-        negotiation.setEstimatedDurationDays(request.estimatedDurationDays());
-        negotiation.setProposedStartDate(request.proposedStartDate());
-        negotiation.setProposedDeliveryDate(request.proposedDeliveryDate());
-
-        Job job = proposal.getJob();
-        job.setUpdatedAt(java.time.LocalDateTime.now());
-        jobRepository.save(job);
-
-        return toResponse(negotiationRepository.save(negotiation));
+        ensureNegotiationAllowed(proposal);
+        throw new AppException(ErrorCode.BAD_REQUEST, "Pending negotiation offers cannot be edited after sending.");
     }
 
     @Override
     @Transactional
     public NegotiationResponse acceptNegotiation(UUID negotiationId, UUID userId) {
         ProposalNegotiation negotiation = findNegotiation(negotiationId);
+        requireCurrentUser(userId);
         
         // Verify user is authorized (must be the receiver, not sender)
         Proposal proposal = negotiation.getProposal();
+        ensureNegotiationAllowed(proposal);
         boolean isClient = proposal.getJob().getClient().getId().equals(userId);
         boolean isMentor = proposal.getMentor().getId().equals(userId);
         
@@ -176,8 +178,8 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
             proposal.setProposedDeliveryDate(negotiation.getProposedDeliveryDate());
         }
         
-        // Update proposal status back to SUBMITTED (ready for final acceptance)
-        proposal.setStatus(ProposalStatus.SUBMITTED);
+        // Offer terms are now agreed, but the mentor is not hired until the client accepts the proposal.
+        proposal.markOfferAccepted();
         proposalRepository.save(proposal);
 
         // Update job activity
@@ -192,9 +194,11 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
     @Transactional
     public void rejectNegotiation(UUID negotiationId, UUID userId) {
         ProposalNegotiation negotiation = findNegotiation(negotiationId);
+        requireCurrentUser(userId);
         
         // Verify user is authorized
         Proposal proposal = negotiation.getProposal();
+        ensureNegotiationAllowed(proposal);
         boolean isClient = proposal.getJob().getClient().getId().equals(userId);
         boolean isMentor = proposal.getMentor().getId().equals(userId);
         
@@ -209,6 +213,11 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
         
         negotiation.reject();
         negotiationRepository.save(negotiation);
+
+        if (negotiationRepository.findByProposalIdAndStatus(proposal.getId(), NegotiationStatus.PENDING).isEmpty()) {
+            proposal.setStatus(ProposalStatus.SUBMITTED);
+            proposalRepository.save(proposal);
+        }
     }
 
     @Override
@@ -257,6 +266,35 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
     private User findUser(UUID userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+    }
+
+    private void requireCurrentUser(UUID userId) {
+        if (!mentorModeAccessService.getCurrentUserId().equals(userId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "You cannot negotiate on behalf of another user.");
+        }
+    }
+
+    private void ensureNegotiationAllowed(Proposal proposal) {
+        Job job = proposal.getJob();
+        if (job.getStatus() != JobStatus.OPEN) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Negotiation is only available while the job is open.");
+        }
+        if (contractRepository.existsByJobIdAndStatusIn(job.getId(), java.util.List.of(
+                ContractStatus.ACTIVE,
+                ContractStatus.PENDING_PAYMENT,
+                ContractStatus.PAUSED,
+                ContractStatus.IN_DISPUTE,
+                ContractStatus.UNDER_REVIEW
+        ))) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Negotiation is no longer available because this job already has an active contract.");
+        }
+        if (!(proposal.getStatus() == ProposalStatus.SUBMITTED
+                || proposal.getStatus() == ProposalStatus.NEGOTIATING
+                || proposal.getStatus() == ProposalStatus.OFFER_ACCEPTED
+                || proposal.getStatus() == ProposalStatus.SHORTLISTED
+                || proposal.getStatus() == ProposalStatus.UNDER_REVIEW)) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "This proposal is not in a negotiable state.");
+        }
     }
 
     private ProposalNegotiation findNegotiation(UUID negotiationId) {

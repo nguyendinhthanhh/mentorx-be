@@ -1,7 +1,9 @@
 package com.mentorx.api.feature.chat.service.impl;
 
+import com.mentorx.api.common.security.MentorModeAccessService;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
+import com.mentorx.api.feature.chat.dto.request.ChatConversationResolveRequest;
 import com.mentorx.api.feature.chat.dto.request.ChatRoomCreateRequest;
 import com.mentorx.api.feature.chat.dto.response.ChatRoomMemberResponse;
 import com.mentorx.api.feature.chat.dto.request.MessageSendRequest;
@@ -10,10 +12,17 @@ import com.mentorx.api.feature.chat.dto.response.MessageResponse;
 import com.mentorx.api.feature.chat.entity.ChatRoom;
 import com.mentorx.api.feature.chat.entity.ChatRoomMember;
 import com.mentorx.api.feature.chat.entity.Message;
+import com.mentorx.api.feature.chat.enums.ChatRoomType;
 import com.mentorx.api.feature.chat.repository.ChatRoomMemberRepository;
 import com.mentorx.api.feature.chat.repository.ChatRoomRepository;
 import com.mentorx.api.feature.chat.repository.MessageRepository;
 import com.mentorx.api.feature.chat.service.ChatService;
+import com.mentorx.api.feature.job.entity.Contract;
+import com.mentorx.api.feature.job.entity.Job;
+import com.mentorx.api.feature.job.entity.Proposal;
+import com.mentorx.api.feature.job.repository.ContractRepository;
+import com.mentorx.api.feature.job.repository.JobRepository;
+import com.mentorx.api.feature.job.repository.ProposalRepository;
 import com.mentorx.api.feature.user.entity.User;
 import com.mentorx.api.feature.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -37,10 +46,15 @@ public class ChatServiceImpl implements ChatService {
     private final ChatRoomMemberRepository chatRoomMemberRepository;
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
+    private final JobRepository jobRepository;
+    private final ProposalRepository proposalRepository;
+    private final ContractRepository contractRepository;
+    private final MentorModeAccessService mentorModeAccessService;
 
     @Override
     @Transactional
     public ChatRoomResponse createRoom(ChatRoomCreateRequest request) {
+        requireCurrentUser(request.createdByUserId());
         User creator = userRepository.findById(request.createdByUserId())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
@@ -76,15 +90,36 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
+    @Transactional
+    public ChatRoomResponse resolveConversation(ChatConversationResolveRequest request) {
+        UUID currentUserId = mentorModeAccessService.getCurrentUserId();
+        if (currentUserId.equals(request.recipientId())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "You cannot open a conversation with yourself.");
+        }
+
+        User recipient = userRepository.findById(request.recipientId())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        ResolvedConversationContext context = resolveContext(request.contextType(), request.contextId(), currentUserId, recipient.getId());
+
+        return chatRoomRepository
+                .findDirectRoomByReferenceAndMembers(context.referenceType(), context.referenceId(), currentUserId, recipient.getId())
+                .or(() -> chatRoomRepository.findDirectRoomByReferenceAndMembers(context.referenceType(), context.referenceId(), recipient.getId(), currentUserId))
+                .map(room -> toRoomResponse(room, currentUserId))
+                .orElseGet(() -> createResolvedRoom(currentUserId, recipient.getId(), context.referenceType(), context.referenceId(), context.description()));
+    }
+
+    @Override
     public ChatRoomResponse getRoomById(UUID roomId, UUID userId) {
+        requireCurrentUser(userId);
         ChatRoom room = findRoom(roomId);
-        chatRoomMemberRepository.findByChatRoomIdAndUserId(roomId, userId)
-                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED_CHAT_ACCESS));
+        requireRoomMembership(roomId, userId);
         return toRoomResponse(room, userId);
     }
 
     @Override
     public Page<ChatRoomResponse> getUserRooms(UUID userId, Pageable pageable) {
+        requireCurrentUser(userId);
         return chatRoomRepository.findActiveRoomsByUserId(userId, pageable)
                 .map(room -> toRoomResponse(room, userId));
     }
@@ -92,6 +127,7 @@ public class ChatServiceImpl implements ChatService {
     @Override
     @Transactional
     public ChatRoomResponse addMember(UUID roomId, UUID userId, UUID addedByUserId) {
+        requireCurrentUser(addedByUserId);
         ChatRoom room = findRoom(roomId);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
@@ -110,8 +146,9 @@ public class ChatServiceImpl implements ChatService {
     @Override
     @Transactional
     public MessageResponse sendMessage(MessageSendRequest request) {
+        UUID currentUserId = mentorModeAccessService.getCurrentUserId();
         ChatRoom room = findRoom(request.chatRoomId());
-        User sender = userRepository.findById(request.senderId())
+        User sender = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
         // Ensure sender is a member
@@ -172,6 +209,10 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public Page<MessageResponse> getRoomMessages(UUID roomId, Pageable pageable) {
+        UUID currentUserId = mentorModeAccessService.getCurrentUserId();
+        if (!mentorModeAccessService.isCurrentUserAdmin()) {
+            requireRoomMembership(roomId, currentUserId);
+        }
         return messageRepository.findByChatRoomIdOrderBySentAtAsc(roomId, pageable)
                 .map(this::toMessageResponse);
     }
@@ -179,6 +220,7 @@ public class ChatServiceImpl implements ChatService {
     @Override
     @Transactional
     public MessageResponse markMessageAsRead(UUID messageId, UUID userId) {
+        requireCurrentUser(userId);
         Message message = messageRepository.findById(messageId)
                 .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
         
@@ -192,9 +234,112 @@ public class ChatServiceImpl implements ChatService {
         return toMessageResponse(messageRepository.save(message));
     }
 
+    private ChatRoomResponse createResolvedRoom(
+            UUID currentUserId,
+            UUID recipientId,
+            String referenceType,
+            UUID referenceId,
+            String description
+    ) {
+        ChatRoomCreateRequest createRequest = new ChatRoomCreateRequest(
+                ChatRoomType.DIRECT_MESSAGE,
+                null,
+                description,
+                currentUserId,
+                true,
+                2,
+                referenceId,
+                referenceType,
+                List.of(currentUserId, recipientId)
+        );
+        return createRoom(createRequest);
+    }
+
     private ChatRoom findRoom(UUID roomId) {
         return chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new AppException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+    }
+
+    private void requireCurrentUser(UUID userId) {
+        if (!mentorModeAccessService.isCurrentUserAdmin() && !mentorModeAccessService.getCurrentUserId().equals(userId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "You cannot act on behalf of another user.");
+        }
+    }
+
+    private void requireRoomMembership(UUID roomId, UUID userId) {
+        chatRoomMemberRepository.findByChatRoomIdAndUserId(roomId, userId)
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED_CHAT_ACCESS));
+    }
+
+    private ResolvedConversationContext resolveContext(String rawContextType, UUID contextId, UUID currentUserId, UUID recipientId) {
+        String contextType = rawContextType.trim().toUpperCase();
+        return switch (contextType) {
+            case "CONTRACT" -> resolveContractContext(contextId, currentUserId, recipientId);
+            case "PROPOSAL" -> resolveProposalContext(contextId, currentUserId, recipientId);
+            case "JOB" -> resolveJobContext(contextId, currentUserId, recipientId);
+            default -> throw new AppException(ErrorCode.BAD_REQUEST, "Unsupported conversation context.");
+        };
+    }
+
+    private ResolvedConversationContext resolveContractContext(UUID contractId, UUID currentUserId, UUID recipientId) {
+        Contract contract = contractRepository.findById(contractId)
+                .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_NOT_FOUND));
+
+        boolean currentIsClient = contract.getClient().getId().equals(currentUserId);
+        boolean currentIsMentor = contract.getMentor().getId().equals(currentUserId);
+        if (!currentIsClient && !currentIsMentor) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "You do not have access to this contract conversation.");
+        }
+
+        UUID expectedRecipient = currentIsClient ? contract.getMentor().getId() : contract.getClient().getId();
+        if (!expectedRecipient.equals(recipientId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "This contract conversation can only be opened with the assigned counterparty.");
+        }
+
+        return new ResolvedConversationContext("CONTRACT", contractId, "Contract chat · " + contract.getJob().getTitle());
+    }
+
+    private ResolvedConversationContext resolveProposalContext(UUID proposalId, UUID currentUserId, UUID recipientId) {
+        Proposal proposal = proposalRepository.findById(proposalId)
+                .orElseThrow(() -> new AppException(ErrorCode.PROPOSAL_NOT_FOUND));
+
+        UUID clientId = proposal.getJob().getClient().getId();
+        UUID mentorId = proposal.getMentor().getId();
+        boolean currentIsClient = clientId.equals(currentUserId);
+        boolean currentIsMentor = mentorId.equals(currentUserId);
+        if (!currentIsClient && !currentIsMentor) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "You do not have access to this proposal conversation.");
+        }
+
+        UUID expectedRecipient = currentIsClient ? mentorId : clientId;
+        if (!expectedRecipient.equals(recipientId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "This proposal conversation can only be opened with the matching client or mentor.");
+        }
+
+        return new ResolvedConversationContext("PROPOSAL", proposalId, "Proposal discussion · " + proposal.getJob().getTitle());
+    }
+
+    private ResolvedConversationContext resolveJobContext(UUID jobId, UUID currentUserId, UUID recipientId) {
+        Job job = jobRepository.findById(jobId)
+                .orElseThrow(() -> new AppException(ErrorCode.JOB_NOT_FOUND));
+
+        boolean currentIsClient = job.getClient().getId().equals(currentUserId);
+        if (currentIsClient) {
+            Proposal recipientProposal = proposalRepository.findByJobIdAndMentorId(jobId, recipientId)
+                    .orElseThrow(() -> new AppException(ErrorCode.ACCESS_DENIED, "This mentor is not part of the selected job conversation."));
+            return new ResolvedConversationContext("JOB", jobId, "Job conversation · " + recipientProposal.getJob().getTitle());
+        }
+
+        Proposal currentProposal = proposalRepository.findByJobIdAndMentorId(jobId, currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.ACCESS_DENIED, "You do not have access to this job conversation."));
+        if (!job.getClient().getId().equals(recipientId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "Job conversations for mentors can only be opened with the job owner.");
+        }
+
+        return new ResolvedConversationContext("JOB", jobId, "Job conversation · " + currentProposal.getJob().getTitle());
+    }
+
+    private record ResolvedConversationContext(String referenceType, UUID referenceId, String description) {
     }
 
     private void addMemberToRoom(ChatRoom room, User user, String role, User invitedBy) {

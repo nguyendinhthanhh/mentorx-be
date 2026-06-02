@@ -30,6 +30,11 @@ public enum ProposalStatus {
     /**
      * Proposal has been accepted
      */
+    OFFER_ACCEPTED,
+
+    /**
+     * Proposal has been fully accepted and converted into a contract
+     */
     ACCEPTED,
     
     /**
@@ -41,6 +46,16 @@ public enum ProposalStatus {
      * Proposal has been withdrawn by mentor
      */
     WITHDRAWN,
+
+    /**
+     * Proposal was closed automatically because another mentor was selected
+     */
+    AUTO_CLOSED,
+
+    /**
+     * Proposal had an active contract before that contract was cancelled
+     */
+    CONTRACT_CANCELLED,
     
     /**
      * Proposal expired (job closed)

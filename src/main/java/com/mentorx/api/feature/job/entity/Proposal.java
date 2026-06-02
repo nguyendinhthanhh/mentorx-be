@@ -282,12 +282,39 @@ public class Proposal extends BaseEntity {
     }
 
     /**
+     * Marks the current negotiated offer as agreed, but not yet hired.
+     */
+    public void markOfferAccepted() {
+        this.status = ProposalStatus.OFFER_ACCEPTED;
+    }
+
+    /**
+     * Re-opens a previously accepted proposal so the job can receive applications again.
+     */
+    public void reopenForReview() {
+        this.status = ProposalStatus.SUBMITTED;
+        this.acceptedAt = null;
+        this.rejectedAt = null;
+        this.rejectionReason = null;
+        this.clientFeedback = null;
+    }
+
+    /**
      * Rejects the proposal
      */
     public void reject(String reason) {
         this.status = ProposalStatus.REJECTED;
         this.rejectedAt = LocalDateTime.now();
         this.rejectionReason = reason;
+    }
+
+    /**
+     * Closes this proposal automatically because another mentor was selected.
+     */
+    public void autoClose(String reason) {
+        this.status = ProposalStatus.AUTO_CLOSED;
+        this.rejectionReason = reason;
+        this.rejectedAt = LocalDateTime.now();
     }
 
     /**
@@ -298,13 +325,22 @@ public class Proposal extends BaseEntity {
     }
 
     /**
+     * Marks this proposal as historical after its linked contract was cancelled.
+     */
+    public void markContractCancelled(String reason) {
+        this.status = ProposalStatus.CONTRACT_CANCELLED;
+        this.rejectionReason = reason;
+    }
+
+    /**
      * Checks if proposal is active
      */
     public boolean isActive() {
         return ProposalStatus.SUBMITTED.equals(this.status) ||
                ProposalStatus.UNDER_REVIEW.equals(this.status) ||
                ProposalStatus.SHORTLISTED.equals(this.status) ||
-               ProposalStatus.NEGOTIATING.equals(this.status);
+               ProposalStatus.NEGOTIATING.equals(this.status) ||
+               ProposalStatus.OFFER_ACCEPTED.equals(this.status);
     }
 
     /**
