@@ -2,6 +2,7 @@ package com.mentorx.api.feature.chat.controller;
 
 import com.mentorx.api.common.response.ApiResponse;
 import com.mentorx.api.feature.chat.dto.request.ChatRoomCreateRequest;
+import com.mentorx.api.feature.chat.dto.request.ChatConversationResolveRequest;
 import com.mentorx.api.feature.chat.dto.request.MessageSendRequest;
 import com.mentorx.api.feature.chat.dto.request.UserBlockRequest;
 import com.mentorx.api.feature.chat.dto.response.ChatRoomResponse;
@@ -32,6 +33,11 @@ public class ChatController {
     @PostMapping("/rooms")
     public ResponseEntity<ApiResponse<ChatRoomResponse>> createRoom(@Valid @RequestBody ChatRoomCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(chatService.createRoom(request)));
+    }
+
+    @PostMapping("/rooms/resolve")
+    public ResponseEntity<ApiResponse<ChatRoomResponse>> resolveConversation(@Valid @RequestBody ChatConversationResolveRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(chatService.resolveConversation(request)));
     }
 
     @GetMapping("/rooms/{roomId}")

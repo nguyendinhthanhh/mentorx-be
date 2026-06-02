@@ -2,6 +2,7 @@ package com.mentorx.api.feature.wallet.repository;
 
 import com.mentorx.api.common.enums.TxnStatus;
 import com.mentorx.api.common.enums.TxnType;
+import com.mentorx.api.common.enums.LedgerDirection;
 import com.mentorx.api.feature.wallet.entity.WalletTransaction;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -35,6 +36,15 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
 
     @Query("SELECT wt FROM WalletTransaction wt WHERE wt.referenceId = :referenceId AND wt.referenceType = :referenceType")
     List<WalletTransaction> findByReferenceIdAndType(@Param("referenceId") UUID referenceId, @Param("referenceType") String referenceType);
+
+    List<WalletTransaction> findByReferenceId(UUID referenceId);
+
+    boolean existsByReferenceIdAndReferenceTypeAndTxnTypeAndDirection(
+            UUID referenceId,
+            String referenceType,
+            TxnType txnType,
+            LedgerDirection direction
+    );
 
     @Query("SELECT wt FROM WalletTransaction wt WHERE wt.wallet.id = :walletId AND wt.txnStatus = :status ORDER BY wt.createdAt DESC")
     List<WalletTransaction> findByWalletIdAndStatus(@Param("walletId") UUID walletId, @Param("status") TxnStatus status);

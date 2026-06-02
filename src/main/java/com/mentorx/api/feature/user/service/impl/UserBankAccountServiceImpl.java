@@ -4,6 +4,7 @@ import com.mentorx.api.common.enums.VerificationStatus;
 import com.mentorx.api.common.enums.PayoutMethod;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
+import com.mentorx.api.common.security.MentorModeAccessService;
 import com.mentorx.api.feature.user.entity.MentorProfile;
 import com.mentorx.api.feature.user.dto.request.BankAccountRequest;
 import com.mentorx.api.feature.user.dto.response.BankAccountResponse;
@@ -31,10 +32,12 @@ public class UserBankAccountServiceImpl implements UserBankAccountService {
     private final UserBankAccountRepository bankAccountRepository;
     private final UserRepository userRepository;
     private final MentorProfileRepository mentorProfileRepository;
+    private final MentorModeAccessService mentorModeAccessService;
 
     @Override
     @Transactional
     public BankAccountResponse create(UUID userId, BankAccountRequest request) {
+        mentorModeAccessService.requireSelfOrAdmin(userId);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
         validatePayoutRequest(request);
@@ -78,6 +81,7 @@ public class UserBankAccountServiceImpl implements UserBankAccountService {
     @Override
     @Transactional
     public BankAccountResponse update(UUID id, UUID userId, BankAccountRequest request) {
+        mentorModeAccessService.requireSelfOrAdmin(userId);
         UserBankAccount bankAccount = bankAccountRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new AppException(ErrorCode.BANK_ACCOUNT_NOT_FOUND));
         validatePayoutRequest(request);
@@ -130,6 +134,7 @@ public class UserBankAccountServiceImpl implements UserBankAccountService {
     @Override
     @Transactional
     public void delete(UUID id, UUID userId) {
+        mentorModeAccessService.requireSelfOrAdmin(userId);
         UserBankAccount bankAccount = bankAccountRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new AppException(ErrorCode.BANK_ACCOUNT_NOT_FOUND));
 
@@ -152,6 +157,7 @@ public class UserBankAccountServiceImpl implements UserBankAccountService {
 
     @Override
     public BankAccountResponse getById(UUID id, UUID userId) {
+        mentorModeAccessService.requireSelfOrAdmin(userId);
         UserBankAccount bankAccount = bankAccountRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new AppException(ErrorCode.BANK_ACCOUNT_NOT_FOUND));
         return toResponse(bankAccount);
@@ -159,6 +165,7 @@ public class UserBankAccountServiceImpl implements UserBankAccountService {
 
     @Override
     public List<BankAccountResponse> getByUserId(UUID userId) {
+        mentorModeAccessService.requireSelfOrAdmin(userId);
         return bankAccountRepository.findByUserIdOrderByIsDefaultDescCreatedAtDesc(userId)
                 .stream()
                 .map(this::toResponse)
@@ -167,6 +174,7 @@ public class UserBankAccountServiceImpl implements UserBankAccountService {
 
     @Override
     public BankAccountResponse getDefaultAccount(UUID userId) {
+        mentorModeAccessService.requireSelfOrAdmin(userId);
         UserBankAccount bankAccount = bankAccountRepository.findByUserIdAndIsDefaultTrue(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.DEFAULT_BANK_ACCOUNT_NOT_FOUND));
         return toResponse(bankAccount);
@@ -175,6 +183,7 @@ public class UserBankAccountServiceImpl implements UserBankAccountService {
     @Override
     @Transactional
     public BankAccountResponse setAsDefault(UUID id, UUID userId) {
+        mentorModeAccessService.requireSelfOrAdmin(userId);
         UserBankAccount bankAccount = bankAccountRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new AppException(ErrorCode.BANK_ACCOUNT_NOT_FOUND));
 
@@ -224,6 +233,7 @@ public class UserBankAccountServiceImpl implements UserBankAccountService {
 
     @Override
     public long countByUserId(UUID userId) {
+        mentorModeAccessService.requireSelfOrAdmin(userId);
         return bankAccountRepository.countByUserId(userId);
     }
 

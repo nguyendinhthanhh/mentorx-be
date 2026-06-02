@@ -3,12 +3,15 @@ package com.mentorx.api.feature.job.service.impl;
 import com.mentorx.api.common.enums.BudgetType;
 import com.mentorx.api.common.enums.JobStatus;
 import com.mentorx.api.common.enums.JobType;
+import com.mentorx.api.common.security.MentorModeAccessService;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.feature.job.dto.request.JobCreateRequest;
 import com.mentorx.api.feature.job.dto.request.JobUpdateRequest;
 import com.mentorx.api.feature.job.dto.response.JobResponse;
 import com.mentorx.api.feature.job.entity.Job;
+import com.mentorx.api.feature.job.enums.ContractStatus;
+import com.mentorx.api.feature.job.repository.ContractRepository;
 import com.mentorx.api.feature.job.repository.JobRepository;
 import com.mentorx.api.feature.job.service.JobService;
 import com.mentorx.api.feature.user.entity.User;
@@ -31,10 +34,13 @@ public class JobServiceImpl implements JobService {
 
     private final JobRepository jobRepository;
     private final UserRepository userRepository;
+    private final ContractRepository contractRepository;
+    private final MentorModeAccessService mentorModeAccessService;
 
     @Override
     @Transactional
     public JobResponse create(JobCreateRequest request) {
+        requireCurrentUser(request.clientId());
         JobStatus status = request.status() != null ? request.status() : JobStatus.OPEN;
         if (status == JobStatus.OPEN) {
             validateOpenJobRequirements(
@@ -96,6 +102,8 @@ public class JobServiceImpl implements JobService {
     @Transactional
     public JobResponse update(UUID jobId, JobUpdateRequest request) {
         Job job = findJob(jobId);
+        requireJobOwnerOrAdmin(job);
+        ensureJobEditable(job);
         if (request.categoryId() != null) job.setCategoryId(request.categoryId());
         if (request.customCategoryName() != null) job.setCustomCategoryName(normalizeText(request.customCategoryName()));
         if (request.jobType() != null) job.setJobType(request.jobType());
@@ -168,6 +176,8 @@ public class JobServiceImpl implements JobService {
     @Transactional
     public void delete(UUID jobId) {
         Job job = findJob(jobId);
+        requireJobOwnerOrAdmin(job);
+        ensureNoActiveContract(job.getId(), "Cannot delete a job while it has an active contract.");
         job.setDeletedAt(LocalDateTime.now());
         jobRepository.save(job);
     }
@@ -195,6 +205,7 @@ public class JobServiceImpl implements JobService {
 
     @Override
     public Page<JobResponse> getByClient(UUID clientId, Pageable pageable) {
+        mentorModeAccessService.requireSelfOrAdmin(clientId);
         return jobRepository.findByClientId(clientId, pageable).map(this::toResponse);
     }
 
@@ -207,6 +218,8 @@ public class JobServiceImpl implements JobService {
     @Transactional
     public JobResponse updateStatus(UUID jobId, JobStatus status, String reason) {
         Job job = findJob(jobId);
+        requireJobOwnerOrAdmin(job);
+        validateManualStatusTransition(job, status);
         job.setStatus(status);
         if (reason != null) {
             job.setStatusReason(reason);
@@ -214,14 +227,94 @@ public class JobServiceImpl implements JobService {
         if (status == JobStatus.OPEN && job.getPublishedAt() == null) {
             job.setPublishedAt(LocalDateTime.now());
         }
+        if (status == JobStatus.OPEN) {
+            job.setClosedAt(null);
+        }
         if (status == JobStatus.CLOSED || status == JobStatus.CANCELLED) {
             job.setClosedAt(LocalDateTime.now());
         }
+        job.setUpdatedAt(LocalDateTime.now());
         return toResponse(jobRepository.save(job));
     }
 
     private Job findJob(UUID jobId) {
         return jobRepository.findById(jobId).orElseThrow(() -> new AppException(ErrorCode.JOB_NOT_FOUND));
+    }
+
+    private void requireCurrentUser(UUID userId) {
+        if (!mentorModeAccessService.getCurrentUserId().equals(userId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "You cannot create a job for another user.");
+        }
+    }
+
+    private void requireJobOwnerOrAdmin(Job job) {
+        UUID currentUserId = mentorModeAccessService.getCurrentUserId();
+        if (!mentorModeAccessService.isCurrentUserAdmin() && !job.getClient().getId().equals(currentUserId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "You cannot manage another user's job.");
+        }
+    }
+
+    private void ensureJobEditable(Job job) {
+        if (job.getStatus() == JobStatus.IN_PROGRESS
+                || job.getStatus() == JobStatus.COMPLETED
+                || job.getStatus() == JobStatus.CANCELLED
+                || hasActiveContract(job.getId())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "This job can no longer be edited because an active deal already exists.");
+        }
+    }
+
+    private void ensureNoActiveContract(UUID jobId, String message) {
+        if (hasActiveContract(jobId)) {
+            throw new AppException(ErrorCode.BAD_REQUEST, message);
+        }
+    }
+
+    private boolean hasActiveContract(UUID jobId) {
+        return contractRepository.existsByJobIdAndStatusIn(jobId, List.of(
+                ContractStatus.ACTIVE,
+                ContractStatus.PENDING_PAYMENT,
+                ContractStatus.PAUSED,
+                ContractStatus.IN_DISPUTE,
+                ContractStatus.UNDER_REVIEW
+        ));
+    }
+
+    private void validateManualStatusTransition(Job job, JobStatus nextStatus) {
+        if (nextStatus == null || nextStatus == job.getStatus()) {
+            return;
+        }
+
+        if (nextStatus == JobStatus.CLOSED) {
+            if (job.getStatus() != JobStatus.OPEN && job.getStatus() != JobStatus.DRAFT) {
+                throw new AppException(ErrorCode.BAD_REQUEST, "Only draft or open jobs can be closed.");
+            }
+            ensureNoActiveContract(job.getId(), "You cannot close a job that already has an active contract.");
+            return;
+        }
+
+        if (nextStatus == JobStatus.OPEN) {
+            ensureNoActiveContract(job.getId(), "You cannot reopen a job while an active contract exists.");
+            validateOpenJobRequirements(
+                    job.getTitle(),
+                    job.getDescription(),
+                    job.getBudgetType(),
+                    job.getJobType(),
+                    job.getCategoryId(),
+                    job.getCustomCategoryName(),
+                    job.getRequiredSkills()
+            );
+            validateBudget(job.getBudgetType(), job.getBudgetMinMxc(), job.getBudgetMaxMxc(), job.getHourlyRateMxc());
+            return;
+        }
+
+        if (nextStatus == JobStatus.CANCELLED) {
+            ensureNoActiveContract(job.getId(), "You cannot cancel a job while an active contract exists.");
+            return;
+        }
+
+        if (nextStatus == JobStatus.IN_PROGRESS || nextStatus == JobStatus.COMPLETED) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "This status transition must be driven by contract actions.");
+        }
     }
 
     private JobResponse toResponse(Job job) {
