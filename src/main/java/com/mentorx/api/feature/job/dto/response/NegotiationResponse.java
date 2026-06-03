@@ -18,6 +18,8 @@ public record NegotiationResponse(
         BigDecimal proposedAmount,
         BigDecimal proposedHourlyRate,
         Integer estimatedDurationDays,
+        LocalDateTime deadlineAt,
+        String scopeDescription,
         LocalDate proposedStartDate,
         LocalDate proposedDeliveryDate,
         NegotiationStatus status,
