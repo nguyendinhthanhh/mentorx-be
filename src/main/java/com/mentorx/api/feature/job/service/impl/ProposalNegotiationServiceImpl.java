@@ -27,6 +27,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -56,6 +58,7 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
             throw new AppException(ErrorCode.UNAUTHORIZED_JOB_ACCESS);
         }
         ensureNegotiationAllowed(proposal);
+        validateNegotiationTerms(request);
         
         // Mark previous pending negotiations as countered
         markPreviousAsCountered(request.proposalId());
@@ -91,6 +94,7 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
             throw new AppException(ErrorCode.UNAUTHORIZED_JOB_ACCESS);
         }
         ensureNegotiationAllowed(proposal);
+        validateNegotiationTerms(request);
         
         // Mark previous pending negotiations as countered
         markPreviousAsCountered(request.proposalId());
@@ -170,6 +174,12 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
         }
         if (negotiation.getEstimatedDurationDays() != null) {
             proposal.setEstimatedDurationDays(negotiation.getEstimatedDurationDays());
+        }
+        if (negotiation.getDeadlineAt() != null) {
+            proposal.setDeadlineAt(negotiation.getDeadlineAt());
+        }
+        if (negotiation.getMessage() != null && !negotiation.getMessage().isBlank()) {
+            proposal.setCoverLetter(negotiation.getMessage().trim());
         }
         if (negotiation.getProposedStartDate() != null) {
             proposal.setProposedStartDate(negotiation.getProposedStartDate());
@@ -252,10 +262,31 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
         negotiation.setProposedAmount(request.proposedAmount());
         negotiation.setProposedHourlyRate(request.proposedHourlyRate());
         negotiation.setEstimatedDurationDays(request.estimatedDurationDays());
+        negotiation.setDeadlineAt(request.deadlineAt());
+        negotiation.setScopeDescription(request.scopeDescription() == null ? null : request.scopeDescription().trim());
         negotiation.setProposedStartDate(request.proposedStartDate());
         negotiation.setProposedDeliveryDate(request.proposedDeliveryDate());
         negotiation.setStatus(NegotiationStatus.PENDING);
         return negotiation;
+    }
+
+    private void validateNegotiationTerms(NegotiationRequest request) {
+        if (request.proposedAmount() == null || request.proposedAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Price must be greater than 0 MXC.");
+        }
+
+        if (request.deadlineAt() == null) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Deadline is required.");
+        }
+
+        if (!request.deadlineAt().isAfter(LocalDateTime.now())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Deadline must be in the future.");
+        }
+
+        String message = request.message() == null ? "" : request.message().trim();
+        if (message.length() < 20 || message.length() > 1000) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Message must be between 20 and 1000 characters.");
+        }
     }
 
     private Proposal findProposal(UUID proposalId) {
@@ -313,6 +344,8 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
                 negotiation.getProposedAmount(),
                 negotiation.getProposedHourlyRate(),
                 negotiation.getEstimatedDurationDays(),
+                negotiation.getDeadlineAt(),
+                negotiation.getScopeDescription(),
                 negotiation.getProposedStartDate(),
                 negotiation.getProposedDeliveryDate(),
                 negotiation.getStatus(),

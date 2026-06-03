@@ -23,6 +23,8 @@ public record ContractResponse(
         BigDecimal hourlyRate,
         LocalDate startDate,
         LocalDate endDate,
+        LocalDateTime deadlineAt,
+        String scopeDescription,
         LocalDate actualStartDate,
         LocalDate actualCompletionDate,
         String termsAndConditions,

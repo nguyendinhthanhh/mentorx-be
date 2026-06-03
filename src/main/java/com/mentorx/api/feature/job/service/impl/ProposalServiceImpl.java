@@ -207,20 +207,29 @@ public class ProposalServiceImpl implements ProposalService {
             throw new AppException(ErrorCode.ACCESS_DENIED, "This mentor is no longer approved to receive new contracts.");
         }
 
-        Optional<ProposalNegotiation> latestNegotiation = proposalNegotiationRepository.findLatestByProposalId(proposalId);
-        BigDecimal finalAmount = latestNegotiation
-                .filter(negotiation -> negotiation.getStatus() == com.mentorx.api.feature.job.enums.NegotiationStatus.ACCEPTED)
+        Optional<ProposalNegotiation> acceptedNegotiation = proposalNegotiationRepository.findLatestByProposalId(proposalId)
+                .filter(negotiation -> negotiation.getStatus() == com.mentorx.api.feature.job.enums.NegotiationStatus.ACCEPTED);
+        BigDecimal finalAmount = acceptedNegotiation
                 .map(ProposalNegotiation::getProposedAmount)
                 .filter(amount -> amount != null && amount.compareTo(BigDecimal.ZERO) > 0)
                 .orElse(proposal.getProposedAmount());
-        Integer finalDurationDays = latestNegotiation
+        Integer finalDurationDays = acceptedNegotiation
                 .map(ProposalNegotiation::getEstimatedDurationDays)
                 .orElse(proposal.getEstimatedDurationDays());
+        LocalDateTime finalDeadlineAt = acceptedNegotiation
+                .map(ProposalNegotiation::getDeadlineAt)
+                .orElse(proposal.getDeadlineAt());
+        String finalScopeDescription = acceptedNegotiation
+                .map(ProposalNegotiation::getMessage)
+                .filter(message -> message != null && !message.isBlank())
+                .orElseGet(() -> proposal.getCoverLetter() != null && !proposal.getCoverLetter().isBlank()
+                        ? proposal.getCoverLetter()
+                        : proposal.getScopeDescription());
 
-        applyAcceptedTerms(proposal, latestNegotiation.orElse(null), finalAmount, finalDurationDays);
+        applyAcceptedTerms(proposal, acceptedNegotiation.orElse(null), finalAmount, finalDurationDays, finalDeadlineAt, finalScopeDescription);
         proposal.accept();
 
-        Contract contract = buildAcceptedContract(proposal, finalAmount, finalDurationDays);
+        Contract contract = buildAcceptedContract(proposal, finalAmount, finalDurationDays, finalDeadlineAt, finalScopeDescription);
         Contract savedContract = contractRepository.save(contract);
 
         walletService.processJobPayment(job.getClient().getId(), savedContract.getId(), finalAmount);
@@ -231,11 +240,7 @@ public class ProposalServiceImpl implements ProposalService {
         savedContract.setActivatedAt(LocalDateTime.now());
         contractRepository.save(savedContract);
 
-        latestNegotiation.ifPresent(negotiation -> {
-            if (negotiation.getStatus() == com.mentorx.api.feature.job.enums.NegotiationStatus.ACCEPTED) {
-                proposalNegotiationRepository.save(negotiation);
-            }
-        });
+        acceptedNegotiation.ifPresent(proposalNegotiationRepository::save);
 
         autoCloseOtherProposals(job.getId(), proposalId);
 
@@ -250,8 +255,10 @@ public class ProposalServiceImpl implements ProposalService {
     @Transactional
     public ProposalResponse reject(UUID proposalId, String reason) {
         Proposal proposal = findProposal(proposalId);
-        requireCurrentClient(proposal);
-        proposal.reject(reason);
+        requireProposalRejectionAccess(proposal);
+        String normalizedReason = normalizeRejectionReason(reason);
+        validateRejectionReason(normalizedReason);
+        proposal.reject(normalizedReason);
         return toResponse(proposalRepository.save(proposal));
     }
 
@@ -269,6 +276,8 @@ public class ProposalServiceImpl implements ProposalService {
         proposal.setProposedAmount(request.proposedAmount());
         proposal.setProposedHourlyRate(request.proposedHourlyRate());
         proposal.setEstimatedDurationDays(request.estimatedDurationDays());
+        proposal.setDeadlineAt(request.deadlineAt());
+        proposal.setScopeDescription(request.scopeDescription() == null ? null : request.scopeDescription().trim());
         proposal.setProposedStartDate(request.proposedStartDate());
         proposal.setProposedDeliveryDate(request.proposedDeliveryDate());
         if (request.proposedMilestones() != null) proposal.setProposedMilestones(request.proposedMilestones());
@@ -294,6 +303,30 @@ public class ProposalServiceImpl implements ProposalService {
         UUID currentUserId = mentorModeAccessService.getCurrentUserId();
         if (!proposal.getJob().getClient().getId().equals(currentUserId) && !mentorModeAccessService.isCurrentUserAdmin()) {
             throw new AppException(ErrorCode.ACCESS_DENIED, "Only the job owner can manage proposal decisions.");
+        }
+    }
+
+    private void requireProposalRejectionAccess(Proposal proposal) {
+        UUID currentUserId = mentorModeAccessService.getCurrentUserId();
+        boolean isClient = proposal.getJob().getClient().getId().equals(currentUserId);
+        boolean isMentor = proposal.getMentor().getId().equals(currentUserId);
+        if (!isClient && !isMentor && !mentorModeAccessService.isCurrentUserAdmin()) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "Only the job owner or assigned mentor can reject this proposal.");
+        }
+    }
+
+    private String normalizeRejectionReason(String reason) {
+        return Optional.ofNullable(reason).map(String::trim).orElse("");
+    }
+
+    private void validateRejectionReason(String reason) {
+        if (reason.isBlank()) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "A rejection reason is required.");
+        }
+
+        long wordCount = reason.split("\\s+").length;
+        if (wordCount < 10) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Rejection reason must contain at least 10 words.");
         }
     }
 
@@ -335,10 +368,14 @@ public class ProposalServiceImpl implements ProposalService {
             Proposal proposal,
             ProposalNegotiation latestNegotiation,
             BigDecimal finalAmount,
-            Integer finalDurationDays
+            Integer finalDurationDays,
+            LocalDateTime finalDeadlineAt,
+            String finalScopeDescription
     ) {
         proposal.setProposedAmount(finalAmount);
         proposal.setEstimatedDurationDays(finalDurationDays);
+        proposal.setDeadlineAt(finalDeadlineAt);
+        proposal.setScopeDescription(finalScopeDescription == null ? null : finalScopeDescription.trim());
 
         if (latestNegotiation == null) {
             return;
@@ -355,10 +392,19 @@ public class ProposalServiceImpl implements ProposalService {
         }
     }
 
-    private Contract buildAcceptedContract(Proposal proposal, BigDecimal finalAmount, Integer finalDurationDays) {
+    private Contract buildAcceptedContract(
+            Proposal proposal,
+            BigDecimal finalAmount,
+            Integer finalDurationDays,
+            LocalDateTime finalDeadlineAt,
+            String finalScopeDescription
+    ) {
         Contract contract = new Contract();
         Job job = proposal.getJob();
         LocalDate today = LocalDate.now();
+        String normalizedScope = finalScopeDescription == null || finalScopeDescription.isBlank()
+                ? job.getSuccessCriteria()
+                : finalScopeDescription.trim();
 
         contract.setJob(job);
         contract.setProposal(proposal);
@@ -371,10 +417,12 @@ public class ProposalServiceImpl implements ProposalService {
         contract.setHourlyRate(proposal.getProposedHourlyRate());
         contract.setStartDate(proposal.getProposedStartDate() != null ? proposal.getProposedStartDate() : today);
         contract.setEndDate(resolveContractEndDate(proposal, finalDurationDays, today));
+        contract.setDeadlineAt(finalDeadlineAt);
+        contract.setScopeDescription(normalizedScope);
         contract.setActualStartDate(today);
         contract.setActivatedAt(LocalDateTime.now());
         contract.setPaymentTerms("Funds are held in escrow until the client confirms the job is completed.");
-        contract.setDeliverables(job.getSuccessCriteria());
+        contract.setDeliverables(normalizedScope);
         contract.setAmountPaid(BigDecimal.ZERO);
         contract.setAmountInEscrow(finalAmount);
         contract.setFundsInEscrow(true);
@@ -431,6 +479,8 @@ public class ProposalServiceImpl implements ProposalService {
                 proposal.getProposedAmount(),
                 proposal.getProposedHourlyRate(),
                 proposal.getEstimatedDurationDays(),
+                proposal.getDeadlineAt(),
+                proposal.getScopeDescription(),
                 proposal.getProposedStartDate(),
                 proposal.getProposedDeliveryDate(),
                 proposal.getProposedMilestones(),

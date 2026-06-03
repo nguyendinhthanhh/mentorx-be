@@ -91,6 +91,19 @@ public class Proposal extends BaseEntity {
     private Integer estimatedDurationDays;
 
     /**
+     * Exact deadline agreed or proposed for the work.
+     */
+    @Column(name = "deadline_at")
+    private LocalDateTime deadlineAt;
+
+    /**
+     * Scope and deliverables included in the proposal terms.
+     */
+    @Size(max = 1000)
+    @Column(name = "scope_description", length = 1000)
+    private String scopeDescription;
+
+    /**
      * Proposed start date
      */
     @Column(name = "proposed_start_date")

@@ -334,9 +334,11 @@ public class ContractServiceImpl implements ContractService {
         contract.setHourlyRate(request.hourlyRate());
         contract.setStartDate(request.startDate());
         contract.setEndDate(request.endDate());
+        contract.setDeadlineAt(request.endDate() == null ? null : request.endDate().atStartOfDay());
         contract.setTermsAndConditions(request.termsAndConditions());
         contract.setPaymentTerms(request.paymentTerms());
         contract.setDeliverables(request.deliverables());
+        contract.setScopeDescription(request.deliverables());
         if (request.isRenewable() != null) contract.setIsRenewable(request.isRenewable());
         if (request.autoRenewal() != null) contract.setAutoRenewal(request.autoRenewal());
         contract.setRenewalTerms(request.renewalTerms());
@@ -510,6 +512,8 @@ public class ContractServiceImpl implements ContractService {
                 contract.getHourlyRate(),
                 contract.getStartDate(),
                 contract.getEndDate(),
+                contract.getDeadlineAt(),
+                contract.getScopeDescription(),
                 contract.getActualStartDate(),
                 contract.getActualCompletionDate(),
                 contract.getTermsAndConditions(),
