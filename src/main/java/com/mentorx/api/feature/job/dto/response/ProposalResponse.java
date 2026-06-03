@@ -20,6 +20,8 @@ public record ProposalResponse(
         BigDecimal proposedAmount,
         BigDecimal proposedHourlyRate,
         Integer estimatedDurationDays,
+        LocalDateTime deadlineAt,
+        String scopeDescription,
         LocalDate proposedStartDate,
         LocalDate proposedDeliveryDate,
         List<Map<String, Object>> proposedMilestones,

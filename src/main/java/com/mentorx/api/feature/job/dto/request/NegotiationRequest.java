@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record NegotiationRequest(
@@ -16,12 +17,15 @@ public record NegotiationRequest(
         UUID senderId,
         
         @NotBlank(message = "Message is required")
-        @Size(min = 10, max = 2000, message = "Message must be between 10 and 2000 characters")
+        @Size(min = 20, max = 1000, message = "Message must be between 20 and 1000 characters")
         String message,
         
         BigDecimal proposedAmount,
         BigDecimal proposedHourlyRate,
         Integer estimatedDurationDays,
+        LocalDateTime deadlineAt,
+        @Size(max = 1000, message = "Scope description must be at most 1000 characters")
+        String scopeDescription,
         LocalDate proposedStartDate,
         LocalDate proposedDeliveryDate
 ) {

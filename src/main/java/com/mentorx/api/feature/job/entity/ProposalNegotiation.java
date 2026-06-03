@@ -84,6 +84,19 @@ public class ProposalNegotiation extends BaseEntity {
     private Integer estimatedDurationDays;
 
     /**
+     * Exact deadline for this offer term.
+     */
+    @Column(name = "deadline_at")
+    private LocalDateTime deadlineAt;
+
+    /**
+     * Scope and deliverables included in this offer term.
+     */
+    @Size(max = 1000)
+    @Column(name = "scope_description", length = 1000)
+    private String scopeDescription;
+
+    /**
      * Counter-proposed start date
      */
     @Column(name = "proposed_start_date")
