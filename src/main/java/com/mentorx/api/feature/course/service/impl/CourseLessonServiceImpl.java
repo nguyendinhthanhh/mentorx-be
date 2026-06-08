@@ -44,6 +44,7 @@ public class CourseLessonServiceImpl implements CourseLessonService {
         if (lessonRepository.existsBySectionIdAndLessonOrder(request.getSectionId(), request.getLessonOrder())) {
             throw new AppException(ErrorCode.LESSON_ORDER_EXISTS);
         }
+        validateLessonContent(request.getLessonType(), request.getVideoUrl(), request.getArticleContent(), request.getResourceUrl());
 
         CourseLesson lesson = mapper.toEntity(request);
         lesson.setSection(section);
@@ -111,6 +112,12 @@ public class CourseLessonServiceImpl implements CourseLessonService {
             lessonRepository.existsBySectionIdAndLessonOrder(lesson.getSection().getId(), request.getLessonOrder())) {
             throw new AppException(ErrorCode.LESSON_ORDER_EXISTS);
         }
+        validateLessonContent(
+                request.getLessonType() == null ? lesson.getLessonType() : request.getLessonType(),
+                request.getVideoUrl() == null ? lesson.getVideoUrl() : request.getVideoUrl(),
+                request.getArticleContent() == null ? lesson.getArticleContent() : request.getArticleContent(),
+                request.getResourceUrl() == null ? lesson.getResourceUrl() : request.getResourceUrl()
+        );
 
         mapper.updateEntity(request, lesson);
         CourseLesson updatedLesson = lessonRepository.save(lesson);
@@ -156,5 +163,27 @@ public class CourseLessonServiceImpl implements CourseLessonService {
 
         lesson.incrementViewCount();
         lessonRepository.save(lesson);
+    }
+
+    private void validateLessonContent(com.mentorx.api.common.enums.LessonType lessonType,
+                                       String videoUrl,
+                                       String articleContent,
+                                       String resourceUrl) {
+        if (lessonType == null) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Lesson type is required");
+        }
+        switch (lessonType) {
+            case VIDEO, ARTICLE -> {
+                // Video and rich text content can be attached later while the lesson remains a draft.
+            }
+            case DOWNLOADABLE -> {
+                if (resourceUrl == null || resourceUrl.isBlank()) {
+                    throw new AppException(ErrorCode.BAD_REQUEST, "Downloadable lessons require a resource URL");
+                }
+            }
+            case QUIZ, ASSIGNMENT, LIVE_SESSION -> {
+                // These lesson types can be created before their details are attached.
+            }
+        }
     }
 }

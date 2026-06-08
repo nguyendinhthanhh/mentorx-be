@@ -19,23 +19,33 @@ public interface CourseRepository extends JpaRepository<Course, UUID> {
             value = "SELECT DISTINCT c.* " +
                     "FROM courses c " +
                     "LEFT JOIN course_skills cs ON cs.course_id = c.id " +
+                    "LEFT JOIN course_skill_ids csi ON csi.course_id = c.id " +
+                    "LEFT JOIN skills s ON s.id = csi.skill_id " +
                     "WHERE c.deleted_at IS NULL " +
                     "AND (:status IS NULL OR c.status = :status) " +
                     "AND (:instructorId IS NULL OR c.instructor_id = :instructorId) " +
                     "AND (:categoryId IS NULL OR c.category_id = :categoryId) " +
                     "AND (:language IS NULL OR c.language = :language) " +
                     "AND (:levelKeyword IS NULL OR LOWER(c.level) LIKE LOWER(CONCAT('%', :levelKeyword, '%'))) " +
-                    "AND (:skillKeyword IS NULL OR LOWER(cs.skill) LIKE LOWER(CONCAT('%', :skillKeyword, '%')))",
+                    "AND (:skillKeyword IS NULL OR LOWER(cs.skill) LIKE LOWER(CONCAT('%', :skillKeyword, '%')) " +
+                    "OR LOWER(s.slug) LIKE LOWER(CONCAT('%', :skillKeyword, '%')) " +
+                    "OR LOWER(s.label_en) LIKE LOWER(CONCAT('%', :skillKeyword, '%')) " +
+                    "OR LOWER(s.label_vi) LIKE LOWER(CONCAT('%', :skillKeyword, '%')))",
             countQuery = "SELECT COUNT(DISTINCT c.id) " +
                     "FROM courses c " +
                     "LEFT JOIN course_skills cs ON cs.course_id = c.id " +
+                    "LEFT JOIN course_skill_ids csi ON csi.course_id = c.id " +
+                    "LEFT JOIN skills s ON s.id = csi.skill_id " +
                     "WHERE c.deleted_at IS NULL " +
                     "AND (:status IS NULL OR c.status = :status) " +
                     "AND (:instructorId IS NULL OR c.instructor_id = :instructorId) " +
                     "AND (:categoryId IS NULL OR c.category_id = :categoryId) " +
                     "AND (:language IS NULL OR c.language = :language) " +
                     "AND (:levelKeyword IS NULL OR LOWER(c.level) LIKE LOWER(CONCAT('%', :levelKeyword, '%'))) " +
-                    "AND (:skillKeyword IS NULL OR LOWER(cs.skill) LIKE LOWER(CONCAT('%', :skillKeyword, '%')))",
+                    "AND (:skillKeyword IS NULL OR LOWER(cs.skill) LIKE LOWER(CONCAT('%', :skillKeyword, '%')) " +
+                    "OR LOWER(s.slug) LIKE LOWER(CONCAT('%', :skillKeyword, '%')) " +
+                    "OR LOWER(s.label_en) LIKE LOWER(CONCAT('%', :skillKeyword, '%')) " +
+                    "OR LOWER(s.label_vi) LIKE LOWER(CONCAT('%', :skillKeyword, '%')))",
             nativeQuery = true
     )
     Page<Course> findAllWithFilters(@Param("status") CourseStatus status,
@@ -50,21 +60,31 @@ public interface CourseRepository extends JpaRepository<Course, UUID> {
             value = "SELECT DISTINCT c.* " +
                     "FROM courses c " +
                     "LEFT JOIN course_skills cs ON cs.course_id = c.id " +
+                    "LEFT JOIN course_skill_ids csi ON csi.course_id = c.id " +
+                    "LEFT JOIN skills s ON s.id = csi.skill_id " +
                     "WHERE c.deleted_at IS NULL " +
                     "AND c.status = :status " +
                     "AND (:categoryId IS NULL OR c.category_id = :categoryId) " +
                     "AND (:language IS NULL OR c.language = :language) " +
                     "AND (:levelKeyword IS NULL OR LOWER(c.level) LIKE LOWER(CONCAT('%', :levelKeyword, '%'))) " +
-                    "AND (:skillKeyword IS NULL OR LOWER(cs.skill) LIKE LOWER(CONCAT('%', :skillKeyword, '%')))",
+                    "AND (:skillKeyword IS NULL OR LOWER(cs.skill) LIKE LOWER(CONCAT('%', :skillKeyword, '%')) " +
+                    "OR LOWER(s.slug) LIKE LOWER(CONCAT('%', :skillKeyword, '%')) " +
+                    "OR LOWER(s.label_en) LIKE LOWER(CONCAT('%', :skillKeyword, '%')) " +
+                    "OR LOWER(s.label_vi) LIKE LOWER(CONCAT('%', :skillKeyword, '%')))",
             countQuery = "SELECT COUNT(DISTINCT c.id) " +
                     "FROM courses c " +
                     "LEFT JOIN course_skills cs ON cs.course_id = c.id " +
+                    "LEFT JOIN course_skill_ids csi ON csi.course_id = c.id " +
+                    "LEFT JOIN skills s ON s.id = csi.skill_id " +
                     "WHERE c.deleted_at IS NULL " +
                     "AND c.status = :status " +
                     "AND (:categoryId IS NULL OR c.category_id = :categoryId) " +
                     "AND (:language IS NULL OR c.language = :language) " +
                     "AND (:levelKeyword IS NULL OR LOWER(c.level) LIKE LOWER(CONCAT('%', :levelKeyword, '%'))) " +
-                    "AND (:skillKeyword IS NULL OR LOWER(cs.skill) LIKE LOWER(CONCAT('%', :skillKeyword, '%')))",
+                    "AND (:skillKeyword IS NULL OR LOWER(cs.skill) LIKE LOWER(CONCAT('%', :skillKeyword, '%')) " +
+                    "OR LOWER(s.slug) LIKE LOWER(CONCAT('%', :skillKeyword, '%')) " +
+                    "OR LOWER(s.label_en) LIKE LOWER(CONCAT('%', :skillKeyword, '%')) " +
+                    "OR LOWER(s.label_vi) LIKE LOWER(CONCAT('%', :skillKeyword, '%')))",
             nativeQuery = true
     )
     Page<Course> findPublishedWithFilters(@Param("status") CourseStatus status,

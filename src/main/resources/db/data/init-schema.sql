@@ -313,7 +313,7 @@ CREATE TABLE courses (
     slug               VARCHAR(300) NOT NULL UNIQUE,
     description        TEXT,
     thumbnail_url      TEXT,
-    price_mxc          NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    price_mxc          NUMERIC(12, 0) NOT NULL DEFAULT 0,
     status             course_status NOT NULL DEFAULT 'DRAFT',
     language           supported_language DEFAULT 'vi',
     level              VARCHAR(20),
@@ -331,6 +331,20 @@ CREATE TABLE courses (
     updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at         TIMESTAMPTZ
 );
+
+CREATE TABLE course_skills (
+    course_id UUID NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    skill VARCHAR(120) NOT NULL
+);
+
+CREATE TABLE course_skill_ids (
+    course_id UUID NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    skill_id INTEGER NOT NULL REFERENCES skills(id) ON DELETE RESTRICT,
+    PRIMARY KEY (course_id, skill_id)
+);
+
+CREATE INDEX idx_course_skill_ids_skill_id
+    ON course_skill_ids(skill_id);
 
 CREATE TABLE user_saves (
     id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

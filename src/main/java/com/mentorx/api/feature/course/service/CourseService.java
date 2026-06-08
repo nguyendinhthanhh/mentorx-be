@@ -15,6 +15,7 @@ public interface CourseService {
     CourseResponse getById(UUID courseId);
     CourseResponse update(UUID courseId, CourseUpdateRequest request);
     void delete(UUID courseId);
+    CourseResponse archive(UUID courseId);
     Page<CourseResponse> getAllCourses(CourseStatus status,
                                        UUID instructorId,
                                        Integer categoryId,
@@ -29,5 +30,6 @@ public interface CourseService {
                                       Pageable pageable);
     Page<CourseResponse> getByInstructor(UUID instructorId, Pageable pageable);
     Page<CourseResponse> getByStatus(CourseStatus status, Pageable pageable);
+    CourseResponse submitForReview(UUID courseId);
     CourseResponse updateStatus(UUID courseId, CourseStatus status, String reason);
 }

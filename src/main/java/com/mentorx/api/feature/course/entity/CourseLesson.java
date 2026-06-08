@@ -236,6 +236,7 @@ public class CourseLesson extends BaseEntity {
         return switch (this.lessonType) {
             case VIDEO -> 15;
             case ARTICLE -> 10;
+            case DOWNLOADABLE -> 5;
             case QUIZ -> 20;
             case ASSIGNMENT -> 60;
             case LIVE_SESSION -> 90;

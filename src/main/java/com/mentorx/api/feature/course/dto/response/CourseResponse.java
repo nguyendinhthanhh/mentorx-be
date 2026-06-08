@@ -23,6 +23,7 @@ public class CourseResponse {
     private String instructorName;
     private Integer categoryId;
     private List<String> skills;
+    private List<Integer> skillIds;
     private String title;
     private String slug;
     private String description;
@@ -39,9 +40,15 @@ public class CourseResponse {
     private Boolean isCertificate;
     private String previewVideoUrl;
     private String rejectionReason;
+    private LocalDateTime submittedAt;
     private LocalDateTime publishedAt;
     private UUID reviewedBy;
+    private LocalDateTime reviewedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime deletedAt;
+
+    public UUID getCourseId() {
+        return id;
+    }
 }

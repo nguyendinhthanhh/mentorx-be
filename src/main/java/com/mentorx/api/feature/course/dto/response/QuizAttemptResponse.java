@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -12,17 +13,13 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class LessonProgressResponse {
-
+public class QuizAttemptResponse {
+    private UUID id;
     private UUID enrollmentId;
     private UUID lessonId;
-    private String lessonTitle;
-    private Boolean isCompleted;
+    private BigDecimal score;
+    private BigDecimal maxScore;
+    private Boolean passed;
+    private LocalDateTime startedAt;
     private LocalDateTime completedAt;
-    private Integer watchDurationSec;
-    private Integer progressPercent;
-    private Integer scrollPercent;
-    private Integer activeTimeSec;
-    private Integer lastPositionSec;
-    private Boolean completedByRule;
 }

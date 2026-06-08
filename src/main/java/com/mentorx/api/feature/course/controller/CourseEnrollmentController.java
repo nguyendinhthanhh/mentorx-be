@@ -2,6 +2,7 @@ package com.mentorx.api.feature.course.controller;
 
 import com.mentorx.api.feature.course.dto.request.CourseEnrollmentCreateRequest;
 import com.mentorx.api.feature.course.dto.response.CourseEnrollmentResponse;
+import com.mentorx.api.feature.course.service.CertificateService;
 import com.mentorx.api.feature.course.service.CourseEnrollmentService;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
@@ -14,6 +15,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -29,9 +32,10 @@ public class CourseEnrollmentController {
 
     private final CourseEnrollmentService enrollmentService;
     private final UserRepository userRepository;
+    private final CertificateService certificateService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('USER', 'STUDENT', 'ADMIN')")
     public ResponseEntity<CourseEnrollmentResponse> createEnrollment(@Valid @RequestBody CourseEnrollmentCreateRequest request) {
         CourseEnrollmentResponse response = enrollmentService.createEnrollment(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -70,7 +74,7 @@ public class CourseEnrollmentController {
     }
 
     @GetMapping("/course/{courseId}")
-    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('MENTOR', 'INSTRUCTOR', 'ADMIN')")
     public ResponseEntity<Page<CourseEnrollmentResponse>> getEnrollmentsByCourseId(
             @PathVariable UUID courseId,
             @RequestParam(defaultValue = "0") int page,
@@ -86,7 +90,7 @@ public class CourseEnrollmentController {
     }
 
     @GetMapping("/instructor/{instructorId}")
-    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('MENTOR', 'INSTRUCTOR', 'ADMIN')")
     public ResponseEntity<Page<CourseEnrollmentResponse>> getEnrollmentsByInstructorId(
             @PathVariable UUID instructorId,
             @RequestParam(defaultValue = "0") int page,
@@ -120,6 +124,16 @@ public class CourseEnrollmentController {
     public ResponseEntity<Void> markEnrollmentAsCompleted(@PathVariable UUID enrollmentId) {
         enrollmentService.markEnrollmentAsCompleted(enrollmentId);
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{enrollmentId}/certificate")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<byte[]> downloadCertificate(@PathVariable UUID enrollmentId) {
+        byte[] content = certificateService.renderCertificate(enrollmentId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"mentorx-certificate.pdf\"")
+                .body(content);
     }
 
     @GetMapping("/course/{courseId}/count")

@@ -47,6 +47,12 @@ public class Course extends BaseEntity {
     @Builder.Default
     private List<String> skills = new ArrayList<>();
 
+    @ElementCollection
+    @CollectionTable(name = "course_skill_ids", joinColumns = @JoinColumn(name = "course_id"))
+    @Column(name = "skill_id", nullable = false)
+    @Builder.Default
+    private List<Integer> skillIds = new ArrayList<>();
+
     @Column(nullable = false, length = 255)
     private String title;
 
@@ -106,12 +112,18 @@ public class Course extends BaseEntity {
     @Column(name = "rejection_reason")
     private String rejectionReason;
 
+    @Column(name = "submitted_at")
+    private LocalDateTime submittedAt;
+
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reviewed_by")
     private User reviewedBy;
+
+    @Column(name = "reviewed_at")
+    private LocalDateTime reviewedAt;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;

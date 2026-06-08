@@ -26,7 +26,7 @@ public class CourseLessonController {
     private final CourseLessonService lessonService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('MENTOR', 'INSTRUCTOR', 'ADMIN')")
     public ResponseEntity<CourseLessonResponse> createLesson(@Valid @RequestBody CourseLessonCreateRequest request) {
         CourseLessonResponse response = lessonService.createLesson(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -85,7 +85,7 @@ public class CourseLessonController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('MENTOR', 'INSTRUCTOR', 'ADMIN')")
     public ResponseEntity<CourseLessonResponse> updateLesson(
             @PathVariable UUID id,
             @Valid @RequestBody CourseLessonUpdateRequest request) {
@@ -94,7 +94,7 @@ public class CourseLessonController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('MENTOR', 'INSTRUCTOR', 'ADMIN')")
     public ResponseEntity<Void> deleteLesson(@PathVariable UUID id) {
         lessonService.deleteLesson(id);
         return ResponseEntity.noContent().build();

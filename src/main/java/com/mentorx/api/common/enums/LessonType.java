@@ -16,6 +16,11 @@ public enum LessonType {
      * Article/text-based lesson
      */
     ARTICLE,
+
+    /**
+     * Downloadable protected course resource
+     */
+    DOWNLOADABLE,
     
     /**
      * Quiz/assessment lesson

@@ -42,9 +42,16 @@ public class CourseController {
     }
 
     @DeleteMapping("/{courseId}")
+    @PreAuthorize("hasAnyRole('MENTOR', 'INSTRUCTOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID courseId) {
         courseService.delete(courseId);
         return ResponseEntity.ok(ApiResponse.success("Course deleted", null));
+    }
+
+    @PostMapping("/{courseId}/archive")
+    @PreAuthorize("hasAnyRole('MENTOR', 'INSTRUCTOR', 'ADMIN')")
+    public ResponseEntity<ApiResponse<CourseResponse>> archive(@PathVariable UUID courseId) {
+        return ResponseEntity.ok(ApiResponse.success("Course archived", courseService.archive(courseId)));
     }
 
     @GetMapping("/admin/all")
@@ -90,6 +97,12 @@ public class CourseController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(ApiResponse.success(courseService.getByStatus(status, PageRequest.of(page, size))));
+    }
+
+    @PostMapping("/{courseId}/submit-for-review")
+    @PreAuthorize("hasAnyRole('MENTOR', 'INSTRUCTOR', 'ADMIN')")
+    public ResponseEntity<ApiResponse<CourseResponse>> submitForReview(@PathVariable UUID courseId) {
+        return ResponseEntity.ok(ApiResponse.success("Course submitted for review", courseService.submitForReview(courseId)));
     }
 
     @PatchMapping("/{courseId}/status")

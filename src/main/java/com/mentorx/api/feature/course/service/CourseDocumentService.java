@@ -6,5 +6,5 @@ import java.util.UUID;
 
 public interface CourseDocumentService {
     CourseDocumentPayload getPreview(UUID lessonId, User viewer);
-    CourseDocumentPayload getDownload(UUID lessonId, User viewer);
+    CourseDocumentPayload getDownload(UUID lessonId, User viewer, String ipAddress, String userAgent);
 }

@@ -11,6 +11,7 @@ import com.mentorx.api.feature.course.mapper.CourseMapper;
 import com.mentorx.api.feature.course.repository.CourseEnrollmentRepository;
 import com.mentorx.api.feature.course.repository.CourseRepository;
 import com.mentorx.api.feature.course.repository.LessonProgressRepository;
+import com.mentorx.api.feature.course.service.CertificateService;
 import com.mentorx.api.feature.course.service.CourseEnrollmentService;
 import com.mentorx.api.feature.user.entity.User;
 import com.mentorx.api.feature.user.repository.UserRepository;
@@ -39,6 +40,7 @@ public class CourseEnrollmentServiceImpl implements CourseEnrollmentService {
     private final UserRepository userRepository;
     private final LessonProgressRepository progressRepository;
     private final CourseMapper mapper;
+    private final CertificateService certificateService;
 
     @Override
     @Transactional
@@ -143,7 +145,8 @@ public class CourseEnrollmentServiceImpl implements CourseEnrollmentService {
                 enrollment.setCompletedAt(LocalDateTime.now());
             }
 
-            enrollmentRepository.save(enrollment);
+            CourseEnrollment saved = enrollmentRepository.save(enrollment);
+            certificateService.issueIfEligible(saved);
             log.info("Enrollment progress updated: {}%", progress);
         }
     }
@@ -160,7 +163,8 @@ public class CourseEnrollmentServiceImpl implements CourseEnrollmentService {
         enrollment.setCompletedAt(LocalDateTime.now());
         enrollment.setProgressPercent(BigDecimal.valueOf(100));
 
-        enrollmentRepository.save(enrollment);
+        CourseEnrollment saved = enrollmentRepository.save(enrollment);
+        certificateService.issueIfEligible(saved);
         log.info("Enrollment marked as completed: {}", enrollmentId);
     }
 
