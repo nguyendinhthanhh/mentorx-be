@@ -7,6 +7,7 @@ import com.mentorx.api.feature.course.dto.request.CourseUpdateRequest;
 import com.mentorx.api.feature.course.dto.response.CourseResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
@@ -14,6 +15,12 @@ public interface CourseService {
     CourseResponse create(CourseCreateRequest request);
     CourseResponse getById(UUID courseId);
     CourseResponse update(UUID courseId, CourseUpdateRequest request);
+    CourseResponse updateDetailsWithMedia(UUID courseId,
+                                          CourseUpdateRequest request,
+                                          MultipartFile thumbnailFile,
+                                          MultipartFile previewVideoFile,
+                                          boolean removeThumbnail,
+                                          boolean removePreviewVideo);
     void delete(UUID courseId);
     CourseResponse archive(UUID courseId);
     Page<CourseResponse> getAllCourses(CourseStatus status,

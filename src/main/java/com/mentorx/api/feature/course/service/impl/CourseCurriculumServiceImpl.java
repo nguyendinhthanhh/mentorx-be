@@ -1,18 +1,20 @@
 package com.mentorx.api.feature.course.service.impl;
 
-import com.mentorx.api.common.enums.LessonType;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.common.security.MentorModeAccessService;
 import com.mentorx.api.feature.course.dto.request.CourseCurriculumSaveRequest;
 import com.mentorx.api.feature.course.dto.response.CourseCurriculumResponse;
+import com.mentorx.api.feature.course.dto.response.QuizQuestionResponse;
 import com.mentorx.api.feature.course.entity.Course;
 import com.mentorx.api.feature.course.entity.CourseLesson;
 import com.mentorx.api.feature.course.entity.CourseSection;
+import com.mentorx.api.feature.course.entity.QuizQuestion;
 import com.mentorx.api.feature.course.mapper.CourseMapper;
 import com.mentorx.api.feature.course.repository.CourseLessonRepository;
 import com.mentorx.api.feature.course.repository.CourseRepository;
 import com.mentorx.api.feature.course.repository.CourseSectionRepository;
+import com.mentorx.api.feature.course.repository.QuizQuestionRepository;
 import com.mentorx.api.feature.course.service.CourseCurriculumService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,7 @@ public class CourseCurriculumServiceImpl implements CourseCurriculumService {
     private final CourseLessonRepository lessonRepository;
     private final CourseMapper mapper;
     private final MentorModeAccessService mentorModeAccessService;
+    private final QuizQuestionRepository quizQuestionRepository;
 
     @Override
     @Transactional
@@ -54,6 +57,7 @@ public class CourseCurriculumServiceImpl implements CourseCurriculumService {
         Set<UUID> retainedSectionIds = new HashSet<>();
         Set<UUID> retainedLessonIds = new HashSet<>();
         List<CourseSection> savedSections = new ArrayList<>();
+        List<QuizQuestion> savedQuizQuestions = new ArrayList<>();
 
         for (CourseCurriculumSaveRequest.SectionItem sectionItem : request.getSections()) {
             CourseSection section = sectionItem.getId() == null
@@ -85,7 +89,7 @@ public class CourseCurriculumServiceImpl implements CourseCurriculumService {
                 lesson.setSection(savedSection);
                 lesson.setTitle(lessonItem.getTitle().trim());
                 lesson.setDescription(blankToNull(lessonItem.getDescription()));
-                lesson.setLessonType(lessonItem.getLessonType());
+                lesson.setLessonType(normalizeLessonType(lessonItem.getLessonType()));
                 lesson.setLessonOrder(lessonItem.getLessonOrder());
                 lesson.setDurationMinutes(lessonItem.getDurationMinutes());
                 lesson.setVideoUrl(blankToNull(lessonItem.getVideoUrl()));
@@ -97,11 +101,13 @@ public class CourseCurriculumServiceImpl implements CourseCurriculumService {
                 lesson.setMetadata(lessonItem.getMetadata());
                 CourseLesson savedLesson = lessonRepository.save(lesson);
                 retainedLessonIds.add(savedLesson.getId());
+                savedQuizQuestions.addAll(saveQuizQuestions(savedLesson, lessonItem));
             }
         }
 
         for (CourseLesson lesson : existingLessons) {
             if (!retainedLessonIds.contains(lesson.getId())) {
+                quizQuestionRepository.deleteAll(quizQuestionRepository.findByLessonIdOrderByOrderIndexAsc(lesson.getId()));
                 lessonRepository.delete(lesson);
             }
         }
@@ -114,13 +120,75 @@ public class CourseCurriculumServiceImpl implements CourseCurriculumService {
         return CourseCurriculumResponse.builder()
                 .sections(mapper.toSectionResponseList(sectionRepository.findByCourseIdOrderBySectionOrderAsc(courseId)))
                 .lessons(mapper.toLessonResponseList(lessonRepository.findAllByCourseId(courseId)))
+                .quizQuestions(savedQuizQuestions.stream().map(this::toQuizQuestionResponse).toList())
+                .build();
+    }
+
+    private List<QuizQuestion> saveQuizQuestions(CourseLesson lesson, CourseCurriculumSaveRequest.LessonItem lessonItem) {
+        List<QuizQuestion> existingQuestions = quizQuestionRepository.findByLessonIdOrderByOrderIndexAsc(lesson.getId());
+        if (lesson.getLessonType() != com.mentorx.api.common.enums.LessonType.QUIZ) {
+            if (!existingQuestions.isEmpty()) {
+                quizQuestionRepository.deleteAll(existingQuestions);
+            }
+            return List.of();
+        }
+
+        List<CourseCurriculumSaveRequest.QuizQuestionItem> questionItems = lessonItem.getQuizQuestions() == null
+                ? List.of()
+                : lessonItem.getQuizQuestions();
+        Map<UUID, QuizQuestion> existingById = existingQuestions.stream()
+                .collect(Collectors.toMap(QuizQuestion::getId, question -> question));
+        Set<UUID> retainedQuestionIds = new HashSet<>();
+        List<QuizQuestion> savedQuestions = new ArrayList<>();
+
+        for (CourseCurriculumSaveRequest.QuizQuestionItem item : questionItems) {
+            QuizQuestion question = item.getId() == null ? new QuizQuestion() : existingById.get(item.getId());
+            if (question == null) {
+                throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Quiz question not found");
+            }
+            question.setLesson(lesson);
+            question.setQuestionType(item.getQuestionType());
+            question.setQuestionText(item.getQuestionText());
+            question.setAnswerDataJson(item.getAnswerDataJson());
+            question.setPoints(item.getPoints() == null ? 1 : item.getPoints());
+            question.setExplanation(blankToNull(item.getExplanation()));
+            question.setOrderIndex(item.getOrderIndex() == null ? savedQuestions.size() + 1 : item.getOrderIndex());
+            QuizQuestion savedQuestion = quizQuestionRepository.save(question);
+            retainedQuestionIds.add(savedQuestion.getId());
+            savedQuestions.add(savedQuestion);
+        }
+
+        for (QuizQuestion existingQuestion : existingQuestions) {
+            if (!retainedQuestionIds.contains(existingQuestion.getId())) {
+                quizQuestionRepository.delete(existingQuestion);
+            }
+        }
+        return savedQuestions;
+    }
+
+    private QuizQuestionResponse toQuizQuestionResponse(QuizQuestion question) {
+        return QuizQuestionResponse.builder()
+                .id(question.getId())
+                .lessonId(question.getLesson().getId())
+                .questionType(question.getQuestionType())
+                .questionText(question.getQuestionText())
+                .answerDataJson(question.getAnswerDataJson())
+                .points(question.getPoints())
+                .explanation(question.getExplanation())
+                .orderIndex(question.getOrderIndex())
                 .build();
     }
 
     private void validateLessonContent(CourseCurriculumSaveRequest.LessonItem lesson) {
-        if (lesson.getLessonType() == LessonType.DOWNLOADABLE && isBlank(lesson.getResourceUrl())) {
-            throw new AppException(ErrorCode.BAD_REQUEST, "Downloadable lessons require a resource URL");
+        if (lesson.getLessonType() == null) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Lesson type is required");
         }
+    }
+
+    private com.mentorx.api.common.enums.LessonType normalizeLessonType(com.mentorx.api.common.enums.LessonType lessonType) {
+        return lessonType == com.mentorx.api.common.enums.LessonType.QUIZ
+                ? com.mentorx.api.common.enums.LessonType.QUIZ
+                : com.mentorx.api.common.enums.LessonType.LESSON;
     }
 
     private boolean isBlank(String value) {

@@ -159,9 +159,13 @@ public class LessonProgressServiceImpl implements LessonProgressService {
 
     private boolean shouldCompleteByRule(CourseLesson lesson, LessonProgress progress) {
         return switch (lesson.getLessonType()) {
+            case LESSON -> lesson.hasVideoContent()
+                    ? progress.getProgressPercent() != null && progress.getProgressPercent() >= 90
+                    : progress.getScrollPercent() != null && progress.getScrollPercent() >= 90;
             case VIDEO -> progress.getProgressPercent() != null && progress.getProgressPercent() >= 90;
-            case ARTICLE, DOWNLOADABLE -> progress.getScrollPercent() != null && progress.getScrollPercent() >= 90;
-            case QUIZ, ASSIGNMENT, LIVE_SESSION -> Boolean.TRUE.equals(progress.getIsCompleted());
+            case ARTICLE, TEXT, DOWNLOADABLE -> progress.getScrollPercent() != null && progress.getScrollPercent() >= 90;
+            case QUIZ -> Boolean.TRUE.equals(progress.getIsCompleted());
+            case ASSIGNMENT, LIVE_SESSION -> Boolean.TRUE.equals(progress.getIsCompleted());
         };
     }
 

@@ -1,6 +1,7 @@
 package com.mentorx.api.feature.course.service.impl;
 
 import com.mentorx.api.common.security.MentorModeAccessService;
+import com.mentorx.api.common.util.CloudinaryMediaService;
 import com.mentorx.api.common.enums.CourseStatus;
 import com.mentorx.api.common.enums.SupportedLanguage;
 import com.mentorx.api.common.exception.AppException;
@@ -20,6 +21,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -37,6 +39,7 @@ public class CourseServiceImpl implements CourseService {
     private final UserRepository userRepository;
     private final MentorModeAccessService mentorModeAccessService;
     private final SkillRepository skillRepository;
+    private final CloudinaryMediaService cloudinaryMediaService;
 
     @Override
     @Transactional
@@ -75,6 +78,49 @@ public class CourseServiceImpl implements CourseService {
     public CourseResponse update(UUID courseId, CourseUpdateRequest request) {
         Course course = findCourse(courseId);
         mentorModeAccessService.requireApprovedMentorContentAccess(course.getInstructor().getId());
+        applyCourseUpdate(course, request);
+        return toResponse(course);
+    }
+
+    @Override
+    @Transactional
+    public CourseResponse updateDetailsWithMedia(UUID courseId,
+                                                 CourseUpdateRequest request,
+                                                 MultipartFile thumbnailFile,
+                                                 MultipartFile previewVideoFile,
+                                                 boolean removeThumbnail,
+                                                 boolean removePreviewVideo) {
+        Course course = findCourse(courseId);
+        mentorModeAccessService.requireApprovedMentorContentAccess(course.getInstructor().getId());
+
+        String previousThumbnailUrl = course.getThumbnailUrl();
+        String previousPreviewVideoUrl = course.getPreviewVideoUrl();
+
+        if (hasFile(thumbnailFile)) {
+            validateCourseMedia(thumbnailFile, true);
+            request.setThumbnailUrl(cloudinaryMediaService
+                    .uploadCourseMedia(thumbnailFile, "mentorx/courses/previews/images")
+                    .getFileUrl());
+        } else if (removeThumbnail) {
+            request.setThumbnailUrl("");
+        }
+
+        if (hasFile(previewVideoFile)) {
+            validateCourseMedia(previewVideoFile, false);
+            request.setPreviewVideoUrl(cloudinaryMediaService
+                    .uploadCourseMedia(previewVideoFile, "mentorx/courses/previews/videos")
+                    .getFileUrl());
+        } else if (removePreviewVideo) {
+            request.setPreviewVideoUrl("");
+        }
+
+        applyCourseUpdate(course, request);
+        deleteReplacedCourseMedia(previousThumbnailUrl, course.getThumbnailUrl());
+        deleteReplacedCourseMedia(previousPreviewVideoUrl, course.getPreviewVideoUrl());
+        return toResponse(course);
+    }
+
+    private void applyCourseUpdate(Course course, CourseUpdateRequest request) {
         if (request.getCategoryId() != null) course.setCategoryId(request.getCategoryId());
         if (request.getSkillIds() != null) {
             course.setSkillIds(normalizeSkillIds(request.getSkillIds()));
@@ -96,7 +142,6 @@ public class CourseServiceImpl implements CourseService {
                 course.setPublishedAt(LocalDateTime.now());
             }
         }
-        return toResponse(courseRepository.save(course));
     }
 
     @Override
@@ -108,7 +153,6 @@ public class CourseServiceImpl implements CourseService {
             throw new AppException(ErrorCode.BAD_REQUEST, "Only draft or rejected courses can be deleted");
         }
         course.setDeletedAt(LocalDateTime.now());
-        courseRepository.save(course);
     }
 
     @Override
@@ -120,7 +164,7 @@ public class CourseServiceImpl implements CourseService {
             throw new AppException(ErrorCode.BAD_REQUEST, "Only published courses can be archived");
         }
         course.setStatus(CourseStatus.ARCHIVED);
-        return toResponse(courseRepository.save(course));
+        return toResponse(course);
     }
 
     @Override
@@ -134,7 +178,7 @@ public class CourseServiceImpl implements CourseService {
         String normalizedLevelKeyword = normalizeKeyword(levelKeyword);
         String normalizedSkillKeyword = normalizeKeyword(skillKeyword);
         return courseRepository
-                .findAllWithFilters(status, instructorId, categoryId, language, normalizedLevelKeyword, normalizedSkillKeyword, pageable)
+                .findAllWithFilters(enumName(status), instructorId, categoryId, enumName(language), normalizedLevelKeyword, normalizedSkillKeyword, pageable)
                 .map(this::toResponse);
     }
 
@@ -147,7 +191,7 @@ public class CourseServiceImpl implements CourseService {
         String normalizedLevelKeyword = normalizeKeyword(levelKeyword);
         String normalizedSkillKeyword = normalizeKeyword(skillKeyword);
         return courseRepository
-                .findPublishedWithFilters(CourseStatus.PUBLISHED, categoryId, language, normalizedLevelKeyword, normalizedSkillKeyword, pageable)
+                .findPublishedWithFilters(CourseStatus.PUBLISHED.name(), categoryId, enumName(language), normalizedLevelKeyword, normalizedSkillKeyword, pageable)
                 .map(this::toResponse);
     }
 
@@ -172,20 +216,64 @@ public class CourseServiceImpl implements CourseService {
         course.setStatus(CourseStatus.PENDING_REVIEW);
         course.setSubmittedAt(LocalDateTime.now());
         course.setRejectionReason(null);
-        return toResponse(courseRepository.save(course));
+        return toResponse(course);
     }
 
     @Override
     @Transactional
     public CourseResponse updateStatus(UUID courseId, CourseStatus status, String reason) {
         Course course = findCourse(courseId);
+        User reviewer = userRepository.findById(mentorModeAccessService.getCurrentUserId()).orElse(null);
         course.setStatus(status);
-        course.setRejectionReason(status == CourseStatus.REJECTED ? reason : null);
+        if (status == CourseStatus.DRAFT && reason != null && !reason.trim().isBlank()) {
+            course.setRejectionReason(reason.trim());
+            course.setSubmittedAt(null);
+        } else if (status == CourseStatus.REJECTED) {
+            course.setRejectionReason(reason);
+        } else if (status == CourseStatus.PENDING_REVIEW) {
+            course.setRejectionReason(null);
+        } else if (status == CourseStatus.PUBLISHED) {
+            course.setRejectionReason(null);
+        }
+        course.setReviewedBy(reviewer);
         course.setReviewedAt(LocalDateTime.now());
         if (status == CourseStatus.PUBLISHED && course.getPublishedAt() == null) {
             course.setPublishedAt(LocalDateTime.now());
         }
-        return toResponse(courseRepository.save(course));
+        return toResponse(course);
+    }
+
+    private boolean hasFile(MultipartFile file) {
+        return file != null && !file.isEmpty();
+    }
+
+    private void validateCourseMedia(MultipartFile file, boolean image) {
+        String contentType = file.getContentType() == null ? "" : file.getContentType();
+        if (image) {
+            if (!contentType.startsWith("image/")) {
+                throw new AppException(ErrorCode.BAD_REQUEST, "Course thumbnail must be an image file");
+            }
+            if (file.getSize() > 5 * 1024 * 1024) {
+                throw new AppException(ErrorCode.BAD_REQUEST, "Course thumbnail must be 5 MB or smaller");
+            }
+            return;
+        }
+        if (!contentType.startsWith("video/")) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Preview video must be a video file");
+        }
+        if (file.getSize() > 200 * 1024 * 1024) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Preview video must be 200 MB or smaller");
+        }
+    }
+
+    private void deleteReplacedCourseMedia(String previousUrl, String nextUrl) {
+        if (previousUrl == null || previousUrl.isBlank()) {
+            return;
+        }
+        if (previousUrl.equals(nextUrl)) {
+            return;
+        }
+        cloudinaryMediaService.deleteCourseMedia(previousUrl);
     }
 
     private Course findCourse(UUID courseId) {
@@ -276,10 +364,10 @@ public class CourseServiceImpl implements CourseService {
         if (normalizedIds.isEmpty()) {
             return normalizeSkills(fallbackSkills);
         }
-        return skillRepository.findAllById(normalizedIds).stream()
+        return new ArrayList<>(skillRepository.findAllById(normalizedIds).stream()
                 .sorted(java.util.Comparator.comparingInt(skill -> normalizedIds.indexOf(skill.getId())))
                 .map(Skill::getLabelEn)
-                .toList();
+                .toList());
     }
 
     private List<Integer> normalizeSkillIdsForRead(List<Integer> skillIds) {
@@ -301,5 +389,9 @@ public class CourseServiceImpl implements CourseService {
         }
         String trimmed = input.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String enumName(Enum<?> value) {
+        return value == null ? null : value.name();
     }
 }

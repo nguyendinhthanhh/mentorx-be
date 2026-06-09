@@ -12,9 +12,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
@@ -39,6 +41,20 @@ public class CourseController {
     public ResponseEntity<ApiResponse<CourseResponse>> update(@PathVariable UUID courseId,
                                                               @RequestBody CourseUpdateRequest request) {
         return ResponseEntity.ok(ApiResponse.success(courseService.update(courseId, request)));
+    }
+
+    @PutMapping(value = "/{courseId}/details", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('MENTOR', 'INSTRUCTOR', 'ADMIN')")
+    public ResponseEntity<ApiResponse<CourseResponse>> updateDetailsWithMedia(
+            @PathVariable UUID courseId,
+            @RequestPart("data") CourseUpdateRequest request,
+            @RequestPart(value = "thumbnailFile", required = false) MultipartFile thumbnailFile,
+            @RequestPart(value = "previewVideoFile", required = false) MultipartFile previewVideoFile,
+            @RequestParam(defaultValue = "false") boolean removeThumbnail,
+            @RequestParam(defaultValue = "false") boolean removePreviewVideo) {
+        return ResponseEntity.ok(ApiResponse.success(
+                courseService.updateDetailsWithMedia(courseId, request, thumbnailFile, previewVideoFile, removeThumbnail, removePreviewVideo)
+        ));
     }
 
     @DeleteMapping("/{courseId}")

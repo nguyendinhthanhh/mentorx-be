@@ -58,8 +58,7 @@ public class QuizServiceImpl implements QuizService {
                 .lesson(lesson)
                 .questionType(request.getQuestionType())
                 .questionText(request.getQuestionText())
-                .optionsJson(request.getOptionsJson())
-                .correctAnswersJson(request.getCorrectAnswersJson())
+                .answerDataJson(request.getAnswerDataJson())
                 .points(request.getPoints() == null ? 1 : request.getPoints())
                 .explanation(request.getExplanation())
                 .orderIndex(request.getOrderIndex() == null ? nextOrder(lessonId) : request.getOrderIndex())
@@ -81,8 +80,7 @@ public class QuizServiceImpl implements QuizService {
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Quiz question not found"));
         question.setQuestionType(request.getQuestionType());
         question.setQuestionText(request.getQuestionText());
-        question.setOptionsJson(request.getOptionsJson());
-        question.setCorrectAnswersJson(request.getCorrectAnswersJson());
+        question.setAnswerDataJson(request.getAnswerDataJson());
         question.setPoints(request.getPoints() == null ? question.getPoints() : request.getPoints());
         question.setExplanation(request.getExplanation());
         question.setOrderIndex(request.getOrderIndex() == null ? question.getOrderIndex() : request.getOrderIndex());
@@ -162,15 +160,30 @@ public class QuizServiceImpl implements QuizService {
     }
 
     private boolean isCorrect(QuizQuestion question, String givenAnswerJson) {
+        String expectedAnswerJson = expectedAnswerJson(question);
         if (question.getQuestionType() == QuizQuestionType.TEXT_ANSWER) {
-            return normalize(givenAnswerJson).equals(normalize(question.getCorrectAnswersJson()));
+            return normalize(givenAnswerJson).equals(normalize(expectedAnswerJson));
         }
         try {
             JsonNode given = objectMapper.readTree(givenAnswerJson);
-            JsonNode expected = objectMapper.readTree(question.getCorrectAnswersJson());
+            JsonNode expected = objectMapper.readTree(expectedAnswerJson);
             return given.equals(expected);
         } catch (Exception ex) {
-            return normalize(givenAnswerJson).equals(normalize(question.getCorrectAnswersJson()));
+            return normalize(givenAnswerJson).equals(normalize(expectedAnswerJson));
+        }
+    }
+
+    private String expectedAnswerJson(QuizQuestion question) {
+        try {
+            JsonNode answerData = objectMapper.readTree(question.getAnswerDataJson());
+            JsonNode correctAnswers = question.getQuestionType() == QuizQuestionType.TEXT_ANSWER
+                    ? answerData.get("correctAnswer")
+                    : answerData.get("correctAnswers");
+            return correctAnswers == null || correctAnswers.isNull()
+                    ? ""
+                    : objectMapper.writeValueAsString(correctAnswers);
+        } catch (Exception ex) {
+            return "";
         }
     }
 
@@ -184,8 +197,7 @@ public class QuizServiceImpl implements QuizService {
                 .lessonId(question.getLesson().getId())
                 .questionType(question.getQuestionType())
                 .questionText(question.getQuestionText())
-                .optionsJson(question.getOptionsJson())
-                .correctAnswersJson(question.getCorrectAnswersJson())
+                .answerDataJson(question.getAnswerDataJson())
                 .points(question.getPoints())
                 .explanation(question.getExplanation())
                 .orderIndex(question.getOrderIndex())

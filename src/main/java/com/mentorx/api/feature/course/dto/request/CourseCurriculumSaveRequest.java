@@ -1,6 +1,7 @@
 package com.mentorx.api.feature.course.dto.request;
 
 import com.mentorx.api.common.enums.LessonType;
+import com.mentorx.api.feature.course.enums.QuizQuestionType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -81,5 +82,33 @@ public class CourseCurriculumSaveRequest {
         private Boolean isPublished;
         private Boolean isMandatory;
         private Map<String, Object> metadata;
+
+        @Valid
+        private List<QuizQuestionItem> quizQuestions;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class QuizQuestionItem {
+        private UUID id;
+
+        @NotNull
+        private QuizQuestionType questionType;
+
+        @NotBlank
+        private String questionText;
+
+        @NotBlank
+        private String answerDataJson;
+
+        @Min(1)
+        private Integer points;
+
+        private String explanation;
+
+        @Min(1)
+        private Integer orderIndex;
     }
 }

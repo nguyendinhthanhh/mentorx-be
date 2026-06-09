@@ -14,4 +14,5 @@ import java.util.List;
 public class CourseCurriculumResponse {
     private List<CourseSectionResponse> sections;
     private List<CourseLessonResponse> lessons;
+    private List<QuizQuestionResponse> quizQuestions;
 }

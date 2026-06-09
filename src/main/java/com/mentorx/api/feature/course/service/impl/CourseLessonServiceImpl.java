@@ -48,6 +48,7 @@ public class CourseLessonServiceImpl implements CourseLessonService {
 
         CourseLesson lesson = mapper.toEntity(request);
         lesson.setSection(section);
+        lesson.setLessonType(normalizeLessonType(lesson.getLessonType()));
         
         if (lesson.getIsFreePreview() == null) {
             lesson.setIsFreePreview(false);
@@ -120,6 +121,7 @@ public class CourseLessonServiceImpl implements CourseLessonService {
         );
 
         mapper.updateEntity(request, lesson);
+        lesson.setLessonType(normalizeLessonType(lesson.getLessonType()));
         CourseLesson updatedLesson = lessonRepository.save(lesson);
         
         log.info("Course lesson updated successfully: {}", id);
@@ -173,17 +175,18 @@ public class CourseLessonServiceImpl implements CourseLessonService {
             throw new AppException(ErrorCode.BAD_REQUEST, "Lesson type is required");
         }
         switch (lessonType) {
-            case VIDEO, ARTICLE -> {
-                // Video and rich text content can be attached later while the lesson remains a draft.
-            }
-            case DOWNLOADABLE -> {
-                if (resourceUrl == null || resourceUrl.isBlank()) {
-                    throw new AppException(ErrorCode.BAD_REQUEST, "Downloadable lessons require a resource URL");
-                }
+            case LESSON, VIDEO, ARTICLE, TEXT, DOWNLOADABLE -> {
+                // Lesson content, video, and downloadable resources are optional draft attachments.
             }
             case QUIZ, ASSIGNMENT, LIVE_SESSION -> {
                 // These lesson types can be created before their details are attached.
             }
         }
+    }
+
+    private com.mentorx.api.common.enums.LessonType normalizeLessonType(com.mentorx.api.common.enums.LessonType lessonType) {
+        return lessonType == com.mentorx.api.common.enums.LessonType.QUIZ
+                ? com.mentorx.api.common.enums.LessonType.QUIZ
+                : com.mentorx.api.common.enums.LessonType.LESSON;
     }
 }

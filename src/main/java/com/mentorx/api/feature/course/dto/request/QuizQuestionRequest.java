@@ -20,10 +20,8 @@ public class QuizQuestionRequest {
     @NotBlank
     private String questionText;
 
-    private String optionsJson;
-
     @NotBlank
-    private String correctAnswersJson;
+    private String answerDataJson;
 
     @Min(1)
     private Integer points;

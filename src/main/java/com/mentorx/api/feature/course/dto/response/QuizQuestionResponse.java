@@ -17,8 +17,7 @@ public class QuizQuestionResponse {
     private UUID lessonId;
     private QuizQuestionType questionType;
     private String questionText;
-    private String optionsJson;
-    private String correctAnswersJson;
+    private String answerDataJson;
     private Integer points;
     private String explanation;
     private Integer orderIndex;

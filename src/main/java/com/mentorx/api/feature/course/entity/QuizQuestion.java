@@ -40,11 +40,8 @@ public class QuizQuestion extends BaseEntity {
     @Column(name = "question_text", nullable = false, columnDefinition = "TEXT")
     private String questionText;
 
-    @Column(name = "options_json", columnDefinition = "TEXT")
-    private String optionsJson;
-
-    @Column(name = "correct_answers_json", columnDefinition = "TEXT")
-    private String correctAnswersJson;
+    @Column(name = "answer_data_json", columnDefinition = "TEXT")
+    private String answerDataJson;
 
     @Column(name = "points", nullable = false)
     @Builder.Default
