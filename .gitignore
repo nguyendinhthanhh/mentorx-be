@@ -180,6 +180,7 @@ application-*.log
 generated/
 generated-sources/
 generated-test-sources/
+uploads-dev/
 
 # SonarQube
 .sonar/

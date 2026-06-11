@@ -299,13 +299,13 @@ public class DatabaseInitializationRunner {
         if (!isSchemaAlreadyCreated()) {
             return;
         }
-        log.info("Ensuring deposit_orders gateway constraint includes MOMO...");
+        log.info("Ensuring deposit_orders gateway constraint includes MOMO and PAYOS...");
         try {
             // Drop old constraint if exists
             jdbcTemplate.execute("ALTER TABLE deposit_orders DROP CONSTRAINT IF EXISTS deposit_orders_gateway_check");
-            // Re-add constraint with MOMO included
+            // Re-add constraint with gateway values used by the application
             // We use standard names as defined by Hibernate/JPA auto-creation
-            jdbcTemplate.execute("ALTER TABLE deposit_orders ADD CONSTRAINT deposit_orders_gateway_check CHECK (gateway IN ('VNPAY', 'MOMO', 'STRIPE', 'MANUAL'))");
+            jdbcTemplate.execute("ALTER TABLE deposit_orders ADD CONSTRAINT deposit_orders_gateway_check CHECK (gateway IN ('VNPAY', 'MOMO', 'PAYOS', 'STRIPE', 'MANUAL'))");
         } catch (Exception e) {
             log.warn("Could not update deposit_orders_gateway_check constraint: {}. This might be expected if the table or constraint doesn't exist yet.", e.getMessage());
         }

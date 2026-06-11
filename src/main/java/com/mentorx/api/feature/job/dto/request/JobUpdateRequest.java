@@ -32,7 +32,6 @@ public record JobUpdateRequest(
         BigDecimal budgetMaxMxc,
         BigDecimal hourlyRateMxc,
         BigDecimal estimatedHours,
-        LocalDateTime startDate,
         @Future LocalDateTime deadlineAt,
         String timezone,
         Integer expectedSessions,

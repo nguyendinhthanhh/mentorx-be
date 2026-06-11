@@ -83,7 +83,6 @@ public class JobServiceImpl implements JobService {
                 .budgetMaxMxc(request.budgetMaxMxc())
                 .hourlyRateMxc(request.hourlyRateMxc())
                 .estimatedHours(request.estimatedHours())
-                .startDate(request.startDate())
                 .deadlineAt(request.deadlineAt())
                 .attachmentUrl(resolvePrimaryAttachment(request.attachmentUrl(), request.attachments()))
                 .attachments(normalizeList(request.attachments()))
@@ -150,7 +149,6 @@ public class JobServiceImpl implements JobService {
         if (request.budgetMaxMxc() != null) job.setBudgetMaxMxc(request.budgetMaxMxc());
         if (request.hourlyRateMxc() != null) job.setHourlyRateMxc(request.hourlyRateMxc());
         if (request.estimatedHours() != null) job.setEstimatedHours(request.estimatedHours());
-        if (request.startDate() != null) job.setStartDate(request.startDate());
         if (request.deadlineAt() != null) job.setDeadlineAt(request.deadlineAt());
         if (request.isFeatured() != null) job.setIsFeatured(request.isFeatured());
         if (request.attachments() != null) {

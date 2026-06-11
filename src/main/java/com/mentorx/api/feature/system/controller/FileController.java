@@ -1,19 +1,22 @@
 package com.mentorx.api.feature.system.controller;
 
-import com.mentorx.api.common.response.ApiResponse;
-import com.mentorx.api.feature.system.dto.response.CloudinarySignedUploadResponse;
-import com.mentorx.api.feature.system.dto.response.FileResponse;
-import com.mentorx.api.common.util.CloudinaryMediaService;
-import com.mentorx.api.feature.system.service.FileStorageService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+
+import com.mentorx.api.common.response.ApiResponse;
+import com.mentorx.api.common.util.CloudinaryMediaService;
+import com.mentorx.api.feature.system.dto.response.CloudinarySignedUploadResponse;
+import com.mentorx.api.feature.system.dto.response.FileResponse;
+import com.mentorx.api.feature.system.service.FileStorageService;
+
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/v1/files")
@@ -25,15 +28,20 @@ public class FileController {
 
     @PostMapping("/upload")
     public ResponseEntity<ApiResponse<FileResponse>> uploadFile(@RequestParam("file") MultipartFile file) {
-        String fileName = fileStorageService.storeFile(file);
+        String storedReference = fileStorageService.storeFile(file);
+        String originalFileName = StringUtils.hasText(file.getOriginalFilename())
+                ? StringUtils.cleanPath(file.getOriginalFilename())
+                : "upload";
 
-        String fileUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
-                .path("/uploads/")
-                .path(fileName)
-                .toUriString();
+        String fileUrl = isAbsoluteUrl(storedReference)
+                ? storedReference
+                : ServletUriComponentsBuilder.fromCurrentContextPath()
+                    .path("/uploads/")
+                    .path(storedReference)
+                    .toUriString();
 
         FileResponse response = FileResponse.builder()
-                .fileName(fileName)
+                .fileName(originalFileName)
                 .fileUrl(fileUrl)
                 .fileType(file.getContentType())
                 .size(file.getSize())
@@ -68,5 +76,8 @@ public class FileController {
     public ResponseEntity<ApiResponse<Void>> deleteCourseMedia(@RequestParam("fileUrl") String fileUrl) {
         cloudinaryMediaService.deleteCourseMedia(fileUrl);
         return ResponseEntity.ok(ApiResponse.success("Course media deleted successfully", null));
+    }
+    private boolean isAbsoluteUrl(String value) {
+        return value != null && (value.startsWith("http://") || value.startsWith("https://"));
     }
 }
