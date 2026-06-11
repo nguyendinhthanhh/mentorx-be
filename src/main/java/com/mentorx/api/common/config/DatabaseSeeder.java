@@ -7,8 +7,10 @@ import com.mentorx.api.common.enums.JobType;
 import com.mentorx.api.common.enums.LessonType;
 import com.mentorx.api.common.enums.MentorStatus;
 import com.mentorx.api.common.enums.PackageType;
+import com.mentorx.api.common.enums.PayoutMethod;
 import com.mentorx.api.common.enums.SupportedLanguage;
 import com.mentorx.api.common.enums.UserStatus;
+import com.mentorx.api.common.enums.VerificationStatus;
 import com.mentorx.api.common.enums.WalletAccountType;
 import com.mentorx.api.feature.chat.entity.ChatRoom;
 import com.mentorx.api.feature.chat.entity.ChatRoomMember;
@@ -153,43 +155,31 @@ public class DatabaseSeeder implements CommandLineRunner {
 
         seedExchangeRates();
 
-        if (userRepository.count() == 0) {
-            log.info("Seeding sample users...");
-            seedUsers();
-        }
+        log.info("Ensuring sample users exist...");
+        seedUsers();
 
         if (mentorProfileRepository.count() == 0) {
             log.info("Seeding sample mentor profiles...");
         }
         seedMentorProfiles();
 
-        if (courseRepository.count() == 0) {
-            log.info("Seeding sample courses...");
-            seedCourses();
-        }
+        log.info("Ensuring sample courses exist...");
+        seedCourses();
 
-        if (jobRepository.findOpen(PageRequest.of(0, 1)).isEmpty()) {
-            log.info("Seeding sample open jobs...");
-            seedJobs();
-        }
+        log.info("Ensuring sample open jobs exist...");
+        seedJobs();
 
         log.info("Ensuring sample job proposals exist...");
         seedProposals();
 
-        if (mentorPackageRepository.count() == 0) {
-            log.info("Seeding mentor packages...");
-            seedMentorPackages();
-        }
+        log.info("Ensuring mentor packages exist...");
+        seedMentorPackages();
 
-        if (mentorAvailabilityRepository.count() == 0) {
-            log.info("Seeding mentor availability...");
-            seedMentorAvailability();
-        }
+        log.info("Ensuring mentor availability exists...");
+        seedMentorAvailability();
 
-        if (reviewRepository.count() == 0) {
-            log.info("Seeding sample reviews...");
-            seedReviews();
-        }
+        log.info("Ensuring sample reviews exist...");
+        seedReviews();
 
         if (notificationRepository.count() == 0) {
             log.info("Seeding sample notifications...");
@@ -365,25 +355,37 @@ public class DatabaseSeeder implements CommandLineRunner {
         User learner1 = createUser("user1@mentorx.demo", "Lê Hà Anh", "Ha Anh", UserStatus.ACTIVE, false, MentorStatus.NONE);
         assignRoleToUser(learner1, "USER");
         setupUserAccount(learner1);
+
+        ensureSeedUser(new DemoUserSeed("moderator@mentorx.demo", "Platform Moderator", "Moderator", false, MentorStatus.NONE, List.of("USER", "MODERATOR")));
+        ensureSeedUser(new DemoUserSeed("mentor3@mentorx.demo", "Le Minh Khoa", "Khoa Le", true, MentorStatus.APPROVED, List.of("USER", "MENTOR")));
+        ensureSeedUser(new DemoUserSeed("mentor4@mentorx.demo", "Pham Gia Linh", "Linh Pham", true, MentorStatus.APPROVED, List.of("USER", "MENTOR")));
+        ensureSeedUser(new DemoUserSeed("mentor5@mentorx.demo", "Do Hoang Nam", "Nam Do", true, MentorStatus.APPROVED, List.of("USER", "MENTOR")));
+        ensureSeedUser(new DemoUserSeed("mentor6@mentorx.demo", "Vu Thu Ha", "Ha Vu", true, MentorStatus.APPROVED, List.of("USER", "MENTOR")));
+        ensureSeedUser(new DemoUserSeed("client4@mentorx.demo", "Northwind Labs", "Northwind Labs", false, MentorStatus.NONE, List.of("USER")));
+        ensureSeedUser(new DemoUserSeed("client5@mentorx.demo", "BluePeak Studio", "BluePeak Studio", false, MentorStatus.NONE, List.of("USER")));
+        ensureSeedUser(new DemoUserSeed("client6@mentorx.demo", "Mekong Analytics", "Mekong Analytics", false, MentorStatus.NONE, List.of("USER")));
+        ensureSeedUser(new DemoUserSeed("user2@mentorx.demo", "Ngoc Mai", "Ngoc Mai", false, MentorStatus.NONE, List.of("USER")));
+        ensureSeedUser(new DemoUserSeed("user3@mentorx.demo", "Quang Huy", "Quang Huy", false, MentorStatus.NONE, List.of("USER")));
+        ensureSeedUser(new DemoUserSeed("user4@mentorx.demo", "Bao Chau", "Bao Chau", false, MentorStatus.NONE, List.of("USER")));
     }
 
     private User createUser(String email, String fullName, String displayName, UserStatus status, boolean isMentor, MentorStatus mentorStatus) {
         String avatarSeed = (displayName != null && !displayName.isBlank() ? displayName : fullName).trim().replace(" ", "+");
-        User user = User.builder()
-                .email(email)
-                .passwordHash(passwordEncoder.encode("password"))
-                .fullName(fullName)
-                .displayName(displayName)
-                .avatarUrl("https://ui-avatars.com/api/?name=" + avatarSeed + "&background=random")
-                .bio("Demo account seeded for MentorX development.")
-                .status(status)
-                .isEmailVerified(true)
-                .isMentor(isMentor)
-                .mentorStatus(mentorStatus)
-                .preferredLanguage(SupportedLanguage.vi)
-                .profileIsPublic(true)
-                .isOnboarded(true)
-                .build();
+        Optional<User> existingUser = userRepository.findByEmail(email);
+        User user = existingUser.orElseGet(User::new);
+        user.setEmail(email);
+        user.setPasswordHash(existingUser.map(User::getPasswordHash).orElseGet(() -> passwordEncoder.encode("password")));
+        user.setFullName(fullName);
+        user.setDisplayName(displayName);
+        user.setAvatarUrl("https://ui-avatars.com/api/?name=" + avatarSeed + "&background=random");
+        user.setBio("Demo account seeded for MentorX development.");
+        user.setStatus(status);
+        user.setIsEmailVerified(true);
+        user.setIsMentor(isMentor);
+        user.setMentorStatus(mentorStatus);
+        user.setPreferredLanguage(SupportedLanguage.vi);
+        user.setProfileIsPublic(true);
+        user.setIsOnboarded(true);
         return userRepository.save(user);
     }
 
@@ -428,6 +430,45 @@ public class DatabaseSeeder implements CommandLineRunner {
                 27,
                 false
         ), approver);
+
+        seedMentorProfile(new MentorProfileSeed(
+                "mentor4@mentorx.demo",
+                "Pham Gia Linh",
+                "Linh Pham",
+                "Frontend architecture and React performance mentor",
+                "PART_TIME",
+                new BigDecimal("410.00"),
+                (short) 7,
+                new BigDecimal("4.85"),
+                25,
+                true
+        ), approver);
+
+        seedMentorProfile(new MentorProfileSeed(
+                "mentor5@mentorx.demo",
+                "Do Hoang Nam",
+                "Nam Do",
+                "Product analytics and experimentation mentor",
+                "FLEXIBLE",
+                new BigDecimal("430.00"),
+                (short) 9,
+                new BigDecimal("4.75"),
+                29,
+                false
+        ), approver);
+
+        seedMentorProfile(new MentorProfileSeed(
+                "mentor6@mentorx.demo",
+                "Vu Thu Ha",
+                "Ha Vu",
+                "Career coaching and communication mentor for tech teams",
+                "FULL_TIME",
+                new BigDecimal("360.00"),
+                (short) 5,
+                new BigDecimal("4.88"),
+                22,
+                true
+        ), approver);
     }
 
     private void seedMentorProfile(MentorProfileSeed seed, User approver) {
@@ -464,6 +505,29 @@ public class DatabaseSeeder implements CommandLineRunner {
                 .averageRating(seed.averageRating())
                 .totalReviews(seed.totalReviews())
                 .isFeatured(seed.featured())
+                .location("Vietnam")
+                .languages(List.of("vi", "en"))
+                .currentTitle(seed.headline())
+                .currentCompany("MentorX Demo Network")
+                .primaryDomain(seed.headline())
+                .skills(List.of(seed.headline(), "mentoring", "delivery"))
+                .professionalBio("Seeded mentor profile for development and QA scenarios.")
+                .helpDescription("Supports practical mentoring, reviews, and structured feedback.")
+                .mentorAgreementAccepted(true)
+                .disputePolicyAccepted(true)
+                .submittedAt(LocalDateTime.now().minusDays(14))
+                .expertiseStatus(VerificationStatus.APPROVED)
+                .identityStatus(VerificationStatus.APPROVED)
+                .identityRequired(true)
+                .phoneVerified(true)
+                .identityVerifiedAt(LocalDateTime.now().minusDays(10))
+                .identityVerifiedBy(approver)
+                .verificationProvider("seeded-dev-data")
+                .payoutStatus(VerificationStatus.APPROVED)
+                .payoutCountry("VN")
+                .payoutMethod(PayoutMethod.LOCAL_BANK)
+                .payoutReviewedBy(approver)
+                .payoutReviewedAt(LocalDateTime.now().minusDays(9))
                 .portfolioUrl("https://mentorx.local/portfolio/" + seed.displayName().toLowerCase().replace(" ", "-"))
                 .approvedBy(approver)
                 .approvedAt(LocalDateTime.now())
@@ -481,8 +545,12 @@ public class DatabaseSeeder implements CommandLineRunner {
         }
 
         Integer devCategoryId = categoryRepository.findBySlug("software-dev").map(Category::getId).orElse(null);
+        Integer dataCategoryId = categoryRepository.findBySlug("data-ai").map(Category::getId).orElse(null);
         Integer designCategoryId = categoryRepository.findBySlug("design").map(Category::getId).orElse(null);
+        Integer businessCategoryId = categoryRepository.findBySlug("business-finance").map(Category::getId).orElse(null);
+        String sampleDocumentUrl = ensureSampleDocument("mentorx-sample-document", "MentorX Sample Document");
 
+        if (courseRepository.findBySlugAndDeletedAtIsNull("spring-boot-foundations").isEmpty()) {
         Course course1 = Course.builder()
                 .instructor(mentor1)
                 .categoryId(devCategoryId)
@@ -504,7 +572,7 @@ public class DatabaseSeeder implements CommandLineRunner {
                 .build();
         course1 = courseRepository.save(course1);
 
-        String sampleDocumentUrl = ensureSampleDocument("mentorx-sample-document", "MentorX Sample Document");
+        sampleDocumentUrl = ensureSampleDocument("mentorx-sample-document", "MentorX Sample Document");
 
         CourseSection course1Section1 = createSection(course1, 1, "Khởi động dự án", "Cài đặt môi trường và hiểu cấu trúc dự án.");
         createLesson(course1Section1, 1, "Giới thiệu khóa học", "Tổng quan lộ trình và kết quả đạt được.", LessonType.VIDEO, 8, true,
@@ -521,7 +589,9 @@ public class DatabaseSeeder implements CommandLineRunner {
         updateSectionDuration(course1Section2);
 
         updateCourseTotals(course1);
+        }
 
+        if (courseRepository.findBySlugAndDeletedAtIsNull("ux-design-sprint").isEmpty()) {
         Course course2 = Course.builder()
                 .instructor(mentor2)
                 .categoryId(designCategoryId)
@@ -558,7 +628,9 @@ public class DatabaseSeeder implements CommandLineRunner {
         updateSectionDuration(course2Section2);
 
         updateCourseTotals(course2);
+        }
 
+        if (courseRepository.findBySlugAndDeletedAtIsNull("api-checklist-pack").isEmpty()) {
         Course course3 = Course.builder()
                 .instructor(mentor1)
                 .categoryId(devCategoryId)
@@ -587,6 +659,97 @@ public class DatabaseSeeder implements CommandLineRunner {
         updateSectionDuration(course3Section1);
 
         updateCourseTotals(course3);
+        }
+
+        if (courseRepository.findBySlugAndDeletedAtIsNull("data-storytelling-lab").isEmpty()) {
+            Course course4 = Course.builder()
+                    .instructor(userRepository.findByEmail("mentor3@mentorx.demo").orElseThrow())
+                    .categoryId(dataCategoryId)
+                    .title("Data Storytelling Lab for Product Dashboards")
+                    .slug("data-storytelling-lab")
+                    .description("Turn product metrics into clear decisions with dashboard framing and analytics communication.")
+                    .thumbnailUrl("https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80")
+                    .priceMxc(new BigDecimal("169.00"))
+                    .status(CourseStatus.PUBLISHED)
+                    .language(SupportedLanguage.en)
+                    .level("Intermediate")
+                    .isCertificate(true)
+                    .averageRating(new BigDecimal("4.75"))
+                    .totalReviews(17)
+                    .totalEnrollments(88)
+                    .publishedAt(LocalDateTime.now().minusDays(5))
+                    .reviewedBy(reviewer)
+                    .build();
+            course4 = courseRepository.save(course4);
+
+            CourseSection course4Section1 = createSection(course4, 1, "Metrics that matter", "Pick metrics, frame decisions, and avoid vanity reporting.");
+            createLesson(course4Section1, 1, "Decision-first dashboards", "Build dashboard narratives that drive action.", LessonType.VIDEO, 15, true,
+                    "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4", null, null);
+            createLesson(course4Section1, 2, "Dashboard note template", "Use a structured summary for stakeholders.", LessonType.ARTICLE, 11, false,
+                    null, "Reusable summary template for dashboard insights and action notes.", sampleDocumentUrl);
+            updateSectionDuration(course4Section1);
+            updateCourseTotals(course4);
+        }
+
+        if (courseRepository.findBySlugAndDeletedAtIsNull("react-performance-clinic").isEmpty()) {
+            Course course5 = Course.builder()
+                    .instructor(userRepository.findByEmail("mentor4@mentorx.demo").orElseThrow())
+                    .categoryId(devCategoryId)
+                    .title("React Performance Clinic")
+                    .slug("react-performance-clinic")
+                    .description("Profile, trim, and restructure React apps for reliable production performance.")
+                    .thumbnailUrl("https://images.unsplash.com/photo-1515879218367-8466d910aaa4?auto=format&fit=crop&w=1200&q=80")
+                    .priceMxc(new BigDecimal("189.00"))
+                    .status(CourseStatus.PUBLISHED)
+                    .language(SupportedLanguage.en)
+                    .level("Advanced")
+                    .isCertificate(true)
+                    .averageRating(new BigDecimal("4.82"))
+                    .totalReviews(13)
+                    .totalEnrollments(54)
+                    .publishedAt(LocalDateTime.now().minusDays(6))
+                    .reviewedBy(reviewer)
+                    .build();
+            course5 = courseRepository.save(course5);
+
+            CourseSection course5Section1 = createSection(course5, 1, "Find real bottlenecks", "Use measurement before optimization.");
+            createLesson(course5Section1, 1, "Profiler workflow", "Measure render cost and interaction lag.", LessonType.VIDEO, 17, true,
+                    "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4", null, null);
+            createLesson(course5Section1, 2, "Performance checklist", "A repeatable list for state shape, rendering, and async UI coordination.", LessonType.ARTICLE, 8, false,
+                    null, "Checklist for state shape, network coordination, and render hot paths.", sampleDocumentUrl);
+            updateSectionDuration(course5Section1);
+            updateCourseTotals(course5);
+        }
+
+        if (courseRepository.findBySlugAndDeletedAtIsNull("career-growth-toolkit").isEmpty()) {
+            Course course6 = Course.builder()
+                    .instructor(userRepository.findByEmail("mentor6@mentorx.demo").orElseThrow())
+                    .categoryId(businessCategoryId)
+                    .title("Career Growth Toolkit for Tech Professionals")
+                    .slug("career-growth-toolkit")
+                    .description("Improve communication, interview readiness, and promotion planning with concrete weekly exercises.")
+                    .thumbnailUrl("https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1200&q=80")
+                    .priceMxc(new BigDecimal("129.00"))
+                    .status(CourseStatus.PUBLISHED)
+                    .language(SupportedLanguage.vi)
+                    .level("Beginner")
+                    .isCertificate(false)
+                    .averageRating(new BigDecimal("4.90"))
+                    .totalReviews(21)
+                    .totalEnrollments(120)
+                    .publishedAt(LocalDateTime.now().minusDays(2))
+                    .reviewedBy(reviewer)
+                    .build();
+            course6 = courseRepository.save(course6);
+
+            CourseSection course6Section1 = createSection(course6, 1, "Communicate clearly", "Write and speak with structure in team settings.");
+            createLesson(course6Section1, 1, "Status update structure", "Keep updates concrete and easy to act on.", LessonType.VIDEO, 12, true,
+                    "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4", null, null);
+            createLesson(course6Section1, 2, "Interview answer worksheet", "Document stories for interviews and promotion packets.", LessonType.ARTICLE, 9, false,
+                    null, "Worksheet for project stories, tradeoffs, and measurable impact.", sampleDocumentUrl);
+            updateSectionDuration(course6Section1);
+            updateCourseTotals(course6);
+        }
     }
 
     private CourseSection createSection(Course course, int order, String title, String description) {
@@ -710,9 +873,8 @@ public class DatabaseSeeder implements CommandLineRunner {
     }
 
     private void setupUserAccount(User user) {
-        // Wallets
-        walletRepository.save(Wallet.builder().user(user).accountType(WalletAccountType.USER_AVAILABLE).balanceMxc(new BigDecimal("1000.00")).build());
-        walletRepository.save(Wallet.builder().user(user).accountType(WalletAccountType.USER_PENDING).balanceMxc(BigDecimal.ZERO).build());
+        ensureSingleWalletAccount(user, WalletAccountType.USER_AVAILABLE, new BigDecimal("1000.00"));
+        ensureSingleWalletAccount(user, WalletAccountType.USER_PENDING, BigDecimal.ZERO);
 
         // Notification Preferences
         notificationPreferenceRepository.save(NotificationPreference.builder()
@@ -727,21 +889,8 @@ public class DatabaseSeeder implements CommandLineRunner {
     }
 
     private void setupUserAccountIfMissing(User user) {
-        if (walletRepository.findByUserIdAndAccountType(user.getId(), WalletAccountType.USER_AVAILABLE).isEmpty()) {
-            walletRepository.save(Wallet.builder()
-                    .user(user)
-                    .accountType(WalletAccountType.USER_AVAILABLE)
-                    .balanceMxc(new BigDecimal("1000.00"))
-                    .build());
-        }
-
-        if (walletRepository.findByUserIdAndAccountType(user.getId(), WalletAccountType.USER_PENDING).isEmpty()) {
-            walletRepository.save(Wallet.builder()
-                    .user(user)
-                    .accountType(WalletAccountType.USER_PENDING)
-                    .balanceMxc(BigDecimal.ZERO)
-                    .build());
-        }
+        ensureSingleWalletAccount(user, WalletAccountType.USER_AVAILABLE, new BigDecimal("1000.00"));
+        ensureSingleWalletAccount(user, WalletAccountType.USER_PENDING, BigDecimal.ZERO);
 
         if (!notificationPreferenceRepository.existsByUserId(user.getId())) {
             notificationPreferenceRepository.save(NotificationPreference.builder()
@@ -756,7 +905,35 @@ public class DatabaseSeeder implements CommandLineRunner {
         }
     }
 
+    private void ensureSingleWalletAccount(User user, WalletAccountType accountType, BigDecimal initialBalance) {
+        List<Wallet> wallets = new ArrayList<>(walletRepository.findAllByUserIdAndAccountType(user.getId(), accountType));
+        if (wallets.isEmpty()) {
+            walletRepository.save(Wallet.builder()
+                    .user(user)
+                    .accountType(accountType)
+                    .balanceMxc(initialBalance)
+                    .build());
+            return;
+        }
+
+        Wallet primary = wallets.get(0);
+        primary.setUser(user);
+        primary.setAccountType(accountType);
+        if (primary.getBalanceMxc() == null) {
+            primary.setBalanceMxc(initialBalance);
+        }
+        walletRepository.save(primary);
+
+        if (wallets.size() > 1) {
+            walletRepository.deleteAll(wallets.subList(1, wallets.size()));
+        }
+    }
+
     private void seedJobs() {
+        if (jobRepository.findAll().stream().anyMatch(job -> "Backend Developer for Spring Boot API".equals(job.getTitle()))) {
+            return;
+        }
+
         User client = userRepository.findByEmail("client1@mentorx.demo")
                 .orElseGet(() -> {
                     User user = createUser("client1@mentorx.demo", "ABC Company", "ABC Company", UserStatus.ACTIVE, false, MentorStatus.NONE);
@@ -833,10 +1010,61 @@ public class DatabaseSeeder implements CommandLineRunner {
                         .publishedAt(now.minusDays(4))
                         .build()
         ));
+
+        createJobIfMissing(ensureDemoUser("client2@mentorx.demo", "XYZ Startup", "XYZ Startup", false, MentorStatus.NONE),
+                softwareCategoryId, JobType.QUICK_FIX, "React Dashboard Performance Audit",
+                "Find rendering bottlenecks and propose a safe refactor plan for a React analytics dashboard.",
+                BudgetType.HOURLY, null, null, new BigDecimal("420.00"), new BigDecimal("10.00"),
+                now.plusDays(12), JobStatus.OPEN, true, now.minusDays(2));
+        createJobIfMissing(ensureDemoUser("client2@mentorx.demo", "XYZ Startup", "XYZ Startup", false, MentorStatus.NONE),
+                dataCategoryId, JobType.FREELANCE_PROJECT, "SQL Query Review for BI Warehouse",
+                "Review warehouse queries, index usage, and dashboard query costs for a BI team.",
+                BudgetType.FIXED, new BigDecimal("800.00"), new BigDecimal("1600.00"), null, null,
+                now.plusDays(16), JobStatus.OPEN, false, now.minusDays(5));
+        createJobIfMissing(ensureDemoUser("client3@mentorx.demo", "DEF Enterprise", "DEF Enterprise", false, MentorStatus.NONE),
+                designCategoryId, JobType.LONG_TERM_MENTORING, "Design System Coaching for Startup Team",
+                "Coach a small team on component consistency, handoff discipline, and design token adoption.",
+                BudgetType.FIXED, new BigDecimal("1100.00"), new BigDecimal("2200.00"), null, null,
+                now.plusDays(24), JobStatus.OPEN, false, now.minusDays(3));
+        createJobIfMissing(ensureDemoUser("client3@mentorx.demo", "DEF Enterprise", "DEF Enterprise", false, MentorStatus.NONE),
+                businessCategoryId, JobType.QUICK_FIX, "Interview Preparation for Engineering Manager",
+                "Need a mentor to rehearse leadership stories, technical judgment, and stakeholder communication.",
+                BudgetType.HOURLY, null, null, new BigDecimal("300.00"), new BigDecimal("5.00"),
+                now.plusDays(9), JobStatus.OPEN, false, now.minusDays(1));
+        createJobIfMissing(ensureDemoUser("client4@mentorx.demo", "Northwind Labs", "Northwind Labs", false, MentorStatus.NONE),
+                softwareCategoryId, JobType.LONG_TERM_MENTORING, "Java Refactoring Mentorship",
+                "Need weekly guidance to simplify a legacy Spring codebase without breaking delivery.",
+                BudgetType.FIXED, new BigDecimal("1300.00"), new BigDecimal("2600.00"), null, null,
+                now.plusDays(28), JobStatus.OPEN, true, now.minusDays(6));
+        createJobIfMissing(ensureDemoUser("client4@mentorx.demo", "Northwind Labs", "Northwind Labs", false, MentorStatus.NONE),
+                designCategoryId, JobType.FREELANCE_PROJECT, "Landing Page Copy and UX Critique",
+                "Review messaging hierarchy, CTA placement, and friction points on a SaaS landing page.",
+                BudgetType.FIXED, new BigDecimal("700.00"), new BigDecimal("1200.00"), null, null,
+                now.plusDays(11), JobStatus.OPEN, false, now.minusDays(2));
+        createJobIfMissing(ensureDemoUser("client5@mentorx.demo", "BluePeak Studio", "BluePeak Studio", false, MentorStatus.NONE),
+                dataCategoryId, JobType.QUICK_FIX, "Product Metrics Framework Setup",
+                "Need help defining activation, retention, and monetization metrics for a B2B app.",
+                BudgetType.HOURLY, null, null, new BigDecimal("460.00"), new BigDecimal("7.00"),
+                now.plusDays(13), JobStatus.OPEN, true, now.minusDays(4));
+        createJobIfMissing(ensureDemoUser("client5@mentorx.demo", "BluePeak Studio", "BluePeak Studio", false, MentorStatus.NONE),
+                businessCategoryId, JobType.LONG_TERM_MENTORING, "Career Coaching for Mid-level Engineer",
+                "Looking for structured mentorship on promotion planning and communication habits.",
+                BudgetType.FIXED, new BigDecimal("600.00"), new BigDecimal("1400.00"), null, null,
+                now.plusDays(20), JobStatus.OPEN, false, now.minusDays(2));
+        createJobIfMissing(ensureDemoUser("client6@mentorx.demo", "Mekong Analytics", "Mekong Analytics", false, MentorStatus.NONE),
+                softwareCategoryId, JobType.FREELANCE_PROJECT, "API Error Handling Review",
+                "Audit error codes, response consistency, and exception handling in a production API.",
+                BudgetType.FIXED, new BigDecimal("950.00"), new BigDecimal("1700.00"), null, null,
+                now.plusDays(15), JobStatus.OPEN, false, now.minusDays(3));
+        createJobIfMissing(ensureDemoUser("client6@mentorx.demo", "Mekong Analytics", "Mekong Analytics", false, MentorStatus.NONE),
+                dataCategoryId, JobType.LONG_TERM_MENTORING, "Dashboard Narrative Mentoring",
+                "Help an analytics team improve stakeholder communication through better dashboard narratives.",
+                BudgetType.FIXED, new BigDecimal("1000.00"), new BigDecimal("1900.00"), null, null,
+                now.plusDays(18), JobStatus.OPEN, false, now.minusDays(3));
     }
 
     private void seedProposals() {
-        List<Job> openJobs = jobRepository.findOpen(PageRequest.of(0, 20)).getContent();
+        List<Job> openJobs = jobRepository.findOpen(PageRequest.of(0, 50)).getContent();
         Optional<Job> backendJob = openJobs.stream()
                 .filter(job -> "Backend Developer for Spring Boot API".equals(job.getTitle()))
                 .findFirst();
@@ -849,10 +1077,43 @@ public class DatabaseSeeder implements CommandLineRunner {
         Optional<Job> strategyJob = openJobs.stream()
                 .filter(job -> "Go-to-Market Strategy Consultation".equals(job.getTitle()))
                 .findFirst();
+        Optional<Job> reactPerfJob = openJobs.stream()
+                .filter(job -> "React Dashboard Performance Audit".equals(job.getTitle()))
+                .findFirst();
+        Optional<Job> sqlReviewJob = openJobs.stream()
+                .filter(job -> "SQL Query Review for BI Warehouse".equals(job.getTitle()))
+                .findFirst();
+        Optional<Job> designSystemJob = openJobs.stream()
+                .filter(job -> "Design System Coaching for Startup Team".equals(job.getTitle()))
+                .findFirst();
+        Optional<Job> interviewPrepJob = openJobs.stream()
+                .filter(job -> "Interview Preparation for Engineering Manager".equals(job.getTitle()))
+                .findFirst();
+        Optional<Job> javaMentorshipJob = openJobs.stream()
+                .filter(job -> "Java Refactoring Mentorship".equals(job.getTitle()))
+                .findFirst();
+        Optional<Job> landingPageJob = openJobs.stream()
+                .filter(job -> "Landing Page Copy and UX Critique".equals(job.getTitle()))
+                .findFirst();
+        Optional<Job> metricsFrameworkJob = openJobs.stream()
+                .filter(job -> "Product Metrics Framework Setup".equals(job.getTitle()))
+                .findFirst();
+        Optional<Job> careerCoachingJob = openJobs.stream()
+                .filter(job -> "Career Coaching for Mid-level Engineer".equals(job.getTitle()))
+                .findFirst();
+        Optional<Job> apiErrorHandlingJob = openJobs.stream()
+                .filter(job -> "API Error Handling Review".equals(job.getTitle()))
+                .findFirst();
+        Optional<Job> dashboardNarrativeJob = openJobs.stream()
+                .filter(job -> "Dashboard Narrative Mentoring".equals(job.getTitle()))
+                .findFirst();
 
         User mentor1 = userRepository.findByEmail("mentor1@mentorx.demo").orElse(null);
         User mentor2 = userRepository.findByEmail("mentor2@mentorx.demo").orElse(null);
         User mentor3 = userRepository.findByEmail("mentor3@mentorx.demo").orElse(null);
+        User mentor4 = userRepository.findByEmail("mentor4@mentorx.demo").orElse(null);
+        User mentor5 = userRepository.findByEmail("mentor5@mentorx.demo").orElse(null);
+        User mentor6 = userRepository.findByEmail("mentor6@mentorx.demo").orElse(null);
 
         backendJob.ifPresent(job -> {
             seedProposal(job, mentor1,
@@ -921,6 +1182,190 @@ public class DatabaseSeeder implements CommandLineRunner {
             job.setProposalCount((int) proposalRepository.findByJobId(job.getId(), PageRequest.of(0, 100)).getTotalElements());
             jobRepository.save(job);
         });
+
+        reactPerfJob.ifPresent(job -> {
+            seedProposal(job, mentor4,
+                    "I will profile the current dashboard, isolate expensive rendering paths, and propose a staged refactor that avoids regressions in data-heavy views.",
+                    new BigDecimal("1450.00"),
+                    new BigDecimal("420.00"),
+                    6,
+                    "React performance, TypeScript architecture, and dashboard optimization in production products.",
+                    new BigDecimal("95.00"),
+                    ProposalStatus.SUBMITTED);
+            seedProposal(job, mentor1,
+                    "I can complement the UI work with API and state-shape recommendations so performance improvements hold across the full stack.",
+                    new BigDecimal("1320.00"),
+                    new BigDecimal("390.00"),
+                    7,
+                    "Full-stack optimization across React frontends and Spring-based APIs.",
+                    new BigDecimal("87.00"),
+                    ProposalStatus.SUBMITTED);
+            updateJobProposalCount(job);
+        });
+
+        sqlReviewJob.ifPresent(job -> {
+            seedProposal(job, mentor3,
+                    "I can review query plans, warehouse table usage, and dashboard serving patterns to reduce cost and improve analyst experience.",
+                    new BigDecimal("1180.00"),
+                    null,
+                    8,
+                    "Analytics engineering, SQL optimization, and dashboard reliability for product teams.",
+                    new BigDecimal("93.00"),
+                    ProposalStatus.SUBMITTED);
+            seedProposal(job, mentor5,
+                    "I can focus on metric semantics, warehouse query quality, and making the resulting dashboards decision-ready for stakeholders.",
+                    new BigDecimal("1090.00"),
+                    null,
+                    9,
+                    "Growth analytics, KPI design, and metric governance for B2B products.",
+                    new BigDecimal("90.00"),
+                    ProposalStatus.SUBMITTED);
+            updateJobProposalCount(job);
+        });
+
+        designSystemJob.ifPresent(job -> {
+            seedProposal(job, mentor2,
+                    "I can coach the team through token decisions, component boundaries, and a documentation process that dev and design can share.",
+                    new BigDecimal("1800.00"),
+                    null,
+                    18,
+                    "Design systems, onboarding UX, and collaborative handoff practices.",
+                    new BigDecimal("92.00"),
+                    ProposalStatus.SUBMITTED);
+            seedProposal(job, mentor4,
+                    "I can pair the design system work with implementation guidance so the component model stays maintainable in React.",
+                    new BigDecimal("1950.00"),
+                    null,
+                    20,
+                    "Frontend architecture and system-scale component maintenance.",
+                    new BigDecimal("89.00"),
+                    ProposalStatus.SUBMITTED);
+            updateJobProposalCount(job);
+        });
+
+        interviewPrepJob.ifPresent(job -> {
+            seedProposal(job, mentor6,
+                    "I can structure targeted mock interviews around leadership stories, conflict management, and decision-making tradeoffs.",
+                    new BigDecimal("860.00"),
+                    new BigDecimal("300.00"),
+                    5,
+                    "Career coaching, communication drills, and promotion preparation for technical professionals.",
+                    new BigDecimal("94.00"),
+                    ProposalStatus.SUBMITTED);
+            updateJobProposalCount(job);
+        });
+
+        javaMentorshipJob.ifPresent(job -> {
+            seedProposal(job, mentor1,
+                    "I can guide a weekly refactor roadmap focused on service boundaries, persistence cleanup, and safe incremental delivery.",
+                    new BigDecimal("2200.00"),
+                    null,
+                    21,
+                    "Java refactoring, Spring modularization, and maintainable backend design.",
+                    new BigDecimal("96.00"),
+                    ProposalStatus.SUBMITTED);
+            seedProposal(job, mentor4,
+                    "I can contribute on code review process and frontend-facing contract stability while the backend is being simplified.",
+                    new BigDecimal("1750.00"),
+                    null,
+                    18,
+                    "Architecture review across API contracts and delivery coordination.",
+                    new BigDecimal("84.00"),
+                    ProposalStatus.SUBMITTED);
+            updateJobProposalCount(job);
+        });
+
+        landingPageJob.ifPresent(job -> {
+            seedProposal(job, mentor2,
+                    "I can audit the landing page copy hierarchy, CTA clarity, and trust signals, then deliver prioritized recommendations with examples.",
+                    new BigDecimal("980.00"),
+                    null,
+                    6,
+                    "Conversion-focused UX review and product messaging refinement.",
+                    new BigDecimal("91.00"),
+                    ProposalStatus.SUBMITTED);
+            seedProposal(job, mentor6,
+                    "I can sharpen the messaging for audience fit and make the value proposition easier to repeat in sales and recruiting conversations.",
+                    new BigDecimal("920.00"),
+                    null,
+                    7,
+                    "Communication coaching and narrative structuring for product teams.",
+                    new BigDecimal("85.00"),
+                    ProposalStatus.SUBMITTED);
+            updateJobProposalCount(job);
+        });
+
+        metricsFrameworkJob.ifPresent(job -> {
+            seedProposal(job, mentor5,
+                    "I can define a practical metrics tree and help you align activation, retention, and monetization around decision-making needs.",
+                    new BigDecimal("1280.00"),
+                    new BigDecimal("460.00"),
+                    8,
+                    "Product analytics leadership, experimentation, and KPI frameworks.",
+                    new BigDecimal("95.00"),
+                    ProposalStatus.SUBMITTED);
+            seedProposal(job, mentor3,
+                    "I can validate the event quality and dashboard model behind the metric framework so analysis stays reliable.",
+                    new BigDecimal("1210.00"),
+                    new BigDecimal("430.00"),
+                    9,
+                    "Data modeling, event analysis, and dashboard reliability.",
+                    new BigDecimal("90.00"),
+                    ProposalStatus.SUBMITTED);
+            updateJobProposalCount(job);
+        });
+
+        careerCoachingJob.ifPresent(job -> {
+            seedProposal(job, mentor6,
+                    "I can run a focused growth plan with weekly exercises covering visibility, stakeholder communication, and promotion evidence.",
+                    new BigDecimal("940.00"),
+                    null,
+                    16,
+                    "Career systems, communication coaching, and interview preparation.",
+                    new BigDecimal("93.00"),
+                    ProposalStatus.SUBMITTED);
+            updateJobProposalCount(job);
+        });
+
+        apiErrorHandlingJob.ifPresent(job -> {
+            seedProposal(job, mentor1,
+                    "I can audit exception mapping, error code consistency, and service boundaries so the API fails predictably without hiding root causes.",
+                    new BigDecimal("1400.00"),
+                    null,
+                    10,
+                    "Spring API design, exception handling, and maintainable service boundaries.",
+                    new BigDecimal("94.00"),
+                    ProposalStatus.SUBMITTED);
+            seedProposal(job, mentor3,
+                    "I can review the data-facing failure paths and logging assumptions to ensure reporting and analytics remain trustworthy.",
+                    new BigDecimal("1220.00"),
+                    null,
+                    9,
+                    "Data-heavy service reliability and failure analysis.",
+                    new BigDecimal("86.00"),
+                    ProposalStatus.SUBMITTED);
+            updateJobProposalCount(job);
+        });
+
+        dashboardNarrativeJob.ifPresent(job -> {
+            seedProposal(job, mentor5,
+                    "I can mentor the team on turning dashboard output into concise action-oriented narratives for stakeholders and leadership.",
+                    new BigDecimal("1340.00"),
+                    null,
+                    12,
+                    "Analytics communication, experimentation, and stakeholder alignment.",
+                    new BigDecimal("92.00"),
+                    ProposalStatus.SUBMITTED);
+            seedProposal(job, mentor6,
+                    "I can support the communication side so analysts present tradeoffs and decisions with more confidence and structure.",
+                    new BigDecimal("990.00"),
+                    null,
+                    12,
+                    "Structured communication coaching for technical teams.",
+                    new BigDecimal("83.00"),
+                    ProposalStatus.SUBMITTED);
+            updateJobProposalCount(job);
+        });
     }
 
     private void seedMentorPackages() {
@@ -945,6 +1390,27 @@ public class DatabaseSeeder implements CommandLineRunner {
                         "Metric review", "Dashboard critique", "Actionable recommendations"),
                 buildMentorPackage("Analytics Coaching Pack", "Multi-session coaching on SQL, KPI design, and decision-ready dashboarding.", PackageType.SUBSCRIPTION, 4, "1850.00", 2,
                         "4 guided sessions", "Query review", "Project feedback")
+        ));
+
+        seedMentorPackagesForProfile(requireMentorProfile("mentor4@mentorx.demo"), List.of(
+                buildMentorPackage("React Performance Review", "Targeted review of rendering cost, state shape, and frontend delivery risks.", PackageType.SINGLE_SESSION, 1, "410.00", 1,
+                        "Profiler walkthrough", "Optimization notes", "Follow-up checklist"),
+                buildMentorPackage("Frontend Architecture Sprint", "Short sprint to stabilize component boundaries and async UI behavior.", PackageType.PACKAGE_DEAL, 3, "1150.00", 2,
+                        "Codebase walkthrough", "Architecture recommendations", "Refactor plan")
+        ));
+
+        seedMentorPackagesForProfile(requireMentorProfile("mentor5@mentorx.demo"), List.of(
+                buildMentorPackage("Metrics Framework Session", "Define key product metrics and decision-ready KPI structure.", PackageType.SINGLE_SESSION, 1, "430.00", 1,
+                        "Metric tree", "Instrumentation review", "Next-step recommendations"),
+                buildMentorPackage("Growth Analytics Coaching", "Recurring sessions on experimentation, retention, and analytics storytelling.", PackageType.SUBSCRIPTION, 4, "1700.00", 2,
+                        "Weekly analytics review", "Experiment feedback", "Stakeholder narrative coaching")
+        ));
+
+        seedMentorPackagesForProfile(requireMentorProfile("mentor6@mentorx.demo"), List.of(
+                buildMentorPackage("Interview Readiness Session", "Sharpen technical stories, tradeoff communication, and interview confidence.", PackageType.SINGLE_SESSION, 1, "360.00", 1,
+                        "Mock interview", "Story feedback", "Action notes"),
+                buildMentorPackage("Career Growth Plan", "Structured coaching on promotion readiness and communication systems.", PackageType.PACKAGE_DEAL, 2, "690.00", 2,
+                        "Growth plan", "Weekly habits", "Promotion packet guidance")
         ));
     }
 
@@ -997,6 +1463,24 @@ public class DatabaseSeeder implements CommandLineRunner {
                 buildAvailability(4, "20:00", "22:00"),
                 buildAvailability(6, "14:00", "16:00")
         ));
+
+        seedAvailabilityForProfile(requireMentorProfile("mentor4@mentorx.demo"), List.of(
+                buildAvailability(2, "19:30", "21:30"),
+                buildAvailability(5, "19:30", "21:30"),
+                buildAvailability(7, "10:00", "12:00")
+        ));
+
+        seedAvailabilityForProfile(requireMentorProfile("mentor5@mentorx.demo"), List.of(
+                buildAvailability(3, "18:30", "20:00"),
+                buildAvailability(5, "08:30", "10:00"),
+                buildAvailability(7, "14:00", "15:30")
+        ));
+
+        seedAvailabilityForProfile(requireMentorProfile("mentor6@mentorx.demo"), List.of(
+                buildAvailability(1, "20:00", "21:00"),
+                buildAvailability(4, "20:00", "21:00"),
+                buildAvailability(6, "09:00", "10:30")
+        ));
     }
 
     private void seedAvailabilityForProfile(MentorProfile profile, List<MentorAvailability> slots) {
@@ -1025,6 +1509,11 @@ public class DatabaseSeeder implements CommandLineRunner {
         User learner1 = ensureDemoUser("user1@mentorx.demo", "Lê Hà Anh", "Ha Anh", false, MentorStatus.NONE);
         User mentor1 = ensureDemoUser("mentor1@mentorx.demo", "Nguyễn Văn An", "An Nguyen", true, MentorStatus.APPROVED);
         User mentor2 = ensureDemoUser("mentor2@mentorx.demo", "Trần Thị Bình", "Binh Tran", true, MentorStatus.APPROVED);
+        User client3 = ensureDemoUser("client3@mentorx.demo", "Doanh nghiệp DEF", "DEF Enterprise", false, MentorStatus.NONE);
+        User learner2 = ensureDemoUser("user2@mentorx.demo", "Ngoc Mai", "Ngoc Mai", false, MentorStatus.NONE);
+        User learner3 = ensureDemoUser("user3@mentorx.demo", "Quang Huy", "Quang Huy", false, MentorStatus.NONE);
+        User mentor4 = ensureDemoUser("mentor4@mentorx.demo", "Pham Gia Linh", "Linh Pham", true, MentorStatus.APPROVED);
+        User mentor6 = ensureDemoUser("mentor6@mentorx.demo", "Vu Thu Ha", "Ha Vu", true, MentorStatus.APPROVED);
 
         seedReview(client1, ReviewTargetType.MENTOR, mentor1.getId(), "Strong backend guidance", "An helped us simplify a messy Spring Boot service into something the team could maintain.",
                 "Clear explanation style", "Could provide more written examples", "4.9", "4.8", "4.9", "5.0", "4.7", true, false, true,
@@ -1039,6 +1528,17 @@ public class DatabaseSeeder implements CommandLineRunner {
         Course springBootCourse = requireCourse("spring-boot-foundations");
         seedReview(learner1, ReviewTargetType.COURSE, springBootCourse.getId(), "Practical and well structured", "The course content felt very applied and the PDF resources were useful after each lesson.",
                 "Practical examples", "A few videos could be longer", "4.8", "4.7", "4.9", "4.8", "4.7", true, false, false,
+                null);
+        seedReview(client3, ReviewTargetType.MENTOR, mentor4.getId(), "Reliable frontend review", "Linh pointed out the components that actually caused our dashboard lag and kept the refactor plan realistic.",
+                "Very concrete feedback", "Could use one more live debugging session", "4.8", "4.8", "4.9", "4.7", "4.8", true, false, false,
+                null);
+        seedReview(learner2, ReviewTargetType.MENTOR, mentor6.getId(), "Useful communication coaching", "The exercises helped me make my project updates clearer and more structured in team meetings.",
+                "Actionable homework", "Wanted a longer follow-up plan", "4.9", "5.0", "4.8", "4.8", "4.7", true, false, true,
+                "Glad it helped. Keep the weekly writing habit and the structure will become natural.");
+
+        Course reactPerformanceCourse = requireCourse("react-performance-clinic");
+        seedReview(learner3, ReviewTargetType.COURSE, reactPerformanceCourse.getId(), "Advanced but practical", "The performance workflow was advanced enough for real projects and still easy to apply step by step.",
+                "Clear process", "Needs one more caching example", "4.8", "4.8", "4.9", "4.7", "4.8", true, false, false,
                 null);
     }
 
@@ -1271,12 +1771,75 @@ public class DatabaseSeeder implements CommandLineRunner {
         User user = userRepository.findByEmail(email)
                 .orElseGet(() -> createUser(email, fullName, displayName, UserStatus.ACTIVE, isMentor, mentorStatus));
 
+        user.setFullName(fullName);
+        user.setDisplayName(displayName);
+        user.setStatus(UserStatus.ACTIVE);
+        user.setIsEmailVerified(true);
+        user.setIsMentor(isMentor);
+        user.setMentorStatus(mentorStatus);
+        user.setProfileIsPublic(true);
+        user.setIsOnboarded(true);
+        userRepository.save(user);
+
         assignRoleToUserIfMissing(user, "USER");
         if (isMentor) {
             assignRoleToUserIfMissing(user, "MENTOR");
         }
         setupUserAccountIfMissing(user);
         return user;
+    }
+
+    private User ensureSeedUser(DemoUserSeed seed) {
+        User user = ensureDemoUser(seed.email(), seed.fullName(), seed.displayName(), seed.isMentor(), seed.mentorStatus());
+        for (String roleName : seed.roles()) {
+            assignRoleToUserIfMissing(user, roleName);
+        }
+        return user;
+    }
+
+    private void createJobIfMissing(
+            User client,
+            Integer categoryId,
+            JobType jobType,
+            String title,
+            String description,
+            BudgetType budgetType,
+            BigDecimal budgetMinMxc,
+            BigDecimal budgetMaxMxc,
+            BigDecimal hourlyRateMxc,
+            BigDecimal estimatedHours,
+            LocalDateTime deadlineAt,
+            JobStatus status,
+            boolean featured,
+            LocalDateTime publishedAt) {
+        boolean exists = jobRepository.findAll().stream()
+                .anyMatch(job -> title.equals(job.getTitle()));
+        if (exists) {
+            return;
+        }
+
+        jobRepository.save(Job.builder()
+                .client(client)
+                .categoryId(categoryId)
+                .jobType(jobType)
+                .title(title)
+                .description(description)
+                .budgetType(budgetType)
+                .budgetMinMxc(budgetMinMxc)
+                .budgetMaxMxc(budgetMaxMxc)
+                .hourlyRateMxc(hourlyRateMxc)
+                .estimatedHours(estimatedHours)
+                .deadlineAt(deadlineAt)
+                .status(status)
+                .isFeatured(featured)
+                .proposalCount(0)
+                .publishedAt(publishedAt)
+                .build());
+    }
+
+    private void updateJobProposalCount(Job job) {
+        job.setProposalCount((int) proposalRepository.findByJobId(job.getId(), PageRequest.of(0, 100)).getTotalElements());
+        jobRepository.save(job);
     }
 
     private MentorProfile requireMentorProfile(String email) {
@@ -1333,6 +1896,15 @@ public class DatabaseSeeder implements CommandLineRunner {
         proposal.setViewCount(0);
         proposalRepository.save(proposal);
     }
+
+    private record DemoUserSeed(
+            String email,
+            String fullName,
+            String displayName,
+            boolean isMentor,
+            MentorStatus mentorStatus,
+            List<String> roles
+    ) {}
 
     private record MentorProfileSeed(
             String email,

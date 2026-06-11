@@ -84,6 +84,17 @@ public class WalletController {
         return ResponseEntity.ok(ApiResponse.success(balances));
     }
 
+    @GetMapping("/me/balance")
+    public ResponseEntity<ApiResponse<Map<String, BigDecimal>>> getMyBalance() {
+        UUID userId = mentorModeAccessService.getCurrentUserId();
+        Map<String, BigDecimal> balances = new HashMap<>();
+        balances.put("total", walletService.getUserTotalBalance(userId));
+        balances.put("available", walletService.getUserAvailableBalance(userId));
+        balances.put("pending", walletService.getUserPendingBalance(userId));
+        balances.put("escrow", walletService.getUserEscrowBalance(userId));
+        return ResponseEntity.ok(ApiResponse.success(balances));
+    }
+
     @PostMapping("/conversion-preview")
     public ResponseEntity<ApiResponse<MxcConversionResult>> previewConversion(
             @Valid @RequestBody ConversionPreviewRequest request
