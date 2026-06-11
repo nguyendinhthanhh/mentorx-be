@@ -57,6 +57,7 @@ public class DatabaseInitializationRunner {
                 ensureCourseLessonTypesConstraintUpdated();
                 ensureQuizQuestionAnswerDataJsonIfNeeded();
                 ensureCourseStatusConstraintUpdated();
+                ensureCourseQaRecipientColumnIfNeeded();
                 return;
             }
 
@@ -76,6 +77,7 @@ public class DatabaseInitializationRunner {
                 ensureCourseLessonTypesConstraintUpdated();
                 ensureQuizQuestionAnswerDataJsonIfNeeded();
                 ensureCourseStatusConstraintUpdated();
+                ensureCourseQaRecipientColumnIfNeeded();
                 return;
             }
 
@@ -118,7 +120,31 @@ public class DatabaseInitializationRunner {
             ensureCourseLessonTypesConstraintUpdated();
             ensureQuizQuestionAnswerDataJsonIfNeeded();
             ensureCourseStatusConstraintUpdated();
+            ensureCourseQaRecipientColumnIfNeeded();
         };
+    }
+
+    private void ensureCourseQaRecipientColumnIfNeeded() {
+        if (!isSchemaAlreadyCreated()) {
+            return;
+        }
+        try {
+            jdbcTemplate.execute("ALTER TABLE course_qa_messages ADD COLUMN IF NOT EXISTS recipient_id UUID");
+            jdbcTemplate.execute("""
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM pg_constraint WHERE conname = 'fk_course_qa_recipient'
+                        ) THEN
+                            ALTER TABLE course_qa_messages
+                            ADD CONSTRAINT fk_course_qa_recipient
+                            FOREIGN KEY (recipient_id) REFERENCES users(id);
+                        END IF;
+                    END $$;
+                    """);
+        } catch (Exception e) {
+            log.warn("Could not ensure course Q&A recipient column: {}", e.getMessage());
+        }
     }
 
     private void ensureCourseStatusConstraintUpdated() {

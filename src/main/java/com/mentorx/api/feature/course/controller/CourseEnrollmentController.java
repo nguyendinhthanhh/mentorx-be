@@ -2,10 +2,12 @@ package com.mentorx.api.feature.course.controller;
 
 import com.mentorx.api.feature.course.dto.request.CourseEnrollmentCreateRequest;
 import com.mentorx.api.feature.course.dto.response.CourseEnrollmentResponse;
+import com.mentorx.api.feature.course.dto.response.CourseStatsResponse;
 import com.mentorx.api.feature.course.service.CertificateService;
 import com.mentorx.api.feature.course.service.CourseEnrollmentService;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
+import com.mentorx.api.feature.course.repository.CourseEnrollmentRepository;
 import com.mentorx.api.feature.user.entity.User;
 import com.mentorx.api.feature.user.repository.UserRepository;
 import jakarta.validation.Valid;
@@ -33,6 +35,7 @@ public class CourseEnrollmentController {
     private final CourseEnrollmentService enrollmentService;
     private final UserRepository userRepository;
     private final CertificateService certificateService;
+    private final CourseEnrollmentRepository enrollmentRepository;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('USER', 'STUDENT', 'ADMIN')")
@@ -150,6 +153,19 @@ public class CourseEnrollmentController {
     public ResponseEntity<Long> countEnrollmentsByCourseId(@PathVariable UUID courseId) {
         Long count = enrollmentService.countEnrollmentsByCourseId(courseId);
         return ResponseEntity.ok(count);
+    }
+
+    @GetMapping("/course/{courseId}/stats")
+    public ResponseEntity<CourseStatsResponse> getCourseStats(@PathVariable UUID courseId) {
+        long total = enrollmentRepository.countByCourseId(courseId);
+        long completed = enrollmentRepository.countCompletedByCourseId(courseId);
+        double completionRate = total == 0 ? 0 : (completed * 100.0) / total;
+        return ResponseEntity.ok(CourseStatsResponse.builder()
+                .courseId(courseId)
+                .totalEnrollments(total)
+                .completedEnrollments(completed)
+                .completionRate(completionRate)
+                .build());
     }
 
     @GetMapping("/student/{studentId}/count")
