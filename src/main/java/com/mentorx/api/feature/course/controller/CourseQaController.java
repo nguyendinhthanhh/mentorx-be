@@ -3,6 +3,7 @@ package com.mentorx.api.feature.course.controller;
 import com.mentorx.api.common.util.SecurityUtils;
 import com.mentorx.api.feature.course.dto.request.CourseQaMessageRequest;
 import com.mentorx.api.feature.course.dto.response.CourseQaMessageResponse;
+import com.mentorx.api.feature.course.dto.response.CourseQaSummaryResponse;
 import com.mentorx.api.feature.course.service.CourseQaService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +33,19 @@ public class CourseQaController {
     @GetMapping("/courses/{courseId}/messages")
     @PreAuthorize("isAuthenticated()")
     public List<CourseQaMessageResponse> recent(@PathVariable UUID courseId) {
-        return courseQaService.recent(courseId);
+        return courseQaService.recent(courseId, SecurityUtils.getCurrentUserId());
+    }
+
+    @GetMapping("/mentor/summaries")
+    @PreAuthorize("isAuthenticated()")
+    public List<CourseQaSummaryResponse> mentorSummaries() {
+        return courseQaService.unansweredSummariesForMentor(SecurityUtils.getCurrentUserId());
+    }
+
+    @GetMapping("/courses/{courseId}/summary")
+    @PreAuthorize("isAuthenticated()")
+    public CourseQaSummaryResponse courseSummary(@PathVariable UUID courseId) {
+        return courseQaService.unansweredSummary(courseId, SecurityUtils.getCurrentUserId());
     }
 
     @PostMapping("/courses/{courseId}/messages")

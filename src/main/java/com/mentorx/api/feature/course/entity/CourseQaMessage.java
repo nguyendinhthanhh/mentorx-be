@@ -39,6 +39,10 @@ public class CourseQaMessage extends BaseEntity {
     @JoinColumn(name = "sender_id", nullable = false)
     private User sender;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "recipient_id")
+    private User recipient;
+
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;
 }

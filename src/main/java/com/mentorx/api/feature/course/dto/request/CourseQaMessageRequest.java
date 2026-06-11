@@ -14,6 +14,7 @@ import java.util.UUID;
 @Builder
 public class CourseQaMessageRequest {
     private UUID lessonId;
+    private UUID recipientId;
 
     @NotBlank
     private String content;
