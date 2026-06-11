@@ -43,8 +43,6 @@ public record JobCreateRequest(
         BigDecimal budgetMaxMxc,
         BigDecimal hourlyRateMxc,
         BigDecimal estimatedHours,
-        
-        LocalDateTime startDate,
         @Future LocalDateTime deadlineAt,
         
         String timezone,

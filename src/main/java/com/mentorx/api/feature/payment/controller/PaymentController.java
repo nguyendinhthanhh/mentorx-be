@@ -1,12 +1,16 @@
 package com.mentorx.api.feature.payment.controller;
 
 import com.mentorx.api.common.response.ApiResponse;
+import com.mentorx.api.feature.payment.dto.request.PayOSPaymentRequest;
 import com.mentorx.api.feature.payment.dto.request.MomoPaymentRequest;
 import com.mentorx.api.feature.payment.dto.request.VNPayPaymentRequest;
+import com.mentorx.api.feature.payment.dto.response.PayOSPaymentResponse;
+import com.mentorx.api.feature.payment.dto.response.PayOSReturnResponse;
 import com.mentorx.api.feature.payment.dto.response.MomoCallbackResponse;
 import com.mentorx.api.feature.payment.dto.response.MomoPaymentResponse;
 import com.mentorx.api.feature.payment.dto.response.VNPayCallbackResponse;
 import com.mentorx.api.feature.payment.dto.response.VNPayPaymentResponse;
+import com.mentorx.api.feature.payment.service.PayOSService;
 import com.mentorx.api.feature.payment.service.MomoService;
 import com.mentorx.api.feature.payment.service.VNPayService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,6 +33,7 @@ public class PaymentController {
 
     private final VNPayService vnPayService;
     private final MomoService momoService;
+    private final PayOSService payOSService;
 
     @PostMapping("/vnpay/create")
     @Operation(summary = "Create VNPay payment URL")
@@ -51,6 +56,18 @@ public class PaymentController {
         log.info("Creating MoMo payment for amount: {}", request.getAmount());
         MomoPaymentResponse response = momoService.createPayment(request, httpRequest);
         
+        return ResponseEntity.ok(ApiResponse.success("Payment URL created successfully", response));
+    }
+
+    @PostMapping("/payos/create")
+    @Operation(summary = "Create PayOS payment URL")
+    public ResponseEntity<ApiResponse<PayOSPaymentResponse>> createPayOSPayment(
+            @Valid @RequestBody PayOSPaymentRequest request,
+            HttpServletRequest httpRequest) {
+
+        log.info("Creating PayOS payment for amount: {}", request.getAmount());
+        PayOSPaymentResponse response = payOSService.createPayment(request, httpRequest);
+
         return ResponseEntity.ok(ApiResponse.success("Payment URL created successfully", response));
     }
 
@@ -96,6 +113,28 @@ public class PaymentController {
         MomoCallbackResponse response = momoService.processReturn(params);
         
         return ResponseEntity.ok(ApiResponse.success("Payment processed", response));
+    }
+
+    @GetMapping("/payos/return")
+    @Operation(summary = "PayOS payment return URL (for frontend redirect)")
+    public ResponseEntity<ApiResponse<PayOSReturnResponse>> payOSReturn(
+            @RequestParam Map<String, String> params) {
+
+        log.info("Received PayOS return with params: {}", params.keySet());
+        PayOSReturnResponse response = payOSService.processReturn(params);
+
+        return ResponseEntity.ok(ApiResponse.success("Payment processed", response));
+    }
+
+    @PostMapping("/payos/webhook")
+    @Operation(summary = "PayOS payment webhook")
+    public ResponseEntity<ApiResponse<Void>> payOSWebhook(
+            @RequestBody Map<String, Object> payload) {
+
+        log.info("Received PayOS webhook with keys: {}", payload.keySet());
+        payOSService.processWebhook(payload);
+
+        return ResponseEntity.ok(ApiResponse.success("Webhook received", null));
     }
 
 }
