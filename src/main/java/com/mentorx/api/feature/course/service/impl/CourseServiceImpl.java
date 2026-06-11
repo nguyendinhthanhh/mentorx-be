@@ -175,10 +175,12 @@ public class CourseServiceImpl implements CourseService {
                                               String levelKeyword,
                                               String skillKeyword,
                                               Pageable pageable) {
+        String normalizedStatus = status != null ? status.name() : null;
+        String normalizedLanguage = language != null ? language.name() : null;
         String normalizedLevelKeyword = normalizeKeyword(levelKeyword);
         String normalizedSkillKeyword = normalizeKeyword(skillKeyword);
         return courseRepository
-                .findAllWithFilters(enumName(status), instructorId, categoryId, enumName(language), normalizedLevelKeyword, normalizedSkillKeyword, pageable)
+                .findAllWithFilters(normalizedStatus, instructorId, categoryId, normalizedLanguage, normalizedLevelKeyword, normalizedSkillKeyword, pageable)
                 .map(this::toResponse);
     }
 
@@ -188,10 +190,11 @@ public class CourseServiceImpl implements CourseService {
                                              String levelKeyword,
                                              String skillKeyword,
                                              Pageable pageable) {
+        String normalizedLanguage = language != null ? language.name() : null;
         String normalizedLevelKeyword = normalizeKeyword(levelKeyword);
         String normalizedSkillKeyword = normalizeKeyword(skillKeyword);
         return courseRepository
-                .findPublishedWithFilters(CourseStatus.PUBLISHED.name(), categoryId, enumName(language), normalizedLevelKeyword, normalizedSkillKeyword, pageable)
+                .findPublishedWithFilters(CourseStatus.PUBLISHED.name(), categoryId, normalizedLanguage, normalizedLevelKeyword, normalizedSkillKeyword, pageable)
                 .map(this::toResponse);
     }
 

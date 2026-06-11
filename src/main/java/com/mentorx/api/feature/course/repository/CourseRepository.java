@@ -1,7 +1,6 @@
 package com.mentorx.api.feature.course.repository;
 
 import com.mentorx.api.common.enums.CourseStatus;
-import com.mentorx.api.common.enums.SupportedLanguage;
 import com.mentorx.api.feature.course.entity.Course;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

@@ -16,6 +16,11 @@ public interface ProposalNegotiationService {
      * Mentor responds with counter-offer to client
      */
     NegotiationResponse mentorCounterOffer(NegotiationRequest request);
+
+    /**
+     * Update a pending negotiation created by the same sender
+     */
+    NegotiationResponse updatePendingNegotiation(UUID negotiationId, NegotiationRequest request);
     
     /**
      * Accept a negotiation offer

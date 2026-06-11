@@ -2,6 +2,8 @@ package com.mentorx.api.feature.review.service.impl;
 
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
+import com.mentorx.api.feature.job.enums.ContractStatus;
+import com.mentorx.api.feature.job.repository.ContractRepository;
 import com.mentorx.api.feature.review.dto.request.ReviewCreateRequest;
 import com.mentorx.api.feature.review.dto.request.ReviewUpdateRequest;
 import com.mentorx.api.feature.review.dto.response.ReviewResponse;
@@ -26,17 +28,20 @@ public class ReviewServiceImpl implements ReviewService {
 
     private final ReviewRepository reviewRepository;
     private final UserRepository userRepository;
+    private final ContractRepository contractRepository;
 
     @Override
     @Transactional
-    public ReviewResponse createReview(ReviewCreateRequest request) {
+    public ReviewResponse createReview(UUID currentUserId, ReviewCreateRequest request) {
         if (reviewRepository.findByReviewerIdAndTargetTypeAndTargetId(
-                request.reviewerId(), request.targetType(), request.targetId()).isPresent()) {
+                currentUserId, request.targetType(), request.targetId()).isPresent()) {
             throw new AppException(ErrorCode.REVIEW_ALREADY_EXISTS);
         }
 
-        User reviewer = userRepository.findById(request.reviewerId())
+        User reviewer = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        validateReviewEligibility(reviewer, request);
 
         Review review = new Review();
         review.setReviewer(reviewer);
@@ -103,6 +108,19 @@ public class ReviewServiceImpl implements ReviewService {
     }
 
     @Override
+    public boolean canReviewMentor(UUID currentUserId, UUID mentorId) {
+        if (currentUserId.equals(mentorId)) {
+            return false;
+        }
+
+        return contractRepository.existsClientMentorRelationshipExcludingStatus(
+                currentUserId,
+                mentorId,
+                ContractStatus.DRAFT
+        );
+    }
+
+    @Override
     @Transactional
     public ReviewResponse voteHelpful(UUID reviewId, boolean isHelpful) {
         Review review = findReview(reviewId);
@@ -126,6 +144,20 @@ public class ReviewServiceImpl implements ReviewService {
     private Review findReview(UUID reviewId) {
         return reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new AppException(ErrorCode.REVIEW_NOT_FOUND));
+    }
+
+    private void validateReviewEligibility(User reviewer, ReviewCreateRequest request) {
+        if (request.targetType() != ReviewTargetType.MENTOR) {
+            return;
+        }
+
+        if (reviewer.getId().equals(request.targetId())) {
+            throw new AppException(ErrorCode.CANNOT_REVIEW_SELF);
+        }
+
+        if (!canReviewMentor(reviewer.getId(), request.targetId())) {
+            throw new AppException(ErrorCode.REVIEW_NOT_ALLOWED);
+        }
     }
 
     private ReviewResponse toResponse(Review review) {

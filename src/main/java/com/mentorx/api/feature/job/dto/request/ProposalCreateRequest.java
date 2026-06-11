@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -18,6 +19,8 @@ public record ProposalCreateRequest(
         @NotNull @DecimalMin("0.0") BigDecimal proposedAmount,
         @DecimalMin("0.0") BigDecimal proposedHourlyRate,
         Integer estimatedDurationDays,
+        LocalDateTime deadlineAt,
+        @Size(max = 1000) String scopeDescription,
         LocalDate proposedStartDate,
         LocalDate proposedDeliveryDate,
         List<Map<String, Object>> proposedMilestones,

@@ -20,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -70,7 +71,25 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN') or isAuthenticated()")
     public ResponseEntity<ApiResponse<UserResponse>> updateUser(
             @Parameter(description = "User ID") @PathVariable UUID userId,
-            @Valid @RequestBody UserUpdateRequest request) {
+            @Valid @RequestBody UserUpdateRequest request,
+            Authentication authentication) {
+        if (authentication == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required"));
+        }
+
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch("ROLE_ADMIN"::equals);
+
+        if (!isAdmin) {
+            UserResponse currentUser = userService.getUserByEmail(authentication.getName());
+            if (!currentUser.id().equals(userId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.error("You can only update your own profile"));
+            }
+        }
+
         UserResponse user = userService.updateUser(userId, request);
         return ResponseEntity.ok(ApiResponse.success("User updated successfully", user));
     }

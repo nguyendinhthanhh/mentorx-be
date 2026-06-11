@@ -3,9 +3,12 @@ package com.mentorx.api.feature.job.repository;
 import com.mentorx.api.common.enums.JobStatus;
 import com.mentorx.api.common.enums.JobType;
 import com.mentorx.api.feature.job.entity.Job;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -14,6 +17,10 @@ import java.util.UUID;
 
 @Repository
 public interface JobRepository extends JpaRepository<Job, UUID> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT j FROM Job j WHERE j.id = :jobId")
+    java.util.Optional<Job> findByIdForUpdate(@Param("jobId") UUID jobId);
 
     Page<Job> findByClientId(UUID clientId, Pageable pageable);
 
@@ -45,14 +52,14 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
                     "AND j.status = 'OPEN' " +
                     "AND (:jobType IS NULL OR j.job_type = CAST(:jobType AS varchar)) " +
                     "AND (:categoryId IS NULL OR j.category_id = :categoryId) " +
-                    "AND (:skillKeyword IS NULL OR LOWER(CAST(j.required_skills AS text)) LIKE LOWER(CONCAT('%', :skillKeyword, '%'))) " +
+                    "AND (:skillKeyword IS NULL OR EXISTS (SELECT 1 FROM job_required_skills sk WHERE sk.job_id = j.id AND LOWER(sk.skill) LIKE LOWER(CONCAT('%', :skillKeyword, '%')))) " +
                     "ORDER BY j.published_at DESC NULLS LAST, j.created_at DESC",
             countQuery = "SELECT COUNT(*) FROM jobs j " +
                     "WHERE j.deleted_at IS NULL " +
                     "AND j.status = 'OPEN' " +
                     "AND (:jobType IS NULL OR j.job_type = CAST(:jobType AS varchar)) " +
                     "AND (:categoryId IS NULL OR j.category_id = :categoryId) " +
-                    "AND (:skillKeyword IS NULL OR LOWER(CAST(j.required_skills AS text)) LIKE LOWER(CONCAT('%', :skillKeyword, '%')))",
+                    "AND (:skillKeyword IS NULL OR EXISTS (SELECT 1 FROM job_required_skills sk WHERE sk.job_id = j.id AND LOWER(sk.skill) LIKE LOWER(CONCAT('%', :skillKeyword, '%'))))",
             nativeQuery = true
     )
     Page<Job> findOpenWithAdvancedFilters(@Param("jobType") String jobType,
@@ -66,14 +73,14 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
                     "AND (:status IS NULL OR j.status = CAST(:status AS varchar)) " +
                     "AND (:jobType IS NULL OR j.job_type = CAST(:jobType AS varchar)) " +
                     "AND (:categoryId IS NULL OR j.category_id = :categoryId) " +
-                    "AND (:skillKeyword IS NULL OR LOWER(CAST(j.required_skills AS text)) LIKE LOWER(CONCAT('%', :skillKeyword, '%'))) " +
+                    "AND (:skillKeyword IS NULL OR EXISTS (SELECT 1 FROM job_required_skills sk WHERE sk.job_id = j.id AND LOWER(sk.skill) LIKE LOWER(CONCAT('%', :skillKeyword, '%')))) " +
                     "ORDER BY j.published_at DESC NULLS LAST, j.created_at DESC",
             countQuery = "SELECT COUNT(*) FROM jobs j " +
                     "WHERE j.deleted_at IS NULL " +
                     "AND (:status IS NULL OR j.status = CAST(:status AS varchar)) " +
                     "AND (:jobType IS NULL OR j.job_type = CAST(:jobType AS varchar)) " +
                     "AND (:categoryId IS NULL OR j.category_id = :categoryId) " +
-                    "AND (:skillKeyword IS NULL OR LOWER(CAST(j.required_skills AS text)) LIKE LOWER(CONCAT('%', :skillKeyword, '%')))",
+                    "AND (:skillKeyword IS NULL OR EXISTS (SELECT 1 FROM job_required_skills sk WHERE sk.job_id = j.id AND LOWER(sk.skill) LIKE LOWER(CONCAT('%', :skillKeyword, '%'))))",
             nativeQuery = true
     )
     Page<Job> findAllWithAdvancedFilters(@Param("status") String status,
@@ -81,4 +88,8 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
                                          @Param("categoryId") Integer categoryId,
                                          @Param("skillKeyword") String skillKeyword,
                                          Pageable pageable);
+
+    @Modifying
+    @Query("UPDATE Job j SET j.status = 'EXPIRED' WHERE j.status = 'OPEN' AND j.deadlineAt IS NOT NULL AND j.deadlineAt < CURRENT_TIMESTAMP")
+    int expirePastDeadlineJobs();
 }

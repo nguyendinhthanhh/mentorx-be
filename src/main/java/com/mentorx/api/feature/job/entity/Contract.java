@@ -136,6 +136,19 @@ public class Contract extends BaseEntity {
     private LocalDate endDate;
 
     /**
+     * Exact deadline agreed for the contract terms.
+     */
+    @Column(name = "deadline_at")
+    private LocalDateTime deadlineAt;
+
+    /**
+     * Scope and deliverables agreed for the contract terms.
+     */
+    @Size(max = 1000)
+    @Column(name = "scope_description", length = 1000)
+    private String scopeDescription;
+
+    /**
      * Actual start date
      */
     @Column(name = "actual_start_date")
@@ -389,8 +402,12 @@ public class Contract extends BaseEntity {
      * Checks if contract is overdue
      */
     public boolean isOverdue() {
-        return this.endDate != null && 
-               LocalDate.now().isAfter(this.endDate) && 
-               !ContractStatus.COMPLETED.equals(this.status);
+        if (ContractStatus.COMPLETED.equals(this.status)) {
+            return false;
+        }
+        if (this.deadlineAt != null) {
+            return LocalDateTime.now().isAfter(this.deadlineAt);
+        }
+        return this.endDate != null && LocalDate.now().isAfter(this.endDate);
     }
 }

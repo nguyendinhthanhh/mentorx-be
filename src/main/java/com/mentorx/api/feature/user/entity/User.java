@@ -49,7 +49,7 @@ public class User extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "preferred_language")
     @Builder.Default
-    private SupportedLanguage preferredLanguage = SupportedLanguage.vi;
+    private SupportedLanguage preferredLanguage = SupportedLanguage.en;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

@@ -99,6 +99,7 @@ public enum ErrorCode {
     REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "Review not found"),
     REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "Review already exists"),
     CANNOT_REVIEW_SELF(HttpStatus.BAD_REQUEST, "Cannot review yourself"),
+    REVIEW_NOT_ALLOWED(HttpStatus.FORBIDDEN, "You can only review mentors you have hired"),
     REVIEW_CANNOT_BE_EDITED(HttpStatus.FORBIDDEN, "Review cannot be edited at this time"),
     REVIEW_REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "Review report not found"),
     

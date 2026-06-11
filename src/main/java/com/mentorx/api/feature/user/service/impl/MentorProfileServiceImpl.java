@@ -5,6 +5,7 @@ import com.mentorx.api.common.enums.MentorStatus;
 import com.mentorx.api.common.enums.VerificationStatus;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
+import com.mentorx.api.common.service.EmailService;
 import com.mentorx.api.feature.matching.entity.UserSave;
 import com.mentorx.api.feature.matching.repository.UserSaveRepository;
 import com.mentorx.api.feature.user.dto.request.MentorProfileRequest;
@@ -16,14 +17,19 @@ import com.mentorx.api.feature.user.entity.User;
 import com.mentorx.api.feature.user.entity.UserBankAccount;
 import com.mentorx.api.feature.user.entity.UserRole;
 import com.mentorx.api.feature.user.mapper.UserMapper;
+import com.mentorx.api.feature.user.model.ProofLinkItem;
 import com.mentorx.api.feature.user.repository.MentorProfileRepository;
 import com.mentorx.api.feature.user.repository.RoleRepository;
 import com.mentorx.api.feature.user.repository.UserBankAccountRepository;
 import com.mentorx.api.feature.user.repository.UserRepository;
 import com.mentorx.api.feature.user.repository.UserRoleRepository;
 import com.mentorx.api.feature.user.service.MentorProfileService;
+import com.mentorx.api.feature.notification.dto.request.NotificationCreateRequest;
+import com.mentorx.api.feature.notification.enums.NotificationType;
+import com.mentorx.api.feature.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -34,9 +40,12 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -53,7 +62,12 @@ public class MentorProfileServiceImpl implements MentorProfileService {
     private final UserRoleRepository userRoleRepository;
     private final UserBankAccountRepository userBankAccountRepository;
     private final MentorModeAccessService mentorModeAccessService;
+    private final EmailService emailService;
+    private final NotificationService notificationService;
     private final Environment environment;
+
+    @Value("${app.frontend-base-url:http://localhost:3000}")
+    private String frontendBaseUrl;
     private static final String MENTOR_SAVE_TARGET_TYPE = "MENTOR_PROFILE";
 
     @Override
@@ -99,6 +113,13 @@ public class MentorProfileServiceImpl implements MentorProfileService {
     public MentorProfileResponse updateMentorProfile(UUID userId, MentorProfileRequest request) {
         mentorModeAccessService.requireSelfOrAdmin(userId);
         MentorProfile profile = findMentorProfileByUserId(userId);
+        boolean isAdminOverride = mentorModeAccessService.isCurrentUserAdmin();
+        if (!isAdminOverride && !canEditSubmittedProfile(profile)) {
+            throw new AppException(
+                    ErrorCode.ACCESS_DENIED,
+                    "Your mentor profile is locked while under review. You can edit it only when moderators request more information."
+            );
+        }
 
         if (request.headline() != null) profile.setHeadline(request.headline());
         if (request.hourlyRateMxc() != null) profile.setHourlyRateMxc(request.hourlyRateMxc());
@@ -190,6 +211,7 @@ public class MentorProfileServiceImpl implements MentorProfileService {
         MentorProfile profile = findMentorProfileByUserId(userId);
         User approver = findUser(approvedBy);
         User user = profile.getUser();
+        MentorStatus previousStatus = user.getMentorStatus();
         user.setMentorStatus(MentorStatus.APPROVED);
         user.setIsMentor(true);
         userRepository.save(user);
@@ -200,10 +222,22 @@ public class MentorProfileServiceImpl implements MentorProfileService {
         profile.setExpertiseReviewedAt(LocalDateTime.now());
         profile.setExpertiseReviewNote("Approved for Mentor Mode");
         profile.setExpertiseRejectionReason(null);
+        profile.setResubmissionAllowed(false);
         profile.setApprovedBy(approver);
         profile.setApprovedAt(LocalDateTime.now());
         profile.setRejectionReason(null);
-        return toResponse(mentorProfileRepository.save(profile));
+        MentorProfile savedProfile = mentorProfileRepository.save(profile);
+
+        if (previousStatus != MentorStatus.APPROVED) {
+            String mentorDashboardUrl = frontendBaseUrl + "/mentor/dashboard";
+            String recipientName = user.getDisplayName() != null && !user.getDisplayName().isBlank()
+                    ? user.getDisplayName()
+                    : user.getFullName();
+            emailService.sendMentorApprovalEmail(user.getEmail(), recipientName, mentorDashboardUrl);
+            log.info("Queued mentor approval email for user {}", user.getEmail());
+        }
+
+        return toResponse(savedProfile);
     }
 
     @Override
@@ -221,6 +255,7 @@ public class MentorProfileServiceImpl implements MentorProfileService {
         profile.setExpertiseReviewedBy(rejector);
         profile.setExpertiseReviewedAt(LocalDateTime.now());
         profile.setExpertiseRejectionReason(rejectionReason);
+        profile.setResubmissionAllowed(false);
         profile.setApprovedBy(rejector);
         profile.setApprovedAt(LocalDateTime.now());
         profile.setRejectionReason(rejectionReason);
@@ -243,10 +278,38 @@ public class MentorProfileServiceImpl implements MentorProfileService {
         profile.setExpertiseReviewedAt(LocalDateTime.now());
         profile.setExpertiseReviewNote(revisionReason);
         profile.setExpertiseRejectionReason(revisionReason);
+        profile.setResubmissionAllowed(true);
         profile.setApprovedBy(reviewer);
         profile.setApprovedAt(LocalDateTime.now());
         profile.setRejectionReason(revisionReason);
-        return toResponse(mentorProfileRepository.save(profile));
+        MentorProfile savedProfile = mentorProfileRepository.save(profile);
+
+        // Send Email
+        String updateUrl = frontendBaseUrl + "/become-a-mentor";
+        String recipientName = user.getDisplayName() != null && !user.getDisplayName().isBlank()
+                ? user.getDisplayName()
+                : user.getFullName();
+        emailService.sendMentorMoreInfoRequestEmail(user.getEmail(), recipientName, revisionReason, updateUrl);
+
+        // Send Notification
+        NotificationCreateRequest notificationRequest = new NotificationCreateRequest(
+                user.getId(),
+                NotificationType.ACCOUNT_VERIFICATION,
+                "Mentor Application Update Required",
+                "Your mentor application requires more information.",
+                profile.getId(),
+                "MENTOR_PROFILE",
+                updateUrl,
+                null,
+                1,
+                null,
+                "MENTOR_APPLICATION",
+                null,
+                reviewer.getId()
+        );
+        notificationService.sendNotification(notificationRequest);
+
+        return toResponse(savedProfile);
     }
 
     @Override
@@ -261,6 +324,7 @@ public class MentorProfileServiceImpl implements MentorProfileService {
         userRepository.save(user);
 
         profile.setExpertiseReviewNote(suspensionReason);
+        profile.setResubmissionAllowed(false);
         profile.setApprovedBy(moderator);
         profile.setApprovedAt(LocalDateTime.now());
         profile.setRejectionReason(suspensionReason);
@@ -354,6 +418,10 @@ public class MentorProfileServiceImpl implements MentorProfileService {
     @Override
     public MentorProfileResponse toResponse(MentorProfile profile) {
         UserBankAccount payoutAccount = userBankAccountRepository.findByUserIdAndIsDefaultTrue(profile.getUser().getId()).orElse(null);
+        List<ProofLinkItem> proofLinks = profile.getProofLinks();
+        if (proofLinks == null || proofLinks.isEmpty()) {
+            proofLinks = buildLegacyProofLinks(profile);
+        }
         return new MentorProfileResponse(
                 profile.getId(),
                 profile.getUser().getId(),
@@ -403,6 +471,7 @@ public class MentorProfileServiceImpl implements MentorProfileService {
                 profile.getLinkedinUrl(),
                 profile.getGithubUrl(),
                 profile.getPortfolioEvidenceUrl(),
+                proofLinks,
                 profile.getCertificateUrl(),
                 profile.getPayoutStatus(),
                 payoutAccount != null ? payoutAccount.getAccountHolderName() : null,
@@ -453,9 +522,14 @@ public class MentorProfileServiceImpl implements MentorProfileService {
         if (!patchOnly || request.linkedinUrl() != null) profile.setLinkedinUrl(request.linkedinUrl());
         if (!patchOnly || request.githubUrl() != null) profile.setGithubUrl(request.githubUrl());
         if (!patchOnly || request.portfolioEvidenceUrl() != null) profile.setPortfolioEvidenceUrl(request.portfolioEvidenceUrl());
+        if (!patchOnly || request.proofLinks() != null) profile.setProofLinks(normalizeProofLinks(request.proofLinks()));
         if (!patchOnly || request.certificateUrl() != null) profile.setCertificateUrl(request.certificateUrl());
         if (!patchOnly || request.mentorAgreementAccepted() != null) profile.setMentorAgreementAccepted(Boolean.TRUE.equals(request.mentorAgreementAccepted()));
         if (!patchOnly || request.disputePolicyAccepted() != null) profile.setDisputePolicyAccepted(Boolean.TRUE.equals(request.disputePolicyAccepted()));
+
+        if ((profile.getProofLinks() == null || profile.getProofLinks().isEmpty()) && hasAnyLegacyProofLink(profile)) {
+            profile.setProofLinks(buildLegacyProofLinks(profile));
+        }
 
         if (Boolean.TRUE.equals(profile.getMentorAgreementAccepted())
                 && Boolean.TRUE.equals(profile.getDisputePolicyAccepted())
@@ -465,8 +539,12 @@ public class MentorProfileServiceImpl implements MentorProfileService {
 
         if (Boolean.TRUE.equals(profile.getMentorAgreementAccepted())
                 && Boolean.TRUE.equals(profile.getDisputePolicyAccepted())
-                && profile.getExpertiseStatus() == VerificationStatus.NOT_SUBMITTED) {
+                && (profile.getExpertiseStatus() == VerificationStatus.NOT_SUBMITTED
+                || profile.getExpertiseStatus() == VerificationStatus.NEEDS_MORE_INFO)) {
             profile.setExpertiseStatus(VerificationStatus.PENDING);
+            profile.setResubmissionAllowed(false);
+            profile.setExpertiseReviewNote(null);
+            profile.setExpertiseRejectionReason(null);
         }
     }
 
@@ -520,16 +598,12 @@ public class MentorProfileServiceImpl implements MentorProfileService {
         validateUrl(profile.getGithubUrl(), "GitHub profile", "github.com");
         validateUrl(profile.getPortfolioUrl(), "Portfolio", null);
         validateUrl(profile.getPortfolioEvidenceUrl(), "Proof of work", null);
+        validateProofLinks(profile.getProofLinks());
 
-        if (isBlank(profile.getLinkedinUrl())
-                && isBlank(profile.getGithubUrl())
-                && isBlank(profile.getPortfolioUrl())
-                && isBlank(profile.getCvUrl())
-                && isBlank(profile.getCertificateUrl())
-                && isBlank(profile.getPortfolioEvidenceUrl())) {
+        if (!hasAnyProof(profile)) {
             throw new AppException(
                     ErrorCode.BAD_REQUEST,
-                    "At least one proof item is required: LinkedIn, GitHub, Portfolio, CV, Certificate, or Proof of work."
+                    "At least one proof item is required: add a proof link, CV, certificate, or portfolio evidence."
             );
         }
     }
@@ -584,8 +658,110 @@ public class MentorProfileServiceImpl implements MentorProfileService {
         }
     }
 
+    private List<ProofLinkItem> normalizeProofLinks(List<ProofLinkItem> proofLinks) {
+        if (proofLinks == null) {
+            return null;
+        }
+
+        List<ProofLinkItem> normalized = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+
+        for (ProofLinkItem item : proofLinks) {
+            if (item == null) {
+                continue;
+            }
+
+            String label = normalizeNullable(item.getLabel());
+            String url = normalizeNullable(item.getUrl());
+            if (label == null && url == null) {
+                continue;
+            }
+
+            String key = (label == null ? "" : label.toLowerCase(Locale.ROOT))
+                    + "|"
+                    + (url == null ? "" : url.toLowerCase(Locale.ROOT));
+            if (seen.add(key)) {
+                normalized.add(new ProofLinkItem(label, url));
+            }
+        }
+
+        return normalized;
+    }
+
+    private void validateProofLinks(List<ProofLinkItem> proofLinks) {
+        if (proofLinks == null || proofLinks.isEmpty()) {
+            return;
+        }
+
+        for (int index = 0; index < proofLinks.size(); index++) {
+            ProofLinkItem item = proofLinks.get(index);
+            if (item == null) {
+                continue;
+            }
+
+            String label = normalizeNullable(item.getLabel());
+            String url = normalizeNullable(item.getUrl());
+            String prefix = "Proof link #" + (index + 1);
+
+            if (label == null || url == null) {
+                throw new AppException(ErrorCode.BAD_REQUEST, prefix + " must include both a label and a URL.");
+            }
+
+            if (label.length() > 80) {
+                throw new AppException(ErrorCode.BAD_REQUEST, prefix + " label must not exceed 80 characters.");
+            }
+
+            validateUrl(url, prefix, null);
+        }
+    }
+
+    private boolean hasAnyProof(MentorProfile profile) {
+        return (profile.getProofLinks() != null && !profile.getProofLinks().isEmpty())
+                || !isBlank(profile.getLinkedinUrl())
+                || !isBlank(profile.getGithubUrl())
+                || !isBlank(profile.getPortfolioUrl())
+                || !isBlank(profile.getCvUrl())
+                || !isBlank(profile.getCertificateUrl())
+                || !isBlank(profile.getPortfolioEvidenceUrl());
+    }
+
+    private boolean hasAnyLegacyProofLink(MentorProfile profile) {
+        return !isBlank(profile.getLinkedinUrl())
+                || !isBlank(profile.getGithubUrl())
+                || !isBlank(profile.getPortfolioUrl())
+                || !isBlank(profile.getPortfolioEvidenceUrl())
+                || !isBlank(profile.getVideoIntroUrl());
+    }
+
+    private List<ProofLinkItem> buildLegacyProofLinks(MentorProfile profile) {
+        List<ProofLinkItem> links = new ArrayList<>();
+        addProofLink(links, "LinkedIn profile", profile.getLinkedinUrl());
+        addProofLink(links, "GitHub profile", profile.getGithubUrl());
+        addProofLink(links, "Portfolio", profile.getPortfolioUrl());
+        addProofLink(links, "Proof of work", profile.getPortfolioEvidenceUrl());
+        addProofLink(links, "Intro video", profile.getVideoIntroUrl());
+        return links;
+    }
+
+    private void addProofLink(List<ProofLinkItem> links, String label, String url) {
+        String normalizedUrl = normalizeNullable(url);
+        if (normalizedUrl == null) {
+            return;
+        }
+        links.add(new ProofLinkItem(label, normalizedUrl));
+    }
+
     private boolean isDevelopmentProfile() {
         return Arrays.stream(environment.getActiveProfiles()).anyMatch(profile -> "dev".equalsIgnoreCase(profile));
+    }
+
+    private boolean canEditSubmittedProfile(MentorProfile profile) {
+        VerificationStatus expertiseStatus = profile.getExpertiseStatus();
+        if (expertiseStatus == VerificationStatus.NOT_SUBMITTED || expertiseStatus == VerificationStatus.APPROVED) {
+            return true;
+        }
+        return expertiseStatus == VerificationStatus.NEEDS_MORE_INFO
+                && Boolean.TRUE.equals(profile.getResubmissionAllowed());
     }
 
     private void assignMentorRoleIfMissing(User user, User approver) {
