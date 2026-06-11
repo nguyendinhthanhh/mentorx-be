@@ -6,13 +6,14 @@ import com.mentorx.api.common.enums.JobStatus;
 import com.mentorx.api.common.security.MentorModeAccessService;
 import com.mentorx.api.feature.job.dto.request.NegotiationRequest;
 import com.mentorx.api.feature.job.dto.response.NegotiationResponse;
+import com.mentorx.api.feature.job.entity.Contract;
 import com.mentorx.api.feature.job.entity.Proposal;
 import com.mentorx.api.feature.job.entity.ProposalNegotiation;
+import com.mentorx.api.feature.job.entity.Job;
 import com.mentorx.api.feature.job.enums.ContractStatus;
 import com.mentorx.api.feature.job.enums.NegotiationStatus;
 import com.mentorx.api.feature.job.enums.ProposalStatus;
 import com.mentorx.api.feature.job.enums.SenderType;
-import com.mentorx.api.feature.job.entity.Job;
 import com.mentorx.api.feature.job.repository.ContractRepository;
 import com.mentorx.api.feature.job.repository.JobRepository;
 import com.mentorx.api.feature.job.repository.ProposalNegotiationRepository;
@@ -23,13 +24,16 @@ import com.mentorx.api.feature.notification.service.NotificationService;
 import com.mentorx.api.feature.notification.enums.NotificationType;
 import com.mentorx.api.feature.user.entity.User;
 import com.mentorx.api.feature.user.repository.UserRepository;
+import com.mentorx.api.feature.wallet.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -45,6 +49,7 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final MentorModeAccessService mentorModeAccessService;
+    private final WalletService walletService;
 
     @Override
     @Transactional
@@ -146,40 +151,53 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
     public NegotiationResponse acceptNegotiation(UUID negotiationId, UUID userId) {
         ProposalNegotiation negotiation = findNegotiation(negotiationId);
         requireCurrentUser(userId);
-        
-        // Verify user is authorized (must be the receiver, not sender)
-        Proposal proposal = negotiation.getProposal();
+
+        Proposal proposal = proposalRepository.findByIdForUpdate(negotiation.getProposal().getId())
+                .orElseThrow(() -> new AppException(ErrorCode.PROPOSAL_NOT_FOUND));
         ensureNegotiationAllowed(proposal);
+
         boolean isClient = proposal.getJob().getClient().getId().equals(userId);
         boolean isMentor = proposal.getMentor().getId().equals(userId);
-        
         if (!isClient && !isMentor) {
             throw new AppException(ErrorCode.UNAUTHORIZED_JOB_ACCESS);
         }
-        
-        // Verify user is not the sender
         if (negotiation.getSender().getId().equals(userId)) {
-            throw new AppException(ErrorCode.BAD_REQUEST); // Cannot accept your own offer
+            throw new AppException(ErrorCode.BAD_REQUEST, "Cannot accept your own offer.");
         }
-        
-        // Accept negotiation
+
+        Job job = proposal.getJob();
+        if (contractRepository.findByProposalId(proposal.getId()).isPresent()) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "A contract already exists for this proposal.");
+        }
+
+        BigDecimal finalAmount = Optional.ofNullable(negotiation.getProposedAmount())
+                .filter(amount -> amount.compareTo(BigDecimal.ZERO) > 0)
+                .orElseGet(proposal::getProposedAmount);
+        if (finalAmount == null || finalAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Price must be greater than 0 MXC.");
+        }
+
+        Integer finalDurationDays = Optional.ofNullable(negotiation.getEstimatedDurationDays())
+                .orElse(proposal.getEstimatedDurationDays());
+        LocalDateTime finalDeadlineAt = Optional.ofNullable(negotiation.getDeadlineAt())
+                .orElse(proposal.getDeadlineAt());
+        String finalScopeDescription = Optional.ofNullable(negotiation.getMessage())
+                .filter(message -> !message.isBlank())
+                .orElseGet(() -> proposal.getCoverLetter() != null && !proposal.getCoverLetter().isBlank()
+                        ? proposal.getCoverLetter()
+                        : proposal.getScopeDescription());
+
+        if (walletService.getUserAvailableBalance(job.getClient().getId()).compareTo(finalAmount) < 0) {
+            throw new AppException(ErrorCode.INSUFFICIENT_BALANCE);
+        }
+
         negotiation.accept();
-        
-        // Update proposal with negotiated terms
-        if (negotiation.getProposedAmount() != null) {
-            proposal.setProposedAmount(negotiation.getProposedAmount());
-        }
+        proposal.setProposedAmount(finalAmount);
+        proposal.setEstimatedDurationDays(finalDurationDays);
+        proposal.setDeadlineAt(finalDeadlineAt);
+        proposal.setScopeDescription(finalScopeDescription == null ? null : finalScopeDescription.trim());
         if (negotiation.getProposedHourlyRate() != null) {
             proposal.setProposedHourlyRate(negotiation.getProposedHourlyRate());
-        }
-        if (negotiation.getEstimatedDurationDays() != null) {
-            proposal.setEstimatedDurationDays(negotiation.getEstimatedDurationDays());
-        }
-        if (negotiation.getDeadlineAt() != null) {
-            proposal.setDeadlineAt(negotiation.getDeadlineAt());
-        }
-        if (negotiation.getMessage() != null && !negotiation.getMessage().isBlank()) {
-            proposal.setCoverLetter(negotiation.getMessage().trim());
         }
         if (negotiation.getProposedStartDate() != null) {
             proposal.setProposedStartDate(negotiation.getProposedStartDate());
@@ -187,17 +205,27 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
         if (negotiation.getProposedDeliveryDate() != null) {
             proposal.setProposedDeliveryDate(negotiation.getProposedDeliveryDate());
         }
-        
-        // Offer terms are now agreed, but the mentor is not hired until the client accepts the proposal.
-        proposal.markOfferAccepted();
-        proposalRepository.save(proposal);
+        proposal.accept();
 
-        // Update job activity
-        Job job = proposal.getJob();
+        Contract contract = buildAcceptedContract(proposal, finalAmount, finalDurationDays, finalDeadlineAt, finalScopeDescription);
+        Contract savedContract = contractRepository.save(contract);
+        walletService.processJobPayment(job.getClient().getId(), savedContract.getId(), finalAmount);
+        savedContract.setAmountInEscrow(finalAmount);
+        savedContract.setFundsInEscrow(true);
+        savedContract.setStatus(ContractStatus.ACTIVE);
+        savedContract.setActivatedAt(LocalDateTime.now());
+        contractRepository.save(savedContract);
+
+        proposalRepository.save(proposal);
+        negotiationRepository.save(negotiation);
+
         job.setUpdatedAt(java.time.LocalDateTime.now());
+        job.setStatus(JobStatus.IN_PROGRESS);
         jobRepository.save(job);
-        
-        return toResponse(negotiationRepository.save(negotiation));
+
+        autoCloseOtherProposals(job.getId(), proposal.getId());
+
+        return toResponse(negotiation);
     }
 
     @Override
@@ -352,6 +380,81 @@ public class ProposalNegotiationServiceImpl implements ProposalNegotiationServic
                 negotiation.getCreatedAt(),
                 negotiation.getRespondedAt()
         );
+    }
+
+    private Contract buildAcceptedContract(
+            Proposal proposal,
+            BigDecimal finalAmount,
+            Integer finalDurationDays,
+            LocalDateTime finalDeadlineAt,
+            String finalScopeDescription
+    ) {
+        Contract contract = new Contract();
+        Job proposalJob = proposal.getJob();
+        LocalDate today = LocalDate.now();
+        String normalizedScope = finalScopeDescription == null || finalScopeDescription.isBlank()
+                ? proposalJob.getSuccessCriteria()
+                : finalScopeDescription.trim();
+
+        contract.setJob(proposalJob);
+        contract.setProposal(proposal);
+        contract.setClient(proposalJob.getClient());
+        contract.setMentor(proposal.getMentor());
+        contract.setStatus(ContractStatus.ACTIVE);
+        contract.setTitle(proposalJob.getTitle());
+        contract.setDescription(proposalJob.getDescription());
+        contract.setTotalAmount(finalAmount);
+        contract.setHourlyRate(proposal.getProposedHourlyRate());
+        contract.setStartDate(proposal.getProposedStartDate() != null ? proposal.getProposedStartDate() : today);
+        contract.setEndDate(resolveContractEndDate(proposal, finalDurationDays, today));
+        contract.setDeadlineAt(finalDeadlineAt);
+        contract.setScopeDescription(normalizedScope);
+        contract.setActualStartDate(today);
+        contract.setActivatedAt(LocalDateTime.now());
+        contract.setPaymentTerms("Funds are held in escrow until the client confirms the job is completed.");
+        contract.setDeliverables(normalizedScope);
+        contract.setAmountPaid(BigDecimal.ZERO);
+        contract.setAmountInEscrow(finalAmount);
+        contract.setFundsInEscrow(true);
+        return contract;
+    }
+
+    private LocalDate resolveContractEndDate(Proposal proposal, Integer finalDurationDays, LocalDate fallbackStartDate) {
+        if (proposal.getProposedDeliveryDate() != null) {
+            return proposal.getProposedDeliveryDate();
+        }
+        if (finalDurationDays == null || finalDurationDays <= 0) {
+            return null;
+        }
+        LocalDate startDate = proposal.getProposedStartDate() != null ? proposal.getProposedStartDate() : fallbackStartDate;
+        return startDate.plusDays(finalDurationDays.longValue());
+    }
+
+    private void autoCloseOtherProposals(UUID jobId, UUID acceptedProposalId) {
+        List<Proposal> siblingProposals = proposalRepository.findByJobId(jobId);
+        for (Proposal sibling : siblingProposals) {
+            if (sibling.getId().equals(acceptedProposalId)) {
+                continue;
+            }
+
+            if (sibling.getStatus() == ProposalStatus.SUBMITTED
+                    || sibling.getStatus() == ProposalStatus.NEGOTIATING
+                    || sibling.getStatus() == ProposalStatus.OFFER_ACCEPTED
+                    || sibling.getStatus() == ProposalStatus.SHORTLISTED
+                    || sibling.getStatus() == ProposalStatus.UNDER_REVIEW) {
+                sibling.autoClose("Another mentor was selected for this job.");
+                proposalRepository.save(sibling);
+            }
+
+            List<ProposalNegotiation> pendingNegotiations = negotiationRepository.findByProposalIdAndStatus(
+                    sibling.getId(),
+                    NegotiationStatus.PENDING
+            );
+            if (!pendingNegotiations.isEmpty()) {
+                pendingNegotiations.forEach(ProposalNegotiation::cancel);
+                negotiationRepository.saveAll(pendingNegotiations);
+            }
+        }
     }
     
     private void sendNotificationToMentor(Proposal proposal, User client, NegotiationRequest request) {
