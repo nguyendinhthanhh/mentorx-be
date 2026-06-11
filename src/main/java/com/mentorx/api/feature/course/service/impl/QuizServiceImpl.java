@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class QuizServiceImpl implements QuizService {
 
-    private static final BigDecimal PASSING_PERCENT = BigDecimal.valueOf(70);
+    private static final BigDecimal DEFAULT_PASSING_PERCENT = BigDecimal.valueOf(50);
 
     private final QuizQuestionRepository questionRepository;
     private final QuizAttemptRepository attemptRepository;
@@ -126,6 +126,7 @@ public class QuizServiceImpl implements QuizService {
                     .attempt(attempt)
                     .question(question)
                     .givenAnswerJson(submitted.getGivenAnswerJson())
+                    .givenAnswer(submitted.getGivenAnswerJson())
                     .isCorrect(correct)
                     .pointsEarned(earned)
                     .build());
@@ -134,7 +135,7 @@ public class QuizServiceImpl implements QuizService {
         BigDecimal percent = maxScore.compareTo(BigDecimal.ZERO) == 0
                 ? BigDecimal.ZERO
                 : score.multiply(BigDecimal.valueOf(100)).divide(maxScore, 2, java.math.RoundingMode.HALF_UP);
-        boolean passed = percent.compareTo(PASSING_PERCENT) >= 0;
+        boolean passed = percent.compareTo(resolvePassingPercent(lesson)) >= 0;
         attempt.setScore(score);
         attempt.setMaxScore(maxScore);
         attempt.setPassed(passed);
@@ -189,6 +190,25 @@ public class QuizServiceImpl implements QuizService {
 
     private String normalize(String value) {
         return value == null ? "" : value.replace("\"", "").trim().toLowerCase();
+    }
+
+    private BigDecimal resolvePassingPercent(CourseLesson lesson) {
+        Object raw = lesson.getMetadataValue("passingPercent");
+        if (raw == null) {
+            return DEFAULT_PASSING_PERCENT;
+        }
+        try {
+            BigDecimal value = new BigDecimal(String.valueOf(raw));
+            if (value.compareTo(BigDecimal.ZERO) < 0) {
+                return BigDecimal.ZERO;
+            }
+            if (value.compareTo(BigDecimal.valueOf(100)) > 0) {
+                return BigDecimal.valueOf(100);
+            }
+            return value;
+        } catch (NumberFormatException ex) {
+            return DEFAULT_PASSING_PERCENT;
+        }
     }
 
     private QuizQuestionResponse toResponse(QuizQuestion question) {

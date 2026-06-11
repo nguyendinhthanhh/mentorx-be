@@ -38,6 +38,9 @@ public class QuizAnswer extends BaseEntity {
     @Column(name = "given_answer_json", nullable = false, columnDefinition = "TEXT")
     private String givenAnswerJson;
 
+    @Column(name = "given_answer", nullable = false, columnDefinition = "TEXT")
+    private String givenAnswer;
+
     @Column(name = "is_correct", nullable = false)
     private Boolean isCorrect;
 
