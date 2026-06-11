@@ -41,6 +41,16 @@ public class CourseEnrollmentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @PostMapping("/course/{courseId}/me")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<CourseEnrollmentResponse> enrollCurrentUser(
+            @PathVariable UUID courseId,
+            Authentication authentication) {
+        User currentUser = resolveCurrentUser(authentication);
+        CourseEnrollmentResponse response = enrollmentService.enrollCurrentUser(courseId, currentUser.getId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<CourseEnrollmentResponse> getEnrollmentById(@PathVariable UUID id) {

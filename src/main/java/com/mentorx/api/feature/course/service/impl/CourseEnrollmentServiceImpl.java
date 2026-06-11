@@ -2,6 +2,7 @@ package com.mentorx.api.feature.course.service.impl;
 
 import com.mentorx.api.common.exception.ErrorCode;
 
+import com.mentorx.api.common.enums.CourseStatus;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.feature.course.dto.request.CourseEnrollmentCreateRequest;
 import com.mentorx.api.feature.course.dto.response.CourseEnrollmentResponse;
@@ -67,6 +68,37 @@ public class CourseEnrollmentServiceImpl implements CourseEnrollmentService {
         log.info("Enrollment created successfully with ID: {}", savedEnrollment.getId());
 
         return mapper.toResponse(savedEnrollment);
+    }
+
+    @Override
+    @Transactional
+    public CourseEnrollmentResponse enrollCurrentUser(UUID courseId, UUID studentId) {
+        log.info("Creating free enrollment for current student: {} in course: {}", studentId, courseId);
+
+        return enrollmentRepository.findByCourseIdAndStudentId(courseId, studentId)
+                .map(mapper::toResponse)
+                .orElseGet(() -> {
+                    Course course = courseRepository.findById(courseId)
+                            .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_FOUND));
+                    if (course.getStatus() != CourseStatus.PUBLISHED) {
+                        throw new AppException(ErrorCode.BAD_REQUEST, "Only published courses can be enrolled");
+                    }
+
+                    User student = userRepository.findById(studentId)
+                            .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+                    CourseEnrollment enrollment = CourseEnrollment.builder()
+                            .course(course)
+                            .student(student)
+                            .amountPaidMxc(BigDecimal.ZERO)
+                            .progressPercent(BigDecimal.ZERO)
+                            .isCompleted(false)
+                            .build();
+                    CourseEnrollment savedEnrollment = enrollmentRepository.save(enrollment);
+                    course.setTotalEnrollments(course.getTotalEnrollments() == null ? 1 : course.getTotalEnrollments() + 1);
+                    log.info("Free enrollment created successfully with ID: {}", savedEnrollment.getId());
+                    return mapper.toResponse(savedEnrollment);
+                });
     }
 
     @Override
