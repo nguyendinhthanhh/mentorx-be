@@ -6,6 +6,7 @@ import com.mentorx.api.common.enums.WalletAccountType;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.common.response.ApiResponse;
+import com.mentorx.api.common.security.MentorModeAccessService;
 import com.mentorx.api.feature.wallet.dto.request.ConversionPreviewRequest;
 import com.mentorx.api.feature.wallet.dto.request.DepositCreateRequest;
 import com.mentorx.api.feature.wallet.dto.request.TransferRequest;
@@ -52,12 +53,14 @@ public class WalletController {
     private final WalletMapper walletMapper;
     private final DepositOrderRepository depositOrderRepository;
     private final WithdrawalRequestRepository withdrawalRequestRepository;
+    private final MentorModeAccessService mentorModeAccessService;
 
     @Value("${app.wallet.withdrawal-fee-percent:2}")
     private BigDecimal withdrawalFeePercent;
 
     @GetMapping("/user/{userId}")
     public ResponseEntity<ApiResponse<List<WalletResponse>>> getUserWallets(@PathVariable UUID userId) {
+        mentorModeAccessService.requireSelfOrAdmin(userId);
         return ResponseEntity.ok(ApiResponse.success(walletService.getUserWallets(userId)));
     }
 
@@ -66,11 +69,24 @@ public class WalletController {
             @PathVariable UUID userId,
             @PathVariable WalletAccountType accountType
     ) {
+        mentorModeAccessService.requireSelfOrAdmin(userId);
         return ResponseEntity.ok(ApiResponse.success(walletService.getUserWallet(userId, accountType)));
     }
 
     @GetMapping("/user/{userId}/balance")
     public ResponseEntity<ApiResponse<Map<String, BigDecimal>>> getUserBalance(@PathVariable UUID userId) {
+        mentorModeAccessService.requireSelfOrAdmin(userId);
+        Map<String, BigDecimal> balances = new HashMap<>();
+        balances.put("total", walletService.getUserTotalBalance(userId));
+        balances.put("available", walletService.getUserAvailableBalance(userId));
+        balances.put("pending", walletService.getUserPendingBalance(userId));
+        balances.put("escrow", walletService.getUserEscrowBalance(userId));
+        return ResponseEntity.ok(ApiResponse.success(balances));
+    }
+
+    @GetMapping("/me/balance")
+    public ResponseEntity<ApiResponse<Map<String, BigDecimal>>> getMyBalance() {
+        UUID userId = mentorModeAccessService.getCurrentUserId();
         Map<String, BigDecimal> balances = new HashMap<>();
         balances.put("total", walletService.getUserTotalBalance(userId));
         balances.put("available", walletService.getUserAvailableBalance(userId));
@@ -95,6 +111,7 @@ public class WalletController {
             @RequestParam UUID userId,
             @Valid @RequestBody DepositCreateRequest request
     ) {
+        mentorModeAccessService.requireSelfOrAdmin(userId);
         DepositOrder order = walletService.createDepositOrder(
                 userId,
                 request.resolvedAmount(),
@@ -132,6 +149,7 @@ public class WalletController {
             @RequestParam UUID userId,
             @Valid @RequestBody WithdrawCreateRequest request
     ) {
+        mentorModeAccessService.requireSelfOrAdmin(userId);
         BigDecimal feeAmount = request.mxcAmount()
                 .multiply(withdrawalFeePercent)
                 .divide(BigDecimal.valueOf(100), 4, RoundingMode.UP);
@@ -156,6 +174,7 @@ public class WalletController {
     public ResponseEntity<ApiResponse<WithdrawalResponse>> getWithdrawalStatus(@PathVariable UUID requestId) {
         WithdrawalRequest request = withdrawalRequestRepository.findById(requestId)
                 .orElseThrow(() -> new AppException(ErrorCode.WITHDRAWAL_NOT_FOUND));
+        mentorModeAccessService.requireSelfOrAdmin(request.getUser().getId());
         return ResponseEntity.ok(ApiResponse.success(walletMapper.toWithdrawalResponse(request)));
     }
 
@@ -204,6 +223,7 @@ public class WalletController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) TxnType type
     ) {
+        mentorModeAccessService.requireSelfOrAdmin(userId);
         Page<WalletTransactionResponse> data = type == null
                 ? walletService.getUserTransactions(userId, PageRequest.of(page, size))
                 : walletService.getTransactionsByType(userId, type, PageRequest.of(page, size));
@@ -232,6 +252,7 @@ public class WalletController {
             @RequestParam UUID fromUserId,
             @Valid @RequestBody TransferRequest request
     ) {
+        mentorModeAccessService.requireSelfOrAdmin(fromUserId);
         return ResponseEntity.ok(ApiResponse.success(walletService.transfer(fromUserId, request)));
     }
 

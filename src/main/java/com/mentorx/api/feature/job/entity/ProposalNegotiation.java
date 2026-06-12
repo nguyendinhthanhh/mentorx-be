@@ -84,6 +84,19 @@ public class ProposalNegotiation extends BaseEntity {
     private Integer estimatedDurationDays;
 
     /**
+     * Exact deadline for this offer term.
+     */
+    @Column(name = "deadline_at")
+    private LocalDateTime deadlineAt;
+
+    /**
+     * Scope and deliverables included in this offer term.
+     */
+    @Size(max = 1000)
+    @Column(name = "scope_description", length = 1000)
+    private String scopeDescription;
+
+    /**
      * Counter-proposed start date
      */
     @Column(name = "proposed_start_date")
@@ -130,6 +143,14 @@ public class ProposalNegotiation extends BaseEntity {
      */
     public void counter() {
         this.status = NegotiationStatus.COUNTERED;
+        this.respondedAt = LocalDateTime.now();
+    }
+
+    /**
+     * Cancels this negotiation because the proposal/job is no longer actionable.
+     */
+    public void cancel() {
+        this.status = NegotiationStatus.CANCELLED;
         this.respondedAt = LocalDateTime.now();
     }
 }

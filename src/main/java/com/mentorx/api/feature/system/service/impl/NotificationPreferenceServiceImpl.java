@@ -2,6 +2,7 @@ package com.mentorx.api.feature.system.service.impl;
 
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
+import com.mentorx.api.common.security.MentorModeAccessService;
 import com.mentorx.api.feature.system.dto.request.NotificationPreferenceRequest;
 import com.mentorx.api.feature.system.dto.response.NotificationPreferenceResponse;
 import com.mentorx.api.feature.system.entity.NotificationPreference;
@@ -26,11 +27,13 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
     private final NotificationPreferenceRepository notificationPreferenceRepository;
     private final UserRepository userRepository;
     private final SystemMapper systemMapper;
+    private final MentorModeAccessService mentorModeAccessService;
 
     @Override
     @Transactional
     public NotificationPreferenceResponse create(NotificationPreferenceRequest request) {
         log.info("Creating notification preference for user: {}", request.userId());
+        mentorModeAccessService.requireSelfOrAdmin(request.userId());
 
         // Verify user exists
         if (!userRepository.existsById(request.userId())) {
@@ -64,12 +67,14 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
         log.debug("Fetching notification preference with ID: {}", id);
         NotificationPreference entity = notificationPreferenceRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
+        mentorModeAccessService.requireSelfOrAdmin(entity.getUserId());
         return systemMapper.toNotificationPreferenceResponse(entity);
     }
 
     @Override
     public NotificationPreferenceResponse getByUserId(UUID userId) {
         log.debug("Fetching notification preference for user: {}", userId);
+        mentorModeAccessService.requireSelfOrAdmin(userId);
         NotificationPreference entity = notificationPreferenceRepository.findByUserId(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
         return systemMapper.toNotificationPreferenceResponse(entity);
@@ -82,6 +87,7 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
 
         NotificationPreference entity = notificationPreferenceRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
+        mentorModeAccessService.requireSelfOrAdmin(entity.getUserId());
 
         systemMapper.updateNotificationPreference(entity, request);
         entity.setUpdatedAt(LocalDateTime.now());
@@ -96,6 +102,7 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
     @Transactional
     public NotificationPreferenceResponse updateByUserId(UUID userId, NotificationPreferenceRequest request) {
         log.info("Updating notification preference for user: {}", userId);
+        mentorModeAccessService.requireSelfOrAdmin(userId);
 
         NotificationPreference entity = notificationPreferenceRepository.findByUserId(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
@@ -113,10 +120,10 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
     @Transactional
     public void delete(UUID id) {
         log.info("Deleting notification preference with ID: {}", id);
-        if (!notificationPreferenceRepository.existsById(id)) {
-            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND);
-        }
-        notificationPreferenceRepository.deleteById(id);
+        NotificationPreference entity = notificationPreferenceRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
+        mentorModeAccessService.requireSelfOrAdmin(entity.getUserId());
+        notificationPreferenceRepository.delete(entity);
         log.info("Deleted notification preference with ID: {}", id);
     }
 
@@ -124,6 +131,7 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
     @Transactional
     public NotificationPreferenceResponse getOrCreateForUser(UUID userId) {
         log.debug("Getting or creating notification preference for user: {}", userId);
+        mentorModeAccessService.requireSelfOrAdmin(userId);
 
         return notificationPreferenceRepository.findByUserId(userId)
                 .map(systemMapper::toNotificationPreferenceResponse)

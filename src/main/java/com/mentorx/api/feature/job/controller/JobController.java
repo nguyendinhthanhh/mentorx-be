@@ -90,7 +90,6 @@ public class JobController {
     }
 
     @PatchMapping("/{jobId}/status")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
     public ResponseEntity<ApiResponse<JobResponse>> updateStatus(
             @PathVariable UUID jobId,
             @RequestParam JobStatus status,

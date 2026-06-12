@@ -32,6 +32,8 @@ import java.util.Map;
 @Slf4j
 public class EkycServiceImpl implements EkycService {
 
+    private static final String KYC_DIR = "kyc";
+
     private final EkycClient ekycClient;
     private final FileStorageService fileStorageService;
     private final MentorProfileRepository mentorProfileRepository;
@@ -49,9 +51,9 @@ public class EkycServiceImpl implements EkycService {
             MentorProfile profile = mentorProfileRepository.findByUserId(user.getId())
                     .orElseGet(() -> MentorProfile.builder().user(user).build());
 
-            String frontUrl = fileStorageService.storeFile(frontImage);
-            String backUrl = fileStorageService.storeFile(backImage);
-            String selfieUrl = fileStorageService.storeFile(selfieImage);
+            String frontUrl = fileStorageService.store(frontImage, KYC_DIR);
+            String backUrl = fileStorageService.store(backImage, KYC_DIR);
+            String selfieUrl = fileStorageService.store(selfieImage, KYC_DIR);
 
             EkycOcrResponse ocrResponse = ekycClient.performOcr(frontImage);
             if (ocrResponse.errorCode() != 0 || ocrResponse.data() == null || ocrResponse.data().isEmpty()) {

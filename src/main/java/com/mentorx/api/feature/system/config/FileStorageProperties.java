@@ -8,5 +8,6 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties(prefix = "app.file")
 @Data
 public class FileStorageProperties {
+    private String storageProvider;
     private String uploadDir;
 }

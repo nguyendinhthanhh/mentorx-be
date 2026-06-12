@@ -1,6 +1,7 @@
 package com.mentorx.api.feature.user.service.impl;
 
 import com.mentorx.api.common.enums.MentorStatus;
+import com.mentorx.api.common.enums.SupportedLanguage;
 import com.mentorx.api.common.enums.UserStatus;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
@@ -56,8 +57,7 @@ public class UserServiceImpl implements UserService {
                 .bio(request.bio())
                 .phone(request.phone())
                 .countryCode(request.countryCode())
-                .preferredLanguage(request.preferredLanguage() != null ? 
-                    request.preferredLanguage() : com.mentorx.api.common.enums.SupportedLanguage.vi)
+                .preferredLanguage(normalizePreferredLanguage(request.preferredLanguage()))
                 .build();
 
         User savedUser = userRepository.save(user);
@@ -107,7 +107,7 @@ public class UserServiceImpl implements UserService {
             user.setCountryCode(request.countryCode());
         }
         if (request.preferredLanguage() != null) {
-            user.setPreferredLanguage(request.preferredLanguage());
+            user.setPreferredLanguage(normalizePreferredLanguage(request.preferredLanguage()));
         }
         if (request.profileIsPublic() != null) {
             user.setProfileIsPublic(request.profileIsPublic());
@@ -268,5 +268,17 @@ public class UserServiceImpl implements UserService {
                     .grantedAt(LocalDateTime.now())
                     .build());
         }
+    }
+
+    private SupportedLanguage normalizePreferredLanguage(SupportedLanguage preferredLanguage) {
+        if (preferredLanguage == null) {
+            return SupportedLanguage.en;
+        }
+
+        if (preferredLanguage != SupportedLanguage.en && preferredLanguage != SupportedLanguage.vi) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Preferred language must be en or vi.");
+        }
+
+        return preferredLanguage;
     }
 }

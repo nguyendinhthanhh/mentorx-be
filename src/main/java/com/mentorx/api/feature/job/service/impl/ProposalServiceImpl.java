@@ -1,6 +1,7 @@
 package com.mentorx.api.feature.job.service.impl;
 
 import com.mentorx.api.common.security.MentorModeAccessService;
+import com.mentorx.api.common.enums.MentorStatus;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.common.enums.JobStatus;
@@ -32,6 +33,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import com.mentorx.api.feature.wallet.service.WalletService;
@@ -53,6 +55,7 @@ public class ProposalServiceImpl implements ProposalService {
     @Override
     @Transactional
     public ProposalResponse create(ProposalCreateRequest request) {
+        requireCurrentMentor(request.mentorId());
         mentorModeAccessService.requireApprovedMentorContentAccess(request.mentorId());
         if (proposalRepository.findByJobIdAndMentorId(request.jobId(), request.mentorId()).isPresent()) {
             throw new AppException(ErrorCode.PROPOSAL_ALREADY_EXISTS);
@@ -60,10 +63,11 @@ public class ProposalServiceImpl implements ProposalService {
         
         Job job = jobRepository.findById(request.jobId())
                 .orElseThrow(() -> new AppException(ErrorCode.JOB_NOT_FOUND));
-                
-        if (job.getStatus() != com.mentorx.api.common.enums.JobStatus.OPEN) {
+
+        if (job.getStatus() != JobStatus.OPEN) {
             throw new AppException(ErrorCode.BAD_REQUEST, "Cannot propose to a job that is not open.");
         }
+        ensureNoActiveContract(job.getId());
 
         if (job.getClient().getId().equals(request.mentorId())) {
             throw new AppException(ErrorCode.BAD_REQUEST, "Client cannot submit a proposal to their own job.");
@@ -90,6 +94,7 @@ public class ProposalServiceImpl implements ProposalService {
     @Transactional
     public ProposalResponse update(UUID proposalId, ProposalCreateRequest request) {
         Proposal proposal = findProposal(proposalId);
+        requireCurrentMentor(proposal.getMentor().getId());
         mentorModeAccessService.requireApprovedMentorContentAccess(proposal.getMentor().getId());
         if (proposal.getStatus() != ProposalStatus.DRAFT && proposal.getStatus() != ProposalStatus.WITHDRAWN) {
             throw new AppException(ErrorCode.BAD_REQUEST); // Only draft or withdrawn can be updated directly
@@ -102,6 +107,7 @@ public class ProposalServiceImpl implements ProposalService {
     @Transactional
     public void delete(UUID proposalId) {
         Proposal proposal = findProposal(proposalId);
+        requireCurrentMentor(proposal.getMentor().getId());
         mentorModeAccessService.requireApprovedMentorContentAccess(proposal.getMentor().getId());
         proposalRepository.delete(proposal);
     }
@@ -117,8 +123,9 @@ public class ProposalServiceImpl implements ProposalService {
     @Transactional
     public void withdraw(UUID proposalId) {
         Proposal proposal = findProposal(proposalId);
+        requireCurrentMentor(proposal.getMentor().getId());
         mentorModeAccessService.requireApprovedMentorContentAccess(proposal.getMentor().getId());
-        if (proposal.getStatus() == ProposalStatus.ACCEPTED) {
+        if (proposal.getStatus() == ProposalStatus.ACCEPTED || hasActiveContractForProposal(proposalId)) {
             throw new AppException(ErrorCode.BAD_REQUEST); // Cannot withdraw accepted proposal
         }
         proposal.withdraw();
@@ -140,12 +147,14 @@ public class ProposalServiceImpl implements ProposalService {
     @Transactional
     public ProposalResponse submit(UUID proposalId) {
         Proposal proposal = findProposal(proposalId);
+        requireCurrentMentor(proposal.getMentor().getId());
         mentorModeAccessService.requireApprovedMentorContentAccess(proposal.getMentor().getId());
-        
-        if (proposal.getJob().getStatus() != com.mentorx.api.common.enums.JobStatus.OPEN) {
+
+        if (proposal.getJob().getStatus() != JobStatus.OPEN) {
             throw new AppException(ErrorCode.BAD_REQUEST, "Cannot submit proposal because the job is no longer open.");
         }
-        
+        ensureNoActiveContract(proposal.getJob().getId());
+
         proposal.submit();
         
         // Update job activity
@@ -178,33 +187,49 @@ public class ProposalServiceImpl implements ProposalService {
     @Override
     @Transactional
     public ProposalResponse accept(UUID proposalId) {
-        Proposal proposal = findProposal(proposalId);
-        if (proposal.getStatus() == ProposalStatus.ACCEPTED) {
-            return toResponse(proposal);
-        }
+        Proposal proposal = proposalRepository.findByIdForUpdate(proposalId)
+                .orElseThrow(() -> new AppException(ErrorCode.PROPOSAL_NOT_FOUND));
+        requireCurrentClient(proposal);
 
         if (contractRepository.findByProposalId(proposalId).isPresent()) {
             throw new AppException(ErrorCode.BAD_REQUEST, "A contract already exists for this proposal.");
         }
 
-        Job job = proposal.getJob();
-        if (job.getStatus() != JobStatus.OPEN && job.getStatus() != JobStatus.IN_PROGRESS) {
-            throw new AppException(ErrorCode.BAD_REQUEST, "This job is no longer accepting proposal decisions.");
+        Job job = jobRepository.findByIdForUpdate(proposal.getJob().getId())
+                .orElseThrow(() -> new AppException(ErrorCode.JOB_NOT_FOUND));
+        if (job.getStatus() != JobStatus.OPEN) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "This job already has an active contract.");
+        }
+        ensureNoActiveContract(job.getId());
+        ensureProposalAcceptable(proposal);
+
+        if (proposal.getMentor().getMentorStatus() != MentorStatus.APPROVED) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "This mentor is no longer approved to receive new contracts.");
         }
 
-        Optional<ProposalNegotiation> latestNegotiation = proposalNegotiationRepository.findLatestByProposalId(proposalId);
-        BigDecimal finalAmount = latestNegotiation
+        Optional<ProposalNegotiation> acceptedNegotiation = proposalNegotiationRepository.findLatestByProposalId(proposalId)
+                .filter(negotiation -> negotiation.getStatus() == com.mentorx.api.feature.job.enums.NegotiationStatus.ACCEPTED);
+        BigDecimal finalAmount = acceptedNegotiation
                 .map(ProposalNegotiation::getProposedAmount)
                 .filter(amount -> amount != null && amount.compareTo(BigDecimal.ZERO) > 0)
                 .orElse(proposal.getProposedAmount());
-        Integer finalDurationDays = latestNegotiation
+        Integer finalDurationDays = acceptedNegotiation
                 .map(ProposalNegotiation::getEstimatedDurationDays)
                 .orElse(proposal.getEstimatedDurationDays());
+        LocalDateTime finalDeadlineAt = acceptedNegotiation
+                .map(ProposalNegotiation::getDeadlineAt)
+                .orElse(proposal.getDeadlineAt());
+        String finalScopeDescription = acceptedNegotiation
+                .map(ProposalNegotiation::getMessage)
+                .filter(message -> message != null && !message.isBlank())
+                .orElseGet(() -> proposal.getCoverLetter() != null && !proposal.getCoverLetter().isBlank()
+                        ? proposal.getCoverLetter()
+                        : proposal.getScopeDescription());
 
-        applyAcceptedTerms(proposal, latestNegotiation.orElse(null), finalAmount, finalDurationDays);
+        applyAcceptedTerms(proposal, acceptedNegotiation.orElse(null), finalAmount, finalDurationDays, finalDeadlineAt, finalScopeDescription);
         proposal.accept();
 
-        Contract contract = buildAcceptedContract(proposal, finalAmount, finalDurationDays);
+        Contract contract = buildAcceptedContract(proposal, finalAmount, finalDurationDays, finalDeadlineAt, finalScopeDescription);
         Contract savedContract = contractRepository.save(contract);
 
         walletService.processJobPayment(job.getClient().getId(), savedContract.getId(), finalAmount);
@@ -215,10 +240,9 @@ public class ProposalServiceImpl implements ProposalService {
         savedContract.setActivatedAt(LocalDateTime.now());
         contractRepository.save(savedContract);
 
-        latestNegotiation.ifPresent(negotiation -> {
-            negotiation.accept();
-            proposalNegotiationRepository.save(negotiation);
-        });
+        acceptedNegotiation.ifPresent(proposalNegotiationRepository::save);
+
+        autoCloseOtherProposals(job.getId(), proposalId);
 
         job.setStatus(JobStatus.IN_PROGRESS);
         job.setUpdatedAt(LocalDateTime.now());
@@ -231,7 +255,10 @@ public class ProposalServiceImpl implements ProposalService {
     @Transactional
     public ProposalResponse reject(UUID proposalId, String reason) {
         Proposal proposal = findProposal(proposalId);
-        proposal.reject(reason);
+        requireProposalRejectionAccess(proposal);
+        String normalizedReason = normalizeRejectionReason(reason);
+        validateRejectionReason(normalizedReason);
+        proposal.reject(normalizedReason);
         return toResponse(proposalRepository.save(proposal));
     }
 
@@ -239,6 +266,7 @@ public class ProposalServiceImpl implements ProposalService {
     @Transactional
     public void markAsViewed(UUID proposalId) {
         Proposal proposal = findProposal(proposalId);
+        requireCurrentClient(proposal);
         proposal.markAsViewed();
         proposalRepository.save(proposal);
     }
@@ -248,6 +276,8 @@ public class ProposalServiceImpl implements ProposalService {
         proposal.setProposedAmount(request.proposedAmount());
         proposal.setProposedHourlyRate(request.proposedHourlyRate());
         proposal.setEstimatedDurationDays(request.estimatedDurationDays());
+        proposal.setDeadlineAt(request.deadlineAt());
+        proposal.setScopeDescription(request.scopeDescription() == null ? null : request.scopeDescription().trim());
         proposal.setProposedStartDate(request.proposedStartDate());
         proposal.setProposedDeliveryDate(request.proposedDeliveryDate());
         if (request.proposedMilestones() != null) proposal.setProposedMilestones(request.proposedMilestones());
@@ -263,14 +293,89 @@ public class ProposalServiceImpl implements ProposalService {
                 .orElseThrow(() -> new AppException(ErrorCode.PROPOSAL_NOT_FOUND));
     }
 
+    private void requireCurrentMentor(UUID mentorId) {
+        if (!mentorModeAccessService.getCurrentUserId().equals(mentorId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "You cannot act on another mentor's proposal.");
+        }
+    }
+
+    private void requireCurrentClient(Proposal proposal) {
+        UUID currentUserId = mentorModeAccessService.getCurrentUserId();
+        if (!proposal.getJob().getClient().getId().equals(currentUserId) && !mentorModeAccessService.isCurrentUserAdmin()) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "Only the job owner can manage proposal decisions.");
+        }
+    }
+
+    private void requireProposalRejectionAccess(Proposal proposal) {
+        UUID currentUserId = mentorModeAccessService.getCurrentUserId();
+        boolean isClient = proposal.getJob().getClient().getId().equals(currentUserId);
+        boolean isMentor = proposal.getMentor().getId().equals(currentUserId);
+        if (!isClient && !isMentor && !mentorModeAccessService.isCurrentUserAdmin()) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "Only the job owner or assigned mentor can reject this proposal.");
+        }
+    }
+
+    private String normalizeRejectionReason(String reason) {
+        return Optional.ofNullable(reason).map(String::trim).orElse("");
+    }
+
+    private void validateRejectionReason(String reason) {
+        if (reason.isBlank()) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "A rejection reason is required.");
+        }
+
+        long wordCount = reason.split("\\s+").length;
+        if (wordCount < 10) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Rejection reason must contain at least 10 words.");
+        }
+    }
+
+    private void ensureNoActiveContract(UUID jobId) {
+        if (!contractRepository.findByJobIdAndStatusInForUpdate(jobId, List.of(
+                ContractStatus.ACTIVE,
+                ContractStatus.PENDING_PAYMENT,
+                ContractStatus.PAUSED,
+                ContractStatus.IN_DISPUTE,
+                ContractStatus.UNDER_REVIEW
+        )).isEmpty()) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "This job already has an active contract.");
+        }
+    }
+
+    private boolean hasActiveContractForProposal(UUID proposalId) {
+        return contractRepository.findByProposalId(proposalId)
+                .filter(contract -> List.of(
+                        ContractStatus.ACTIVE,
+                        ContractStatus.PENDING_PAYMENT,
+                        ContractStatus.PAUSED,
+                        ContractStatus.IN_DISPUTE,
+                        ContractStatus.UNDER_REVIEW,
+                        ContractStatus.COMPLETED
+                ).contains(contract.getStatus()))
+                .isPresent();
+    }
+
+    private void ensureProposalAcceptable(Proposal proposal) {
+        if (!(proposal.getStatus() == ProposalStatus.SUBMITTED
+                || proposal.getStatus() == ProposalStatus.OFFER_ACCEPTED
+                || proposal.getStatus() == ProposalStatus.SHORTLISTED
+                || proposal.getStatus() == ProposalStatus.UNDER_REVIEW)) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "This proposal is not in a state that can be accepted.");
+        }
+    }
+
     private void applyAcceptedTerms(
             Proposal proposal,
             ProposalNegotiation latestNegotiation,
             BigDecimal finalAmount,
-            Integer finalDurationDays
+            Integer finalDurationDays,
+            LocalDateTime finalDeadlineAt,
+            String finalScopeDescription
     ) {
         proposal.setProposedAmount(finalAmount);
         proposal.setEstimatedDurationDays(finalDurationDays);
+        proposal.setDeadlineAt(finalDeadlineAt);
+        proposal.setScopeDescription(finalScopeDescription == null ? null : finalScopeDescription.trim());
 
         if (latestNegotiation == null) {
             return;
@@ -287,10 +392,19 @@ public class ProposalServiceImpl implements ProposalService {
         }
     }
 
-    private Contract buildAcceptedContract(Proposal proposal, BigDecimal finalAmount, Integer finalDurationDays) {
+    private Contract buildAcceptedContract(
+            Proposal proposal,
+            BigDecimal finalAmount,
+            Integer finalDurationDays,
+            LocalDateTime finalDeadlineAt,
+            String finalScopeDescription
+    ) {
         Contract contract = new Contract();
         Job job = proposal.getJob();
         LocalDate today = LocalDate.now();
+        String normalizedScope = finalScopeDescription == null || finalScopeDescription.isBlank()
+                ? job.getSuccessCriteria()
+                : finalScopeDescription.trim();
 
         contract.setJob(job);
         contract.setProposal(proposal);
@@ -303,14 +417,43 @@ public class ProposalServiceImpl implements ProposalService {
         contract.setHourlyRate(proposal.getProposedHourlyRate());
         contract.setStartDate(proposal.getProposedStartDate() != null ? proposal.getProposedStartDate() : today);
         contract.setEndDate(resolveContractEndDate(proposal, finalDurationDays, today));
+        contract.setDeadlineAt(finalDeadlineAt);
+        contract.setScopeDescription(normalizedScope);
         contract.setActualStartDate(today);
         contract.setActivatedAt(LocalDateTime.now());
         contract.setPaymentTerms("Funds are held in escrow until the client confirms the job is completed.");
-        contract.setDeliverables(job.getSuccessCriteria());
+        contract.setDeliverables(normalizedScope);
         contract.setAmountPaid(BigDecimal.ZERO);
         contract.setAmountInEscrow(finalAmount);
         contract.setFundsInEscrow(true);
         return contract;
+    }
+
+    private void autoCloseOtherProposals(UUID jobId, UUID acceptedProposalId) {
+        List<Proposal> siblingProposals = proposalRepository.findByJobId(jobId);
+        for (Proposal sibling : siblingProposals) {
+            if (sibling.getId().equals(acceptedProposalId)) {
+                continue;
+            }
+
+            if (sibling.getStatus() == ProposalStatus.SUBMITTED
+                    || sibling.getStatus() == ProposalStatus.NEGOTIATING
+                    || sibling.getStatus() == ProposalStatus.OFFER_ACCEPTED
+                    || sibling.getStatus() == ProposalStatus.SHORTLISTED
+                    || sibling.getStatus() == ProposalStatus.UNDER_REVIEW) {
+                sibling.autoClose("Another mentor was selected for this job.");
+                proposalRepository.save(sibling);
+            }
+
+            List<ProposalNegotiation> pendingNegotiations = proposalNegotiationRepository.findByProposalIdAndStatus(
+                    sibling.getId(),
+                    com.mentorx.api.feature.job.enums.NegotiationStatus.PENDING
+            );
+            if (!pendingNegotiations.isEmpty()) {
+                pendingNegotiations.forEach(ProposalNegotiation::cancel);
+                proposalNegotiationRepository.saveAll(pendingNegotiations);
+            }
+        }
     }
 
     private LocalDate resolveContractEndDate(Proposal proposal, Integer finalDurationDays, LocalDate fallbackStartDate) {
@@ -336,6 +479,8 @@ public class ProposalServiceImpl implements ProposalService {
                 proposal.getProposedAmount(),
                 proposal.getProposedHourlyRate(),
                 proposal.getEstimatedDurationDays(),
+                proposal.getDeadlineAt(),
+                proposal.getScopeDescription(),
                 proposal.getProposedStartDate(),
                 proposal.getProposedDeliveryDate(),
                 proposal.getProposedMilestones(),

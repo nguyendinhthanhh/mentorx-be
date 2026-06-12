@@ -2,11 +2,13 @@ package com.mentorx.api.feature.chat.controller;
 
 import com.mentorx.api.common.response.ApiResponse;
 import com.mentorx.api.feature.chat.dto.request.ChatRoomCreateRequest;
+import com.mentorx.api.feature.chat.dto.request.ChatConversationResolveRequest;
 import com.mentorx.api.feature.chat.dto.request.MessageSendRequest;
 import com.mentorx.api.feature.chat.dto.request.UserBlockRequest;
 import com.mentorx.api.feature.chat.dto.response.ChatRoomResponse;
 import com.mentorx.api.feature.chat.dto.response.MessageResponse;
 import com.mentorx.api.feature.chat.dto.response.UserBlockResponse;
+import com.mentorx.api.common.util.SecurityUtils;
 import com.mentorx.api.feature.chat.service.ChatService;
 import com.mentorx.api.feature.chat.service.UserBlockService;
 import jakarta.validation.Valid;
@@ -34,6 +36,11 @@ public class ChatController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(chatService.createRoom(request)));
     }
 
+    @PostMapping("/rooms/resolve")
+    public ResponseEntity<ApiResponse<ChatRoomResponse>> resolveConversation(@Valid @RequestBody ChatConversationResolveRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(chatService.resolveConversation(request)));
+    }
+
     @GetMapping("/rooms/{roomId}")
     public ResponseEntity<ApiResponse<ChatRoomResponse>> getRoomById(
             @PathVariable UUID roomId,
@@ -46,6 +53,14 @@ public class ChatController {
             @PathVariable UUID userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success(chatService.getUserRooms(userId, PageRequest.of(page, size))));
+    }
+
+    @GetMapping("/users/me/rooms")
+    public ResponseEntity<ApiResponse<Page<ChatRoomResponse>>> getMyRooms(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        UUID userId = SecurityUtils.getCurrentUserId();
         return ResponseEntity.ok(ApiResponse.success(chatService.getUserRooms(userId, PageRequest.of(page, size))));
     }
 

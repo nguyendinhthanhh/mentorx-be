@@ -18,7 +18,7 @@ CREATE TYPE contract_status AS ENUM ('active', 'completed', 'cancelled', 'disput
 CREATE TYPE milestone_status AS ENUM ('pending', 'in_progress', 'completed', 'approved');
 CREATE TYPE course_status AS ENUM ('draft', 'published', 'archived');
 CREATE TYPE lesson_type AS ENUM ('video', 'text', 'quiz', 'assignment');
-CREATE TYPE payment_gateway AS ENUM ('stripe', 'paypal', 'bank_transfer');
+CREATE TYPE payment_gateway AS ENUM ('vnpay', 'momo', 'payos', 'stripe', 'paypal', 'bank_transfer');
 CREATE TYPE txn_type AS ENUM ('deposit', 'withdrawal', 'payment', 'refund', 'commission');
 CREATE TYPE txn_status AS ENUM ('pending', 'completed', 'failed', 'cancelled');
 CREATE TYPE ledger_direction AS ENUM ('debit', 'credit');
