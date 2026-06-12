@@ -2,7 +2,7 @@ spring:
   application:
     name: mentorx-api
   config:
-    import: optional:file:.env[.properties]
+    import: optional:file:.env[.properties],optional:file:./mentorx-be/.env[.properties]
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
   
