@@ -351,7 +351,8 @@ public class JobServiceImpl implements JobService {
                 job.getUpdatedAt(),
                 job.getStatusReason(),
                 job.getAttachmentUrl(),
-                job.getAttachments() != null ? new ArrayList<>(job.getAttachments()) : new ArrayList<>()
+                job.getAttachments() != null ? new ArrayList<>(job.getAttachments()) : new ArrayList<>(),
+                null
         );
     }
 
