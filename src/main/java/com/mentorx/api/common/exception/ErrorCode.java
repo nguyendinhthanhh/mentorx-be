@@ -91,9 +91,12 @@ public enum ErrorCode {
     
     // Dispute & Report errors
     DISPUTE_NOT_FOUND(HttpStatus.NOT_FOUND, "Dispute not found"),
-    DISPUTE_ALREADY_EXISTS(HttpStatus.CONFLICT, "Dispute already exists for this contract"),
-    INVALID_DISPUTE_STATUS(HttpStatus.BAD_REQUEST, "Invalid dispute status"),
+    DISPUTE_ALREADY_EXISTS(HttpStatus.CONFLICT, "Duplicate dispute for this booking"),
+    INVALID_DISPUTE_STATUS(HttpStatus.BAD_REQUEST, "Invalid dispute status transition"),
     REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "Report not found"),
+    EVIDENCE_NOT_FOUND(HttpStatus.NOT_FOUND, "Evidence not found"),
+    NOT_DISPUTE_PARTY(HttpStatus.FORBIDDEN, "You are not a party to this dispute"),
+    DISPUTE_INVALID_INPUT(HttpStatus.BAD_REQUEST, "Invalid dispute input"),
     
     // Review errors
     REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "Review not found"),
