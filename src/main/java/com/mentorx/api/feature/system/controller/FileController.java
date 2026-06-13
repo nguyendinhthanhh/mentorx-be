@@ -27,8 +27,11 @@ public class FileController {
     private final CloudinaryMediaService cloudinaryMediaService;
 
     @PostMapping("/upload")
-    public ResponseEntity<ApiResponse<FileResponse>> uploadFile(@RequestParam("file") MultipartFile file) {
-        String storedReference = fileStorageService.storeFile(file);
+    public ResponseEntity<ApiResponse<FileResponse>> uploadFile(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "subDirectory", required = false) String subDirectory
+    ) {
+        String storedReference = fileStorageService.store(file, subDirectory);
         String originalFileName = StringUtils.hasText(file.getOriginalFilename())
                 ? StringUtils.cleanPath(file.getOriginalFilename())
                 : "upload";

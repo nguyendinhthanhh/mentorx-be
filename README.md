@@ -1,191 +1,227 @@
-# MentorX Backend API
+# Mentor X Backend API
 
-A comprehensive mentoring platform backend built with Spring Boot 3.x and Java 25.
+Mentor X Backend API is a Spring Boot modular monolith for a mentor marketplace that goes well beyond simple CRUD.  
+It supports mentor discovery, job and proposal workflows, negotiation, contract creation, escrow-aware wallet operations, messaging, reviews, verification, and moderation in a single cohesive backend.
 
-## ?? Features
+This repository is built to reflect real product rules and operational constraints, not a generic freelance-platform sample.
 
-- **User Management** - Registration, authentication, profile management
-- **Mentor System** - Mentor applications, approvals, skill management
-- **Job Management** - Job posting, proposals, contracts, milestones
-- **Wallet System** - Double-entry bookkeeping, escrow payments, transactions
-- **Security** - JWT authentication, OAuth2 integration, role-based access
-- **API Documentation** - OpenAPI/Swagger integration
+## Executive Summary
 
-## ??? Tech Stack
+Mentor X models the full path from discovery to paid collaboration:
 
-- **Java 25** - Latest LTS version
-- **Spring Boot 3.x** - Framework
-- **Spring Security 6** - Authentication & Authorization
-- **Spring Data JPA** - Database access
-- **PostgreSQL** - Primary database
-- **Redis** - Caching layer
-- **MapStruct** - Entity-DTO mapping
-- **Docker** - Containerization
-- **GitHub Actions** - CI/CD pipeline
+- users browse mentors, jobs, and courses
+- users post support requests
+- approved mentors submit proposals and negotiate terms
+- client selection creates the contract
+- escrow is locked when the contract is created
+- completion, cancellation, dispute, release, and refund flows are handled explicitly
+- admins and moderators operate verification, moderation, and financial controls
 
-## ?? Quick Start
+## Why This Backend Stands Out
+
+- It contains real business workflows with lifecycle rules, not just resource endpoints
+- It enforces role and ownership constraints across sensitive product areas
+- It handles money-adjacent logic through wallet, deposit, escrow, and withdrawal domains
+- It integrates external systems for auth, mail, payments, media, and verification
+- It keeps a layered architecture inside a single deployable backend for practical product delivery
+
+## Core Product Domains
+
+- Authentication and account lifecycle
+- USER to MENTOR approval flow
+- Mentor public profile and marketplace presence
+- Job posting, proposal submission, and negotiation
+- Contract creation and lifecycle transitions
+- Wallet, deposit, escrow, release, refund, and withdrawal handling
+- Chat and notifications
+- Reviews and trust signals
+- Admin moderation and mentor verification
+- File storage for public assets and private verification documents
+
+## Architectural Approach
+
+The project uses a modular monolith structure with strong layer separation:
+
+```text
+src/main/java/com/mentorx/api/
+  auth/
+  common/
+  feature/
+    chat/
+    course/
+    feed/
+    job/
+    mentor/
+    payment/
+    review/
+    system/
+    user/
+    wallet/
+```
+
+Key implementation boundaries:
+
+- `controller` handles HTTP input and output only
+- `service` and `service.impl` own business orchestration
+- `repository` owns persistence access
+- `dto.request` and `dto.response` define API contracts
+- `mapper` is restricted to shape transformation, not business policy
+
+This separation matters because the product includes financial, authorization, and lifecycle-sensitive rules that should not leak into controllers or mapping code.
+
+## Engineering Highlights
+
+- JWT-based authentication plus OAuth2 client integration
+- Role-aware and ownership-aware authorization patterns
+- Explicit contract and escrow lifecycle modeling
+- Wallet transaction flows with auditable financial state changes
+- Public vs private file routing for media and verification flows
+- Support for external payment providers and callback handling
+- OCR and image-processing support for verification-oriented workflows
+- OpenAPI documentation for API exploration and testing
+
+## Technology Stack
+
+- `Java 21`
+- `Spring Boot 3.2.5`
+- `Spring Security`
+- `Spring Data JPA`
+- `PostgreSQL`
+- `Redis`
+- `WebSocket`
+- `Spring Mail`
+- `MapStruct`
+- `JWT`
+- `OpenAPI / Swagger`
+- `Docker`
+- `Testcontainers`
+
+Supporting libraries in the repository also cover OCR, PDF processing, and image handling for identity and document-related workflows.
+
+## What a Reviewer Should Notice
+
+This codebase is most valuable as a hiring signal in these areas:
+
+- backend design for multi-role product systems
+- handling of negotiation, contract, and escrow rules in one domain model
+- discipline around service-layer ownership of business logic
+- practical integration of external systems without collapsing architecture
+- safety-minded handling of financial and verification flows
+
+## Representative Business Rules
+
+- every account begins as `USER`
+- mentor access is an approved capability, not a separate account type
+- proposal negotiation is centered on `price + deadlineAt + message`
+- contract creation is the point that locks escrow
+- contract completion is the point that releases escrow
+- dispute keeps escrow locked until resolution
+- financial controls are separated from general moderation responsibilities
+
+These rules make the backend meaningfully different from a generic CRUD board.
+
+## Local Development
 
 ### Prerequisites
 
-- Java 25+
-- Docker & Docker Compose
-- Maven 3.8+
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/nguyendinhthanhh/mentorx-be.git
-cd mentorx-be
-```
-
-### 2. Setup environment variables
-
-```bash
-# Copy environment template
-cp .env.example .env
-
-# Edit .env file with your configuration
-# IMPORTANT: Set strong passwords and secrets!
-```
-
-### 3. Run with Docker (Recommended)
-
-```bash
-# Start all services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f mentorx-app
-```
-
-### 4. Run locally (Alternative)
-
-```bash
-# Start PostgreSQL and Redis
-docker-compose up -d postgres redis
-
-# Run the application
-./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
-```
-
-## ?? Security Configuration
-
-### ?? CRITICAL: Before deploying to production
-
-1. **Set strong JWT secret** (minimum 32 characters):
-   ```bash
-   JWT_SECRET=your-super-strong-jwt-secret-here-minimum-32-chars
-   ```
-
-2. **Set strong database password**:
-   ```bash
-   POSTGRES_PASSWORD=your-strong-database-password
-   ```
-
-3. **Set wallet secret key**:
-   ```bash
-   WALLET_SECRET_KEY=your-wallet-secret-for-transaction-hashing
-   ```
-
-4. **Configure OAuth2 credentials**:
-   ```bash
-   GOOGLE_CLIENT_ID=your-google-client-id
-   GOOGLE_CLIENT_SECRET=your-google-client-secret
-   ```
-
-### ?? Never commit these files:
-- `.env` - Contains real secrets
-- `application-local.yml` - Local configuration
-- `*.log` - Log files
-- Database dumps with real data
-
-## ?? API Documentation
-
-Once the application is running, visit:
-- **Swagger UI**: http://localhost:8080/swagger-ui.html
-- **API Docs**: http://localhost:8080/api-docs
-
-## ?? Testing
-
-```bash
-# Run all tests
-./mvnw test
-
-# Run with coverage
-./mvnw test jacoco:report
-
-# Run specific test class
-./mvnw test -Dtest=UserServiceTest
-```
-
-## ?? Docker Commands
-
-```bash
-# Build image
-docker build -t mentorx-backend .
-
-# Run with compose
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop services
-docker-compose down
-
-# Clean up
-docker-compose down -v
-```
-
-## ?? Database Management
-
-### pgAdmin (Development only)
-- URL: http://localhost:5050
-- Email: admin@mentorx.local
-- Password: (set in .env file)
-
-### Database Backup
-```bash
-# Create backup
-make backup-db
-
-# Restore backup
-make restore-db
-```
-
-## ?? Deployment
+- `Java 21`
+- `Maven` or the included Maven Wrapper
+- `PostgreSQL`
+- `Redis`
+- `Docker` and `docker-compose` for local infrastructure if preferred
 
 ### Environment Setup
-1. **Development**: Uses `application-dev.yml`
-2. **Docker**: Uses `application-docker.yml`
-3. **Production**: Uses `application-prod.yml`
 
-### CI/CD Pipeline
-The project includes GitHub Actions for:
-- Automated testing
-- Code quality analysis
-- Security scanning
-- Docker image building
-- Deployment to staging/production
+Create `.env` from `.env.example`:
 
-## ?? Contributing
+```bash
+cp .env.example .env
+```
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
+Typical configuration areas:
 
-## ?? License
+- database connection
+- Redis connection
+- JWT secret and token settings
+- wallet secret key
+- OAuth credentials
+- SMTP configuration
+- payment provider credentials
+- Cloudinary credentials
+- storage provider settings
 
-This project is licensed under the MIT License.
+Do not commit real secrets.
 
-## ?? Support
+### Start Supporting Services
 
-For support and questions:
-- Create an issue on GitHub
-- Contact: [your-email@domain.com]
+```bash
+docker-compose up -d postgres redis
+```
 
----
+### Start the Application
 
-**?? Security Notice**: This application handles sensitive financial data. Always follow security best practices and never commit secrets to version control.
+Windows:
+
+```powershell
+.\mvnw.cmd spring-boot:run
+```
+
+macOS / Linux:
+
+```bash
+./mvnw spring-boot:run
+```
+
+Default local API base:
+
+- `http://localhost:8080`
+
+## Build
+
+Windows:
+
+```powershell
+.\mvnw.cmd -q -DskipTests compile
+```
+
+macOS / Linux:
+
+```bash
+./mvnw -q -DskipTests compile
+```
+
+## Test
+
+```bash
+./mvnw test
+```
+
+The project also includes `Testcontainers` dependencies for integration-oriented testing.
+
+## API Documentation
+
+When the application is running:
+
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- OpenAPI docs: `http://localhost:8080/api-docs`
+
+## Operational Notes
+
+- public image assets can be routed to Cloudinary
+- private verification and sensitive document flows can remain on controlled storage
+- payment integrations are exposed through backend-controlled endpoints rather than pushing money logic into the client
+- wallet and escrow flows should remain explicit, auditable, and lifecycle-driven
+
+## Recruiter Notes
+
+If you are reviewing this project as engineering signal, the strongest backend themes are:
+
+- non-trivial backend domain modeling
+- product-grade authorization and ownership checks
+- financial and lifecycle-aware service design
+- modular monolith architecture with clear boundaries
+- integration-heavy backend work without turning the codebase into a fragile script collection
+
+## Related Repository
+
+- Frontend client: [mentorx-fe](https://github.com/nguyendinhthanhh/mentorx-fe)

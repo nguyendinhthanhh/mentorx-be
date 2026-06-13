@@ -64,9 +64,12 @@ jobs:
     - name: Upload test results
       uses: actions/upload-artifact@v4
       if: always()
+      continue-on-error: true
       with:
         name: test-results
         path: target/surefire-reports/
+        if-no-files-found: warn
+        retention-days: 3
 
   build:
     name: Build Application
@@ -96,9 +99,12 @@ jobs:
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
+      continue-on-error: true
       with:
         name: jar-artifact
         path: target/*.jar
+        if-no-files-found: warn
+        retention-days: 3
 
   # TODO: Uncomment the following jobs when secrets are configured:
   # - code-quality: Requires SONAR_TOKEN
