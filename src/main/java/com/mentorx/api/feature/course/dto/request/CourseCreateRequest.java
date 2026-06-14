@@ -1,5 +1,6 @@
 package com.mentorx.api.feature.course.dto.request;
 
+import com.mentorx.api.common.enums.CourseProductType;
 import com.mentorx.api.common.enums.SupportedLanguage;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
@@ -55,4 +56,6 @@ public class CourseCreateRequest {
     private Boolean isCertificate;
 
     private String previewVideoUrl;
+
+    private CourseProductType productType;
 }

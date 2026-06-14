@@ -186,9 +186,13 @@ public class CourseCurriculumServiceImpl implements CourseCurriculumService {
     }
 
     private com.mentorx.api.common.enums.LessonType normalizeLessonType(com.mentorx.api.common.enums.LessonType lessonType) {
-        return lessonType == com.mentorx.api.common.enums.LessonType.QUIZ
-                ? com.mentorx.api.common.enums.LessonType.QUIZ
-                : com.mentorx.api.common.enums.LessonType.LESSON;
+        if (lessonType == com.mentorx.api.common.enums.LessonType.QUIZ) {
+            return com.mentorx.api.common.enums.LessonType.QUIZ;
+        }
+        if (lessonType == com.mentorx.api.common.enums.LessonType.DOCUMENT) {
+            return com.mentorx.api.common.enums.LessonType.DOCUMENT;
+        }
+        return com.mentorx.api.common.enums.LessonType.LESSON;
     }
 
     private boolean isBlank(String value) {

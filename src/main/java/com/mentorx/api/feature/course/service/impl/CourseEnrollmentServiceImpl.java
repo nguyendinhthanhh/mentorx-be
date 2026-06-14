@@ -54,6 +54,9 @@ public class CourseEnrollmentServiceImpl implements CourseEnrollmentService {
 
         Course course = courseRepository.findById(request.getCourseId())
                 .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_FOUND));
+        if (course.getStatus() != CourseStatus.PUBLISHED) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Only published courses can be enrolled");
+        }
 
         User student = userRepository.findById(request.getStudentId())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));

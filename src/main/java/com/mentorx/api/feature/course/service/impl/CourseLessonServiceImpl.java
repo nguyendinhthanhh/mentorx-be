@@ -175,7 +175,7 @@ public class CourseLessonServiceImpl implements CourseLessonService {
             throw new AppException(ErrorCode.BAD_REQUEST, "Lesson type is required");
         }
         switch (lessonType) {
-            case LESSON, VIDEO, ARTICLE, TEXT, DOWNLOADABLE -> {
+            case LESSON, DOCUMENT, VIDEO, ARTICLE, TEXT, DOWNLOADABLE -> {
                 // Lesson content, video, and downloadable resources are optional draft attachments.
             }
             case QUIZ, ASSIGNMENT, LIVE_SESSION -> {
@@ -185,8 +185,12 @@ public class CourseLessonServiceImpl implements CourseLessonService {
     }
 
     private com.mentorx.api.common.enums.LessonType normalizeLessonType(com.mentorx.api.common.enums.LessonType lessonType) {
-        return lessonType == com.mentorx.api.common.enums.LessonType.QUIZ
-                ? com.mentorx.api.common.enums.LessonType.QUIZ
-                : com.mentorx.api.common.enums.LessonType.LESSON;
+        if (lessonType == com.mentorx.api.common.enums.LessonType.QUIZ) {
+            return com.mentorx.api.common.enums.LessonType.QUIZ;
+        }
+        if (lessonType == com.mentorx.api.common.enums.LessonType.DOCUMENT) {
+            return com.mentorx.api.common.enums.LessonType.DOCUMENT;
+        }
+        return com.mentorx.api.common.enums.LessonType.LESSON;
     }
 }

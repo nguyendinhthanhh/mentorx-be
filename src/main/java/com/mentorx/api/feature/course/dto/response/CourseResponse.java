@@ -1,6 +1,7 @@
 package com.mentorx.api.feature.course.dto.response;
 
 import com.mentorx.api.common.enums.CourseStatus;
+import com.mentorx.api.common.enums.CourseProductType;
 import com.mentorx.api.common.enums.SupportedLanguage;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -39,6 +40,7 @@ public class CourseResponse {
     private Integer totalReviews;
     private Boolean isCertificate;
     private String previewVideoUrl;
+    private CourseProductType productType;
     private String rejectionReason;
     private LocalDateTime submittedAt;
     private LocalDateTime publishedAt;

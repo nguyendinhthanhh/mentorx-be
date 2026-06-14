@@ -252,6 +252,16 @@ public class DatabaseInitializationRunner {
         }
         log.info("Ensuring course lesson type constraint allows normalized lesson types...");
         try {
+            jdbcTemplate.execute("""
+                    ALTER TABLE courses
+                    ADD COLUMN IF NOT EXISTS product_type VARCHAR(20) NOT NULL DEFAULT 'COURSE'
+                    """);
+            jdbcTemplate.execute("ALTER TABLE courses DROP CONSTRAINT IF EXISTS courses_product_type_check");
+            jdbcTemplate.execute("""
+                    ALTER TABLE courses
+                    ADD CONSTRAINT courses_product_type_check
+                    CHECK (product_type IN ('COURSE', 'DOCUMENT'))
+                    """);
             jdbcTemplate.execute("ALTER TABLE course_lessons DROP CONSTRAINT IF EXISTS course_lessons_lesson_type_check");
             jdbcTemplate.execute("""
                     UPDATE course_lessons
@@ -266,7 +276,7 @@ public class DatabaseInitializationRunner {
             jdbcTemplate.execute("""
                     ALTER TABLE course_lessons
                     ADD CONSTRAINT course_lessons_lesson_type_check
-                    CHECK (lesson_type IN ('LESSON', 'QUIZ'))
+                    CHECK (lesson_type IN ('LESSON', 'QUIZ', 'DOCUMENT'))
                     """);
         } catch (Exception e) {
             log.warn("Could not update course_lessons_lesson_type_check constraint: {}", e.getMessage());

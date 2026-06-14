@@ -11,6 +11,11 @@ public enum LessonType {
      * Standard lesson. May include rich text, optional video, and optional downloadable resource.
      */
     LESSON,
+
+    /**
+     * Standalone or course-attached downloadable document.
+     */
+    DOCUMENT,
     
     /**
      * Quiz/assessment lesson

@@ -1,6 +1,7 @@
 package com.mentorx.api.feature.course.service;
 
 import com.mentorx.api.common.enums.CourseStatus;
+import com.mentorx.api.common.enums.CourseProductType;
 import com.mentorx.api.common.enums.SupportedLanguage;
 import com.mentorx.api.feature.course.dto.request.CourseCreateRequest;
 import com.mentorx.api.feature.course.dto.request.CourseUpdateRequest;
@@ -24,13 +25,15 @@ public interface CourseService {
     void delete(UUID courseId);
     CourseResponse archive(UUID courseId);
     Page<CourseResponse> getAllCourses(CourseStatus status,
+                                       CourseProductType productType,
                                        UUID instructorId,
                                        Integer categoryId,
                                        SupportedLanguage language,
                                        String levelKeyword,
                                        String skillKeyword,
                                        Pageable pageable);
-    Page<CourseResponse> getPublished(Integer categoryId,
+    Page<CourseResponse> getPublished(CourseProductType productType,
+                                      Integer categoryId,
                                       SupportedLanguage language,
                                       String levelKeyword,
                                       String skillKeyword,

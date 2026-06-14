@@ -2,6 +2,8 @@ package com.mentorx.api.feature.course.service.impl;
 
 import com.mentorx.api.common.security.MentorModeAccessService;
 import com.mentorx.api.common.util.CloudinaryMediaService;
+import com.mentorx.api.common.util.SecurityUtils;
+import com.mentorx.api.common.enums.CourseProductType;
 import com.mentorx.api.common.enums.CourseStatus;
 import com.mentorx.api.common.enums.SupportedLanguage;
 import com.mentorx.api.common.exception.AppException;
@@ -10,6 +12,7 @@ import com.mentorx.api.feature.course.dto.request.CourseCreateRequest;
 import com.mentorx.api.feature.course.dto.request.CourseUpdateRequest;
 import com.mentorx.api.feature.course.dto.response.CourseResponse;
 import com.mentorx.api.feature.course.entity.Course;
+import com.mentorx.api.feature.course.repository.CourseEnrollmentRepository;
 import com.mentorx.api.feature.course.repository.CourseRepository;
 import com.mentorx.api.feature.system.entity.Skill;
 import com.mentorx.api.feature.system.repository.SkillRepository;
@@ -36,6 +39,7 @@ import java.util.UUID;
 public class CourseServiceImpl implements CourseService {
 
     private final CourseRepository courseRepository;
+    private final CourseEnrollmentRepository courseEnrollmentRepository;
     private final UserRepository userRepository;
     private final MentorModeAccessService mentorModeAccessService;
     private final SkillRepository skillRepository;
@@ -63,6 +67,7 @@ public class CourseServiceImpl implements CourseService {
                 .level(request.getLevel())
                 .isCertificate(Boolean.TRUE.equals(request.getIsCertificate()))
                 .previewVideoUrl(request.getPreviewVideoUrl())
+                .productType(request.getProductType() != null ? request.getProductType() : CourseProductType.COURSE)
                 .status(CourseStatus.DRAFT)
                 .build();
         return toResponse(courseRepository.save(course));
@@ -70,7 +75,9 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     public CourseResponse getById(UUID courseId) {
-        return toResponse(findCourse(courseId));
+        Course course = findCourse(courseId);
+        requireCourseVisibleForCurrentUser(course);
+        return toResponse(course);
     }
 
     @Override
@@ -131,11 +138,19 @@ public class CourseServiceImpl implements CourseService {
         if (request.getTitle() != null) course.setTitle(request.getTitle());
         if (request.getDescription() != null) course.setDescription(request.getDescription());
         if (request.getThumbnailUrl() != null) course.setThumbnailUrl(request.getThumbnailUrl());
-        if (request.getPriceMxc() != null) course.setPriceMxc(request.getPriceMxc());
+        if (request.getPriceMxc() != null) {
+            if (course.getPublishedAt() != null
+                    && course.getPriceMxc() != null
+                    && course.getPriceMxc().compareTo(request.getPriceMxc()) != 0) {
+                throw new AppException(ErrorCode.BAD_REQUEST, "Price cannot be changed after publication");
+            }
+            course.setPriceMxc(request.getPriceMxc());
+        }
         if (request.getLanguage() != null) course.setLanguage(request.getLanguage());
         if (request.getLevel() != null) course.setLevel(request.getLevel());
         if (request.getIsCertificate() != null) course.setIsCertificate(request.getIsCertificate());
         if (request.getPreviewVideoUrl() != null) course.setPreviewVideoUrl(request.getPreviewVideoUrl());
+        if (request.getProductType() != null) course.setProductType(request.getProductType());
         if (request.getStatus() != null) {
             course.setStatus(request.getStatus());
             if (request.getStatus() == CourseStatus.PUBLISHED && course.getPublishedAt() == null) {
@@ -169,6 +184,7 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     public Page<CourseResponse> getAllCourses(CourseStatus status,
+                                              CourseProductType productType,
                                               UUID instructorId,
                                               Integer categoryId,
                                               SupportedLanguage language,
@@ -176,25 +192,28 @@ public class CourseServiceImpl implements CourseService {
                                               String skillKeyword,
                                               Pageable pageable) {
         String normalizedStatus = status != null ? status.name() : null;
+        String normalizedProductType = productType != null ? productType.name() : null;
         String normalizedLanguage = language != null ? language.name() : null;
         String normalizedLevelKeyword = normalizeKeyword(levelKeyword);
         String normalizedSkillKeyword = normalizeKeyword(skillKeyword);
         return courseRepository
-                .findAllWithFilters(normalizedStatus, instructorId, categoryId, normalizedLanguage, normalizedLevelKeyword, normalizedSkillKeyword, pageable)
+                .findAllWithFilters(normalizedStatus, normalizedProductType, instructorId, categoryId, normalizedLanguage, normalizedLevelKeyword, normalizedSkillKeyword, pageable)
                 .map(this::toResponse);
     }
 
     @Override
-    public Page<CourseResponse> getPublished(Integer categoryId,
+    public Page<CourseResponse> getPublished(CourseProductType productType,
+                                             Integer categoryId,
                                              SupportedLanguage language,
                                              String levelKeyword,
                                              String skillKeyword,
                                              Pageable pageable) {
+        String normalizedProductType = productType != null ? productType.name() : null;
         String normalizedLanguage = language != null ? language.name() : null;
         String normalizedLevelKeyword = normalizeKeyword(levelKeyword);
         String normalizedSkillKeyword = normalizeKeyword(skillKeyword);
         return courseRepository
-                .findPublishedWithFilters(CourseStatus.PUBLISHED.name(), categoryId, normalizedLanguage, normalizedLevelKeyword, normalizedSkillKeyword, pageable)
+                .findPublishedWithFilters(CourseStatus.PUBLISHED.name(), normalizedProductType, categoryId, normalizedLanguage, normalizedLevelKeyword, normalizedSkillKeyword, pageable)
                 .map(this::toResponse);
     }
 
@@ -213,6 +232,9 @@ public class CourseServiceImpl implements CourseService {
     public CourseResponse submitForReview(UUID courseId) {
         Course course = findCourse(courseId);
         mentorModeAccessService.requireApprovedMentorContentAccess(course.getInstructor().getId());
+        if (course.getStatus() == CourseStatus.ARCHIVED) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Archived courses cannot be submitted for review");
+        }
         if (course.getStatus() != CourseStatus.DRAFT && course.getStatus() != CourseStatus.REJECTED) {
             throw new AppException(ErrorCode.BAD_REQUEST, "Only draft or rejected courses can be submitted for review");
         }
@@ -226,6 +248,9 @@ public class CourseServiceImpl implements CourseService {
     @Transactional
     public CourseResponse updateStatus(UUID courseId, CourseStatus status, String reason) {
         Course course = findCourse(courseId);
+        if (status == CourseStatus.PUBLISHED && course.getStatus() != CourseStatus.PENDING_REVIEW) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Only courses in pending review can be published");
+        }
         User reviewer = userRepository.findById(mentorModeAccessService.getCurrentUserId()).orElse(null);
         course.setStatus(status);
         if (status == CourseStatus.DRAFT && reason != null && !reason.trim().isBlank()) {
@@ -283,6 +308,28 @@ public class CourseServiceImpl implements CourseService {
         return courseRepository.findById(courseId).orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_FOUND));
     }
 
+    private void requireCourseVisibleForCurrentUser(Course course) {
+        if (course.getStatus() == CourseStatus.PUBLISHED) {
+            return;
+        }
+        if (mentorModeAccessService.isCurrentUserAdminOrModerator()) {
+            return;
+        }
+        try {
+            UUID currentUserId = SecurityUtils.getCurrentUserId();
+            if (course.getInstructor() != null && currentUserId.equals(course.getInstructor().getId())) {
+                return;
+            }
+            if (course.getStatus() == CourseStatus.ARCHIVED
+                    && courseEnrollmentRepository.existsByCourseIdAndStudentId(course.getId(), currentUserId)) {
+                return;
+            }
+        } catch (AppException ignored) {
+            // Anonymous users cannot see unpublished courses.
+        }
+        throw new AppException(ErrorCode.ACCESS_DENIED, "Only the owner, an admin, or an enrolled learner can view this course");
+    }
+
     private CourseResponse toResponse(Course course) {
         return CourseResponse.builder()
                 .id(course.getId())
@@ -306,6 +353,7 @@ public class CourseServiceImpl implements CourseService {
                 .totalReviews(course.getTotalReviews())
                 .isCertificate(course.getIsCertificate())
                 .previewVideoUrl(course.getPreviewVideoUrl())
+                .productType(course.getProductType())
                 .rejectionReason(course.getRejectionReason())
                 .submittedAt(course.getSubmittedAt())
                 .publishedAt(course.getPublishedAt())
