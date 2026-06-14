@@ -13,6 +13,7 @@ import com.mentorx.api.feature.course.mapper.CourseMapper;
 import com.mentorx.api.feature.course.repository.CourseEnrollmentRepository;
 import com.mentorx.api.feature.course.repository.CourseLessonRepository;
 import com.mentorx.api.feature.course.repository.LessonProgressRepository;
+import com.mentorx.api.feature.course.service.CertificateService;
 import com.mentorx.api.feature.course.service.LessonProgressService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -34,6 +37,7 @@ public class LessonProgressServiceImpl implements LessonProgressService {
     private final CourseEnrollmentRepository enrollmentRepository;
     private final CourseLessonRepository lessonRepository;
     private final CourseMapper mapper;
+    private final CertificateService certificateService;
 
     @Override
     @Transactional
@@ -58,6 +62,11 @@ public class LessonProgressServiceImpl implements LessonProgressService {
                         .lesson(lesson)
                         .isCompleted(false)
                         .watchDurationSec(0)
+                        .progressPercent(0)
+                        .scrollPercent(0)
+                        .activeTimeSec(0)
+                        .lastPositionSec(0)
+                        .completedByRule(false)
                         .build());
 
         if (request.getIsCompleted() != null) {
@@ -70,8 +79,29 @@ public class LessonProgressServiceImpl implements LessonProgressService {
         if (request.getWatchDurationSec() != null) {
             progress.setWatchDurationSec(request.getWatchDurationSec());
         }
+        if (request.getProgressPercent() != null) {
+            progress.setProgressPercent(clampPercent(request.getProgressPercent()));
+        }
+        if (request.getScrollPercent() != null) {
+            progress.setScrollPercent(clampPercent(request.getScrollPercent()));
+        }
+        if (request.getActiveTimeSec() != null) {
+            progress.setActiveTimeSec(request.getActiveTimeSec());
+        }
+        if (request.getLastPositionSec() != null) {
+            progress.setLastPositionSec(request.getLastPositionSec());
+        }
+
+        if (shouldCompleteByRule(lesson, progress)) {
+            progress.setIsCompleted(true);
+            progress.setCompletedByRule(true);
+            if (progress.getCompletedAt() == null) {
+                progress.setCompletedAt(LocalDateTime.now());
+            }
+        }
 
         LessonProgress savedProgress = progressRepository.save(progress);
+        recalculateEnrollmentProgress(enrollment);
         log.info("Lesson progress saved successfully");
 
         return mapper.toResponse(savedProgress);
@@ -125,5 +155,49 @@ public class LessonProgressServiceImpl implements LessonProgressService {
     public Long countTotalLessons(UUID enrollmentId) {
         log.debug("Counting total lessons for enrollment: {}", enrollmentId);
         return progressRepository.countTotalLessonsByEnrollmentId(enrollmentId);
+    }
+
+    private boolean shouldCompleteByRule(CourseLesson lesson, LessonProgress progress) {
+        return switch (lesson.getLessonType()) {
+            case LESSON -> lesson.hasVideoContent()
+                    ? progress.getProgressPercent() != null && progress.getProgressPercent() >= 90
+                    : progress.getScrollPercent() != null && progress.getScrollPercent() >= 90;
+            case VIDEO -> progress.getProgressPercent() != null && progress.getProgressPercent() >= 90;
+            case ARTICLE, TEXT, DOWNLOADABLE -> progress.getScrollPercent() != null && progress.getScrollPercent() >= 90;
+            case QUIZ -> Boolean.TRUE.equals(progress.getIsCompleted());
+            case ASSIGNMENT, LIVE_SESSION -> Boolean.TRUE.equals(progress.getIsCompleted());
+        };
+    }
+
+    private int clampPercent(Integer value) {
+        if (value == null) {
+            return 0;
+        }
+        return Math.max(0, Math.min(100, value));
+    }
+
+    private void recalculateEnrollmentProgress(CourseEnrollment enrollment) {
+        long totalLessons = lessonRepository.findAllByCourseId(enrollment.getCourse().getId()).stream()
+                .filter(lesson -> Boolean.TRUE.equals(lesson.getIsMandatory()))
+                .count();
+        if (totalLessons == 0) {
+            enrollment.setProgressPercent(BigDecimal.ZERO);
+            enrollmentRepository.save(enrollment);
+            return;
+        }
+
+        long completed = progressRepository.findByIdEnrollmentId(enrollment.getId()).stream()
+                .filter(LessonProgress::getIsCompleted)
+                .count();
+        BigDecimal percent = BigDecimal.valueOf(completed)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(totalLessons), 2, RoundingMode.HALF_UP);
+        enrollment.setProgressPercent(percent);
+        if (percent.compareTo(BigDecimal.valueOf(100)) >= 0 && !Boolean.TRUE.equals(enrollment.getIsCompleted())) {
+            enrollment.setIsCompleted(true);
+            enrollment.setCompletedAt(LocalDateTime.now());
+        }
+        CourseEnrollment saved = enrollmentRepository.save(enrollment);
+        certificateService.issueIfEligible(saved);
     }
 }

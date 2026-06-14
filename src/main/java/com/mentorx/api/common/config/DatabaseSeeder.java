@@ -575,16 +575,16 @@ public class DatabaseSeeder implements CommandLineRunner {
         sampleDocumentUrl = ensureSampleDocument("mentorx-sample-document", "MentorX Sample Document");
 
         CourseSection course1Section1 = createSection(course1, 1, "Khởi động dự án", "Cài đặt môi trường và hiểu cấu trúc dự án.");
-        createLesson(course1Section1, 1, "Giới thiệu khóa học", "Tổng quan lộ trình và kết quả đạt được.", LessonType.VIDEO, 8, true,
+        createLesson(course1Section1, 1, "Giới thiệu khóa học", "Tổng quan lộ trình và kết quả đạt được.", LessonType.LESSON, 8, true,
                 "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4", null, null);
-        createLesson(course1Section1, 2, "Tài liệu setup môi trường", "Checklist cài đặt JDK, IDE, và Postgres.", LessonType.ARTICLE, 12, false,
+        createLesson(course1Section1, 2, "Tài liệu setup môi trường", "Checklist cài đặt JDK, IDE, và Postgres.", LessonType.LESSON, 12, false,
                 null, "Hướng dẫn chi tiết cài đặt môi trường phát triển Spring Boot.", sampleDocumentUrl);
         updateSectionDuration(course1Section1);
 
         CourseSection course1Section2 = createSection(course1, 2, "Xây dựng REST API", "Thiết kế API và triển khai CRUD chuẩn.");
-        createLesson(course1Section2, 1, "Thiết kế data model", "Xây entity và mapping JPA hiệu quả.", LessonType.VIDEO, 18, false,
+        createLesson(course1Section2, 1, "Thiết kế data model", "Xây entity và mapping JPA hiệu quả.", LessonType.LESSON, 18, false,
                 "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4", null, null);
-        createLesson(course1Section2, 2, "Tài liệu API mẫu", "Swagger template và checklist kiểm thử.", LessonType.ARTICLE, 10, false,
+        createLesson(course1Section2, 2, "Tài liệu API mẫu", "Swagger template và checklist kiểm thử.", LessonType.LESSON, 10, false,
                 null, "Template Swagger và checklist kiểm thử cơ bản.", sampleDocumentUrl);
         updateSectionDuration(course1Section2);
 
@@ -614,16 +614,16 @@ public class DatabaseSeeder implements CommandLineRunner {
         course2 = courseRepository.save(course2);
 
         CourseSection course2Section1 = createSection(course2, 1, "Discovery & Research", "Hiểu người dùng và xác định vấn đề.");
-        createLesson(course2Section1, 1, "Research plan", "Cách xây dựng kế hoạch research nhanh.", LessonType.VIDEO, 14, true,
+        createLesson(course2Section1, 1, "Research plan", "Cách xây dựng kế hoạch research nhanh.", LessonType.LESSON, 14, true,
                 "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4", null, null);
-        createLesson(course2Section1, 2, "Research template", "Mẫu interview script và summary.", LessonType.ARTICLE, 9, false,
+        createLesson(course2Section1, 2, "Research template", "Mẫu interview script và summary.", LessonType.LESSON, 9, false,
                 null, "Mẫu câu hỏi interview và template tổng hợp insight.", sampleDocumentUrl);
         updateSectionDuration(course2Section1);
 
         CourseSection course2Section2 = createSection(course2, 2, "Prototype & Handoff", "Thiết kế prototype và bàn giao dev.");
-        createLesson(course2Section2, 1, "Prototype nhanh với Figma", "Thực hành flow và component.", LessonType.VIDEO, 16, false,
+        createLesson(course2Section2, 1, "Prototype nhanh với Figma", "Thực hành flow và component.", LessonType.LESSON, 16, false,
                 "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4", null, null);
-        createLesson(course2Section2, 2, "Checklist handoff", "Đảm bảo dev hiểu spec.", LessonType.ARTICLE, 7, false,
+        createLesson(course2Section2, 2, "Checklist handoff", "Đảm bảo dev hiểu spec.", LessonType.LESSON, 7, false,
                 null, "Checklist bàn giao thiết kế và QA UI.", sampleDocumentUrl);
         updateSectionDuration(course2Section2);
 
@@ -652,9 +652,9 @@ public class DatabaseSeeder implements CommandLineRunner {
         course3 = courseRepository.save(course3);
 
         CourseSection course3Section1 = createSection(course3, 1, "Tài liệu cốt lõi", "Bộ file và guideline đi kèm.");
-        createLesson(course3Section1, 1, "API design guideline", "Nguyên tắc thiết kế endpoint và naming.", LessonType.ARTICLE, 6, true,
+        createLesson(course3Section1, 1, "API design guideline", "Nguyên tắc thiết kế endpoint và naming.", LessonType.LESSON, 6, true,
                 null, "Bộ guideline thiết kế API nhất quán cho team backend.", sampleDocumentUrl);
-        createLesson(course3Section1, 2, "Checklist release", "Checklist trước khi release API.", LessonType.ARTICLE, 5, false,
+        createLesson(course3Section1, 2, "Checklist release", "Checklist trước khi release API.", LessonType.LESSON, 5, false,
                 null, "Checklist kiểm tra security, logging, monitoring.", sampleDocumentUrl);
         updateSectionDuration(course3Section1);
 
@@ -778,7 +778,7 @@ public class DatabaseSeeder implements CommandLineRunner {
                 .section(section)
                 .title(title)
                 .description(description)
-                .lessonType(lessonType)
+                .lessonType(normalizeLessonTypeForWrite(lessonType))
                 .lessonOrder(order)
                 .durationMinutes(durationMinutes)
                 .videoUrl(videoUrl)
@@ -789,6 +789,10 @@ public class DatabaseSeeder implements CommandLineRunner {
                 .isMandatory(true)
                 .build();
         return courseLessonRepository.save(lesson);
+    }
+
+    private LessonType normalizeLessonTypeForWrite(LessonType lessonType) {
+        return LessonType.QUIZ.equals(lessonType) ? LessonType.QUIZ : LessonType.LESSON;
     }
 
     private void updateSectionDuration(CourseSection section) {

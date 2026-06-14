@@ -3,6 +3,7 @@ package com.mentorx.api.feature.course.dto.request;
 import com.mentorx.api.common.enums.CourseStatus;
 import com.mentorx.api.common.enums.SupportedLanguage;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,9 +29,12 @@ public class CourseUpdateRequest {
 
     private List<@Size(max = 120, message = "Skill must not exceed 120 characters") String> skills;
 
+    private List<Integer> skillIds;
+
     private String thumbnailUrl;
 
     @DecimalMin(value = "0.0", inclusive = true, message = "Price must be greater than or equal to 0")
+    @Digits(integer = 10, fraction = 0, message = "Price must be a full number")
     private BigDecimal priceMxc;
 
     private CourseStatus status;

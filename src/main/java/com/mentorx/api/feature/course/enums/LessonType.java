@@ -1,12 +1,12 @@
 package com.mentorx.api.feature.course.enums;
 
 public enum LessonType {
-    VIDEO,
-    TEXT,
+    LESSON,
     QUIZ,
-    ASSIGNMENT,
-    LIVE_SESSION,
+    VIDEO,
+    ARTICLE,
+    TEXT,
     DOWNLOADABLE,
-    INTERACTIVE,
-    CODE_EXERCISE
+    ASSIGNMENT,
+    LIVE_SESSION
 }

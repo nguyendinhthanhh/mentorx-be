@@ -44,9 +44,11 @@ public class CourseLessonServiceImpl implements CourseLessonService {
         if (lessonRepository.existsBySectionIdAndLessonOrder(request.getSectionId(), request.getLessonOrder())) {
             throw new AppException(ErrorCode.LESSON_ORDER_EXISTS);
         }
+        validateLessonContent(request.getLessonType(), request.getVideoUrl(), request.getArticleContent(), request.getResourceUrl());
 
         CourseLesson lesson = mapper.toEntity(request);
         lesson.setSection(section);
+        lesson.setLessonType(normalizeLessonType(lesson.getLessonType()));
         
         if (lesson.getIsFreePreview() == null) {
             lesson.setIsFreePreview(false);
@@ -111,8 +113,15 @@ public class CourseLessonServiceImpl implements CourseLessonService {
             lessonRepository.existsBySectionIdAndLessonOrder(lesson.getSection().getId(), request.getLessonOrder())) {
             throw new AppException(ErrorCode.LESSON_ORDER_EXISTS);
         }
+        validateLessonContent(
+                request.getLessonType() == null ? lesson.getLessonType() : request.getLessonType(),
+                request.getVideoUrl() == null ? lesson.getVideoUrl() : request.getVideoUrl(),
+                request.getArticleContent() == null ? lesson.getArticleContent() : request.getArticleContent(),
+                request.getResourceUrl() == null ? lesson.getResourceUrl() : request.getResourceUrl()
+        );
 
         mapper.updateEntity(request, lesson);
+        lesson.setLessonType(normalizeLessonType(lesson.getLessonType()));
         CourseLesson updatedLesson = lessonRepository.save(lesson);
         
         log.info("Course lesson updated successfully: {}", id);
@@ -156,5 +165,28 @@ public class CourseLessonServiceImpl implements CourseLessonService {
 
         lesson.incrementViewCount();
         lessonRepository.save(lesson);
+    }
+
+    private void validateLessonContent(com.mentorx.api.common.enums.LessonType lessonType,
+                                       String videoUrl,
+                                       String articleContent,
+                                       String resourceUrl) {
+        if (lessonType == null) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Lesson type is required");
+        }
+        switch (lessonType) {
+            case LESSON, VIDEO, ARTICLE, TEXT, DOWNLOADABLE -> {
+                // Lesson content, video, and downloadable resources are optional draft attachments.
+            }
+            case QUIZ, ASSIGNMENT, LIVE_SESSION -> {
+                // These lesson types can be created before their details are attached.
+            }
+        }
+    }
+
+    private com.mentorx.api.common.enums.LessonType normalizeLessonType(com.mentorx.api.common.enums.LessonType lessonType) {
+        return lessonType == com.mentorx.api.common.enums.LessonType.QUIZ
+                ? com.mentorx.api.common.enums.LessonType.QUIZ
+                : com.mentorx.api.common.enums.LessonType.LESSON;
     }
 }

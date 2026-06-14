@@ -54,6 +54,10 @@ public class DatabaseInitializationRunner {
                 ensureWithdrawalPayoutColumnsIfNeeded();
                 ensureEmailVerificationTablesIfNeeded();
                 ensurePasswordResetTablesIfNeeded();
+                ensureCourseLessonTypesConstraintUpdated();
+                ensureQuizQuestionAnswerDataJsonIfNeeded();
+                ensureCourseStatusConstraintUpdated();
+                ensureCourseQaRecipientColumnIfNeeded();
                 return;
             }
 
@@ -70,6 +74,10 @@ public class DatabaseInitializationRunner {
                 ensureWithdrawalPayoutColumnsIfNeeded();
                 ensureEmailVerificationTablesIfNeeded();
                 ensurePasswordResetTablesIfNeeded();
+                ensureCourseLessonTypesConstraintUpdated();
+                ensureQuizQuestionAnswerDataJsonIfNeeded();
+                ensureCourseStatusConstraintUpdated();
+                ensureCourseQaRecipientColumnIfNeeded();
                 return;
             }
 
@@ -109,7 +117,160 @@ public class DatabaseInitializationRunner {
             ensureWithdrawalPayoutColumnsIfNeeded();
             ensureEmailVerificationTablesIfNeeded();
             ensurePasswordResetTablesIfNeeded();
+            ensureCourseLessonTypesConstraintUpdated();
+            ensureQuizQuestionAnswerDataJsonIfNeeded();
+            ensureCourseStatusConstraintUpdated();
+            ensureCourseQaRecipientColumnIfNeeded();
         };
+    }
+
+    private void ensureCourseQaRecipientColumnIfNeeded() {
+        if (!isSchemaAlreadyCreated()) {
+            return;
+        }
+        try {
+            jdbcTemplate.execute("ALTER TABLE course_qa_messages ADD COLUMN IF NOT EXISTS recipient_id UUID");
+            jdbcTemplate.execute("""
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM pg_constraint WHERE conname = 'fk_course_qa_recipient'
+                        ) THEN
+                            ALTER TABLE course_qa_messages
+                            ADD CONSTRAINT fk_course_qa_recipient
+                            FOREIGN KEY (recipient_id) REFERENCES users(id);
+                        END IF;
+                    END $$;
+                    """);
+        } catch (Exception e) {
+            log.warn("Could not ensure course Q&A recipient column: {}", e.getMessage());
+        }
+    }
+
+    private void ensureCourseStatusConstraintUpdated() {
+        if (!isSchemaAlreadyCreated()) {
+            return;
+        }
+        log.info("Ensuring courses status constraint allows review workflow statuses...");
+        try {
+            jdbcTemplate.execute("ALTER TABLE courses DROP CONSTRAINT IF EXISTS courses_status_check");
+            jdbcTemplate.execute("""
+                    ALTER TABLE courses
+                    ADD CONSTRAINT courses_status_check
+                    CHECK (status IN ('DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'REJECTED', 'ARCHIVED'))
+                    """);
+        } catch (Exception e) {
+            log.warn("Could not update courses_status_check constraint: {}", e.getMessage());
+        }
+    }
+
+    private void ensureQuizQuestionAnswerDataJsonIfNeeded() {
+        if (!isSchemaAlreadyCreated()) {
+            return;
+        }
+        log.info("Ensuring quiz questions use unified answer data JSON...");
+        try {
+            jdbcTemplate.execute("ALTER TABLE quiz_questions ADD COLUMN IF NOT EXISTS answer_data_json TEXT");
+            jdbcTemplate.execute("""
+                    DO $$
+                    BEGIN
+                        IF EXISTS (
+                            SELECT 1 FROM information_schema.columns
+                            WHERE table_schema = 'public'
+                              AND table_name = 'quiz_questions'
+                              AND column_name = 'correct_answers_json'
+                        ) THEN
+                            UPDATE quiz_questions
+                            SET answer_data_json = CASE
+                                WHEN question_type = 'TEXT_ANSWER' THEN
+                                    jsonb_build_object(
+                                        'correctAnswer',
+                                        COALESCE(correct_answers_json::jsonb #>> '{}', correct_answers_json)
+                                    )::text
+                                ELSE
+                                    jsonb_build_object(
+                                        'options',
+                                        COALESCE(options_json::jsonb, '[]'::jsonb),
+                                        'correctAnswers',
+                                        COALESCE(correct_answers_json::jsonb, '[]'::jsonb)
+                                    )::text
+                                END
+                            WHERE answer_data_json IS NULL
+                              AND correct_answers_json IS NOT NULL;
+                        END IF;
+
+                        IF EXISTS (
+                            SELECT 1 FROM information_schema.columns
+                            WHERE table_schema = 'public'
+                              AND table_name = 'quiz_questions'
+                              AND column_name = 'correct_answers'
+                        ) THEN
+                            UPDATE quiz_questions
+                            SET answer_data_json = CASE
+                                WHEN question_type IN ('TEXT_ANSWER', 'TEXT_INPUT') THEN
+                                    jsonb_build_object(
+                                        'correctAnswer',
+                                        COALESCE(correct_answers #>> '{}', '')
+                                    )::text
+                                ELSE
+                                    jsonb_build_object(
+                                        'options',
+                                        COALESCE(options, '[]'::jsonb),
+                                        'correctAnswers',
+                                        COALESCE(correct_answers, '[]'::jsonb)
+                                    )::text
+                                END
+                            WHERE answer_data_json IS NULL
+                              AND correct_answers IS NOT NULL;
+                        END IF;
+                    END $$;
+                    """);
+            jdbcTemplate.execute("ALTER TABLE quiz_questions DROP CONSTRAINT IF EXISTS quiz_questions_question_type_check");
+            jdbcTemplate.execute("UPDATE quiz_questions SET question_type = 'MULTIPLE_CHOICE' WHERE question_type = 'MULTI_SELECT'");
+            jdbcTemplate.execute("UPDATE quiz_questions SET question_type = 'TEXT_ANSWER' WHERE question_type = 'TEXT_INPUT'");
+            jdbcTemplate.execute("""
+                    ALTER TABLE quiz_questions
+                    ADD CONSTRAINT quiz_questions_question_type_check
+                    CHECK (question_type IN ('SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'TEXT_ANSWER'))
+                    """);
+            jdbcTemplate.execute("ALTER TABLE quiz_questions ALTER COLUMN answer_data_json SET NOT NULL");
+            jdbcTemplate.execute("""
+                    ALTER TABLE quiz_questions
+                    DROP COLUMN IF EXISTS options_json,
+                    DROP COLUMN IF EXISTS correct_answers_json,
+                    DROP COLUMN IF EXISTS options,
+                    DROP COLUMN IF EXISTS correct_answers
+                    """);
+        } catch (Exception e) {
+            log.warn("Could not ensure quiz question answer data JSON: {}", e.getMessage());
+        }
+    }
+
+    private void ensureCourseLessonTypesConstraintUpdated() {
+        if (!isSchemaAlreadyCreated()) {
+            return;
+        }
+        log.info("Ensuring course lesson type constraint allows normalized lesson types...");
+        try {
+            jdbcTemplate.execute("ALTER TABLE course_lessons DROP CONSTRAINT IF EXISTS course_lessons_lesson_type_check");
+            jdbcTemplate.execute("""
+                    UPDATE course_lessons
+                    SET lesson_type = 'LESSON'
+                    WHERE lesson_type IN ('VIDEO', 'ARTICLE', 'TEXT', 'DOWNLOADABLE')
+                    """);
+            jdbcTemplate.execute("""
+                    UPDATE course_lessons
+                    SET lesson_type = 'QUIZ'
+                    WHERE lesson_type IN ('ASSIGNMENT', 'LIVE_SESSION')
+                    """);
+            jdbcTemplate.execute("""
+                    ALTER TABLE course_lessons
+                    ADD CONSTRAINT course_lessons_lesson_type_check
+                    CHECK (lesson_type IN ('LESSON', 'QUIZ'))
+                    """);
+        } catch (Exception e) {
+            log.warn("Could not update course_lessons_lesson_type_check constraint: {}", e.getMessage());
+        }
     }
 
     private void ensureExchangeRateTablesIfNeeded() {

@@ -17,6 +17,7 @@ import org.hibernate.type.SqlTypes;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Entity representing users waiting in queue for quick mentor matching
@@ -111,7 +112,7 @@ public class QuickMatchQueue extends BaseEntity {
      * ID of matched mentor (if any)
      */
     @Column(name = "matched_mentor_id")
-    private Long matchedMentorId;
+    private UUID matchedMentorId;
 
     /**
      * When the match was made

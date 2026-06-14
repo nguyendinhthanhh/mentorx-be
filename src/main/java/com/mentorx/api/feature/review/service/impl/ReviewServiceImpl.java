@@ -2,9 +2,13 @@ package com.mentorx.api.feature.review.service.impl;
 
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
+import com.mentorx.api.feature.course.entity.Course;
+import com.mentorx.api.feature.course.repository.CourseEnrollmentRepository;
+import com.mentorx.api.feature.course.repository.CourseRepository;
 import com.mentorx.api.feature.job.enums.ContractStatus;
 import com.mentorx.api.feature.job.repository.ContractRepository;
 import com.mentorx.api.feature.review.dto.request.ReviewCreateRequest;
+import com.mentorx.api.feature.review.dto.request.ReviewResponseRequest;
 import com.mentorx.api.feature.review.dto.request.ReviewUpdateRequest;
 import com.mentorx.api.feature.review.dto.response.ReviewResponse;
 import com.mentorx.api.feature.review.entity.Review;
@@ -19,6 +23,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
@@ -29,6 +36,8 @@ public class ReviewServiceImpl implements ReviewService {
     private final ReviewRepository reviewRepository;
     private final UserRepository userRepository;
     private final ContractRepository contractRepository;
+    private final CourseRepository courseRepository;
+    private final CourseEnrollmentRepository courseEnrollmentRepository;
 
     @Override
     @Transactional
@@ -62,13 +71,18 @@ public class ReviewServiceImpl implements ReviewService {
         review.setLanguage(request.language());
         review.setContractId(request.contractId());
 
-        return toResponse(reviewRepository.save(review));
+        Review saved = reviewRepository.save(review);
+        syncCourseRatingIfNeeded(saved.getTargetType(), saved.getTargetId());
+        return toResponse(saved);
     }
 
     @Override
     @Transactional
-    public ReviewResponse updateReview(UUID reviewId, ReviewUpdateRequest request) {
+    public ReviewResponse updateReview(UUID currentUserId, UUID reviewId, ReviewUpdateRequest request) {
         Review review = findReview(reviewId);
+        if (!review.getReviewer().getId().equals(currentUserId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
         
         if (!review.canBeEdited()) {
             throw new AppException(ErrorCode.REVIEW_CANNOT_BE_EDITED);
@@ -88,6 +102,26 @@ public class ReviewServiceImpl implements ReviewService {
         if (request.isPublic() != null) review.setIsPublic(request.isPublic());
         if (request.language() != null) review.setLanguage(request.language());
 
+        Review saved = reviewRepository.save(review);
+        syncCourseRatingIfNeeded(saved.getTargetType(), saved.getTargetId());
+        return toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public ReviewResponse respondToReview(UUID currentUserId, UUID reviewId, ReviewResponseRequest request) {
+        Review review = findReview(reviewId);
+        if (review.getTargetType() != ReviewTargetType.COURSE) {
+            throw new AppException(ErrorCode.REVIEW_NOT_ALLOWED);
+        }
+        Course course = courseRepository.findById(review.getTargetId())
+                .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_FOUND));
+        if (!course.getInstructor().getId().equals(currentUserId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+        review.setResponseText(request.responseText().trim());
+        review.setResponseAt(LocalDateTime.now());
+        review.setResponseByUserId(currentUserId);
         return toResponse(reviewRepository.save(review));
     }
 
@@ -134,11 +168,15 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     @Transactional
-    public void deleteReview(UUID reviewId) {
+    public void deleteReview(UUID currentUserId, UUID reviewId) {
         Review review = findReview(reviewId);
+        if (!review.getReviewer().getId().equals(currentUserId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
         review.setIsHidden(true);
         review.setHiddenReason("Deleted by user/admin");
-        reviewRepository.save(review);
+        Review saved = reviewRepository.save(review);
+        syncCourseRatingIfNeeded(saved.getTargetType(), saved.getTargetId());
     }
 
     private Review findReview(UUID reviewId) {
@@ -148,6 +186,9 @@ public class ReviewServiceImpl implements ReviewService {
 
     private void validateReviewEligibility(User reviewer, ReviewCreateRequest request) {
         if (request.targetType() != ReviewTargetType.MENTOR) {
+            if (request.targetType() == ReviewTargetType.COURSE) {
+                validateCourseReviewEligibility(reviewer, request.targetId());
+            }
             return;
         }
 
@@ -158,6 +199,28 @@ public class ReviewServiceImpl implements ReviewService {
         if (!canReviewMentor(reviewer.getId(), request.targetId())) {
             throw new AppException(ErrorCode.REVIEW_NOT_ALLOWED);
         }
+    }
+
+    private void validateCourseReviewEligibility(User reviewer, UUID courseId) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_FOUND));
+        if (course.getInstructor().getId().equals(reviewer.getId())) {
+            throw new AppException(ErrorCode.CANNOT_REVIEW_SELF);
+        }
+        if (!courseEnrollmentRepository.existsByCourseIdAndStudentId(courseId, reviewer.getId())) {
+            throw new AppException(ErrorCode.REVIEW_NOT_ALLOWED);
+        }
+    }
+
+    private void syncCourseRatingIfNeeded(ReviewTargetType targetType, UUID targetId) {
+        if (targetType != ReviewTargetType.COURSE) return;
+        courseRepository.findById(targetId).ifPresent(course -> {
+            Long total = reviewRepository.countPublicByTarget(ReviewTargetType.COURSE, targetId);
+            BigDecimal average = reviewRepository.averagePublicRatingByTarget(ReviewTargetType.COURSE, targetId);
+            course.setTotalReviews(total == null ? 0 : total.intValue());
+            course.setAverageRating(average == null ? BigDecimal.ZERO : average.setScale(2, RoundingMode.HALF_UP));
+            courseRepository.save(course);
+        });
     }
 
     private ReviewResponse toResponse(Review review) {

@@ -16,6 +16,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * Entity representing quick support requests for immediate help
@@ -144,7 +145,7 @@ public class QuickSupportRequest extends BaseEntity {
      * Chat room ID for this session
      */
     @Column(name = "chat_room_id")
-    private Long chatRoomId;
+    private UUID chatRoomId;
 
     /**
      * Session notes from mentor
@@ -232,7 +233,7 @@ public class QuickSupportRequest extends BaseEntity {
     /**
      * Starts the session
      */
-    public void startSession(Long chatRoomId) {
+    public void startSession(UUID chatRoomId) {
         this.status = QuickSupportStatus.IN_PROGRESS;
         this.sessionStartedAt = LocalDateTime.now();
         this.chatRoomId = chatRoomId;
