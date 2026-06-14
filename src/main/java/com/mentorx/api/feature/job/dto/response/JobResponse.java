@@ -44,5 +44,6 @@ public record JobResponse(
         LocalDateTime updatedAt,
         String statusReason,
         String attachmentUrl,
-        List<String> attachments
+        List<String> attachments,
+        Double relevanceScore
 ) {}

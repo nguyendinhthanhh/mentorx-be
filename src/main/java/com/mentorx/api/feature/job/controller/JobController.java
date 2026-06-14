@@ -1,5 +1,6 @@
 package com.mentorx.api.feature.job.controller;
 
+import com.mentorx.api.common.enums.JobSort;
 import com.mentorx.api.common.enums.JobStatus;
 import com.mentorx.api.common.enums.JobType;
 import com.mentorx.api.common.response.ApiResponse;
@@ -16,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @RestController
@@ -52,10 +54,22 @@ public class JobController {
             @RequestParam(required = false) JobType jobType,
             @RequestParam(required = false) Integer categoryId,
             @RequestParam(required = false) String skill,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) BigDecimal budgetMin,
+            @RequestParam(required = false) BigDecimal budgetMax,
+            @RequestParam(required = false) String budgetType,
+            @RequestParam(required = false, defaultValue = "OPEN") JobStatus status,
+            @RequestParam(required = false, defaultValue = "NEWEST") JobSort sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
+        if (status != JobStatus.OPEN && status != JobStatus.CLOSED) {
+            throw new IllegalArgumentException("Public endpoint only supports OPEN or CLOSED status");
+        }
+        if (sort == JobSort.RELEVANCE && (keyword == null || keyword.isBlank())) {
+            sort = JobSort.NEWEST;
+        }
         return ResponseEntity.ok(ApiResponse.success(
-                jobService.getOpenJobs(jobType, categoryId, skill, PageRequest.of(page, size))
+                jobService.getOpenJobs(jobType, categoryId, skill, keyword, budgetMin, budgetMax, budgetType, status, sort, PageRequest.of(page, size))
         ));
     }
 
