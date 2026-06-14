@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public record ComplaintEvidenceResponse(
     UUID id,
-    UUID disputeId,
+    UUID complaintId,
     UUID submittedByUserId,
     EvidenceType evidenceType,
     String title,

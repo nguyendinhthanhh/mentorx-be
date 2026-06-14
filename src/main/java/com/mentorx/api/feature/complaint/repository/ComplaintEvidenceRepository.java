@@ -9,6 +9,6 @@ import java.util.UUID;
 
 @Repository
 public interface ComplaintEvidenceRepository extends JpaRepository<ComplaintEvidence, UUID> {
-    List<ComplaintEvidence> findByDisputeId(UUID disputeId);
-    List<ComplaintEvidence> findByDisputeIdAndSubmittedByUserId(UUID disputeId, UUID userId);
+    List<ComplaintEvidence> findByComplaintId(UUID complaintId);
+    List<ComplaintEvidence> findByComplaintIdAndSubmittedByUserId(UUID complaintId, UUID userId);
 }

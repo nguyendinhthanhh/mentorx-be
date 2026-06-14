@@ -26,8 +26,8 @@ public class ComplaintEvidenceServiceImpl implements ComplaintEvidenceService {
 
     @Override
     @Transactional
-    public ComplaintEvidenceResponse addEvidence(UUID disputeId, UUID userId, ComplaintEvidenceCreateRequest request) {
-        Complaint complaint = complaintRepository.findById(disputeId)
+    public ComplaintEvidenceResponse addEvidence(UUID complaintId, UUID userId, ComplaintEvidenceCreateRequest request) {
+        Complaint complaint = complaintRepository.findById(complaintId)
             .orElseThrow(() -> new AppException(ErrorCode.DISPUTE_NOT_FOUND));
 
         if (!complaint.getComplainantId().equals(userId) && !complaint.getRespondentId().equals(userId)) {
@@ -35,7 +35,7 @@ public class ComplaintEvidenceServiceImpl implements ComplaintEvidenceService {
         }
 
         ComplaintEvidence evidence = ComplaintEvidence.builder()
-            .disputeId(disputeId)
+            .complaintId(complaintId)
             .submittedByUserId(userId)
             .evidenceType(request.evidenceType())
             .title(request.title())
@@ -51,15 +51,15 @@ public class ComplaintEvidenceServiceImpl implements ComplaintEvidenceService {
     }
 
     @Override
-    public List<ComplaintEvidenceResponse> getEvidenceForComplaint(UUID disputeId) {
-        return evidenceRepository.findByDisputeId(disputeId).stream()
+    public List<ComplaintEvidenceResponse> getEvidenceForComplaint(UUID complaintId) {
+        return evidenceRepository.findByComplaintId(complaintId).stream()
             .map(this::toResponse)
             .toList();
     }
 
     private ComplaintEvidenceResponse toResponse(ComplaintEvidence e) {
         return new ComplaintEvidenceResponse(
-            e.getId(), e.getDisputeId(), e.getSubmittedByUserId(),
+            e.getId(), e.getComplaintId(), e.getSubmittedByUserId(),
             e.getEvidenceType(), e.getTitle(), e.getDescription(),
             e.getFileUrl(), e.getFilename(), e.getMimeType(), e.getFileSize(),
             e.getIsReviewed(), e.getReviewedAt(), e.getReviewedByUserId(),

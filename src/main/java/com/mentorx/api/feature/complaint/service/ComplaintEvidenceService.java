@@ -7,6 +7,6 @@ import java.util.List;
 import java.util.UUID;
 
 public interface ComplaintEvidenceService {
-    ComplaintEvidenceResponse addEvidence(UUID disputeId, UUID userId, ComplaintEvidenceCreateRequest request);
-    List<ComplaintEvidenceResponse> getEvidenceForComplaint(UUID disputeId);
+    ComplaintEvidenceResponse addEvidence(UUID complaintId, UUID userId, ComplaintEvidenceCreateRequest request);
+    List<ComplaintEvidenceResponse> getEvidenceForComplaint(UUID complaintId);
 }

@@ -94,7 +94,7 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     private ComplaintResponse toResponse(Complaint complaint) {
-        List<ComplaintEvidence> evidenceList = evidenceRepository.findByDisputeId(complaint.getId());
+        List<ComplaintEvidence> evidenceList = evidenceRepository.findByComplaintId(complaint.getId());
         List<ComplaintEvidenceResponse> evidenceResponses = evidenceList.stream()
             .map(this::toEvidenceResponse)
             .toList();
@@ -130,7 +130,7 @@ public class ComplaintServiceImpl implements ComplaintService {
 
     private ComplaintEvidenceResponse toEvidenceResponse(ComplaintEvidence e) {
         return new ComplaintEvidenceResponse(
-            e.getId(), e.getDisputeId(), e.getSubmittedByUserId(),
+            e.getId(), e.getComplaintId(), e.getSubmittedByUserId(),
             e.getEvidenceType(), e.getTitle(), e.getDescription(),
             e.getFileUrl(), e.getFilename(), e.getMimeType(), e.getFileSize(),
             e.getIsReviewed(), e.getReviewedAt(), e.getReviewedByUserId(),

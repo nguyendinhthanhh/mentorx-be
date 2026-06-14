@@ -23,12 +23,12 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "disputes", indexes = {
-    @Index(name = "idx_dispute_complainant_id", columnList = "complainant_id"),
-    @Index(name = "idx_dispute_respondent_id", columnList = "respondent_id"),
-    @Index(name = "idx_dispute_status", columnList = "status"),
-    @Index(name = "idx_dispute_booking_id", columnList = "booking_id"),
-    @Index(name = "idx_dispute_created", columnList = "created_at DESC")
+@Table(name = "complaints", indexes = {
+    @Index(name = "idx_complaint_complainant_id", columnList = "complainant_id"),
+    @Index(name = "idx_complaint_respondent_id", columnList = "respondent_id"),
+    @Index(name = "idx_complaint_status", columnList = "status"),
+    @Index(name = "idx_complaint_booking_id", columnList = "booking_id"),
+    @Index(name = "idx_complaint_created", columnList = "created_at DESC")
 })
 @Getter
 @Setter

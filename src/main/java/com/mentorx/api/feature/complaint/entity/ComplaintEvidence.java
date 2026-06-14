@@ -18,10 +18,10 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "dispute_evidence", indexes = {
-    @Index(name = "idx_dispute_evidence_dispute_id", columnList = "dispute_id"),
-    @Index(name = "idx_dispute_evidence_submitted_by", columnList = "submitted_by_user_id"),
-    @Index(name = "idx_dispute_evidence_created", columnList = "created_at DESC")
+@Table(name = "complaint_evidence", indexes = {
+    @Index(name = "idx_complaint_evidence_complaint_id", columnList = "complaint_id"),
+    @Index(name = "idx_complaint_evidence_submitted_by", columnList = "submitted_by_user_id"),
+    @Index(name = "idx_complaint_evidence_created", columnList = "created_at DESC")
 })
 @Getter
 @Setter
@@ -30,8 +30,8 @@ import java.util.UUID;
 @AllArgsConstructor
 public class ComplaintEvidence extends BaseEntity {
 
-    @Column(name = "dispute_id", nullable = false)
-    private UUID disputeId;
+    @Column(name = "complaint_id", nullable = false)
+    private UUID complaintId;
 
     @Column(name = "submitted_by_user_id", nullable = false)
     private UUID submittedByUserId;
