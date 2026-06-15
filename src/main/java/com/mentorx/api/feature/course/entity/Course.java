@@ -1,6 +1,7 @@
 package com.mentorx.api.feature.course.entity;
 
 import com.mentorx.api.common.entity.BaseEntity;
+import com.mentorx.api.common.enums.CourseProductType;
 import com.mentorx.api.common.enums.CourseStatus;
 import com.mentorx.api.common.enums.SupportedLanguage;
 import com.mentorx.api.feature.user.entity.User;
@@ -108,6 +109,11 @@ public class Course extends BaseEntity {
 
     @Column(name = "preview_video_url")
     private String previewVideoUrl;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "product_type", nullable = false, length = 20)
+    private CourseProductType productType = CourseProductType.COURSE;
 
     @Column(name = "rejection_reason")
     private String rejectionReason;

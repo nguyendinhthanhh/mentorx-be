@@ -1,6 +1,7 @@
 package com.mentorx.api.feature.course.dto.request;
 
 import com.mentorx.api.common.enums.CourseStatus;
+import com.mentorx.api.common.enums.CourseProductType;
 import com.mentorx.api.common.enums.SupportedLanguage;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
@@ -49,4 +50,6 @@ public class CourseUpdateRequest {
     private String previewVideoUrl;
 
     private String rejectionReason;
+
+    private CourseProductType productType;
 }

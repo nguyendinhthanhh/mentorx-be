@@ -1,6 +1,7 @@
 package com.mentorx.api.feature.course.controller;
 
 import com.mentorx.api.common.enums.CourseStatus;
+import com.mentorx.api.common.enums.CourseProductType;
 import com.mentorx.api.common.enums.SupportedLanguage;
 import com.mentorx.api.common.response.ApiResponse;
 import com.mentorx.api.feature.course.dto.request.CourseCreateRequest;
@@ -74,6 +75,7 @@ public class CourseController {
     @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
     public ResponseEntity<ApiResponse<Page<CourseResponse>>> getAllCourses(
             @RequestParam(required = false) CourseStatus status,
+            @RequestParam(required = false) CourseProductType productType,
             @RequestParam(required = false) UUID instructorId,
             @RequestParam(required = false) Integer categoryId,
             @RequestParam(required = false) SupportedLanguage language,
@@ -82,12 +84,13 @@ public class CourseController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(ApiResponse.success(
-                courseService.getAllCourses(status, instructorId, categoryId, language, level, skill, PageRequest.of(page, size))
+                courseService.getAllCourses(status, productType, instructorId, categoryId, language, level, skill, PageRequest.of(page, size))
         ));
     }
 
     @GetMapping("/published")
     public ResponseEntity<ApiResponse<Page<CourseResponse>>> getPublished(
+            @RequestParam(required = false) CourseProductType productType,
             @RequestParam(required = false) Integer categoryId,
             @RequestParam(required = false) SupportedLanguage language,
             @RequestParam(required = false) String level,
@@ -95,7 +98,7 @@ public class CourseController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(ApiResponse.success(
-                courseService.getPublished(categoryId, language, level, skill, PageRequest.of(page, size))
+                courseService.getPublished(productType, categoryId, language, level, skill, PageRequest.of(page, size))
         ));
     }
 

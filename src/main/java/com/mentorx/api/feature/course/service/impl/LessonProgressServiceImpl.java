@@ -164,7 +164,7 @@ public class LessonProgressServiceImpl implements LessonProgressService {
                     : progress.getScrollPercent() != null && progress.getScrollPercent() >= 90;
             case VIDEO -> progress.getProgressPercent() != null && progress.getProgressPercent() >= 90;
             case ARTICLE, TEXT, DOWNLOADABLE -> progress.getScrollPercent() != null && progress.getScrollPercent() >= 90;
-            case QUIZ -> Boolean.TRUE.equals(progress.getIsCompleted());
+            case QUIZ, DOCUMENT -> Boolean.TRUE.equals(progress.getIsCompleted());
             case ASSIGNMENT, LIVE_SESSION -> Boolean.TRUE.equals(progress.getIsCompleted());
         };
     }

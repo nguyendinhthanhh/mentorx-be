@@ -235,6 +235,7 @@ public class CourseLesson extends BaseEntity {
         // Default estimates by type
         return switch (this.lessonType) {
             case LESSON -> hasVideoContent() ? 15 : 10;
+            case DOCUMENT -> 5;
             case VIDEO -> 15;
             case ARTICLE, TEXT -> 10;
             case DOWNLOADABLE -> 5;
