@@ -15,16 +15,17 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/analytics")
+@RequestMapping("/api/v1/analytics")
 @RequiredArgsConstructor
 public class AnalyticsController {
 
     private final AnalyticsService analyticsService;
+    private final MentorModeAccessService accessService;
 
     @PostMapping("/views")
     public ResponseEntity<ApiResponse<Void>> recordView(
-            @Valid @RequestBody ViewEventRequest request,
-            @RequestParam(required = false) UUID viewerId) {
+            @Valid @RequestBody ViewEventRequest request) {
+        UUID viewerId = SecurityUtils.getCurrentUserIdOrNull();
         analyticsService.recordView(request, viewerId);
         return ResponseEntity.ok(ApiResponse.success("View recorded successfully", null));
     }
@@ -38,10 +39,12 @@ public class AnalyticsController {
     }
 
     @GetMapping("/earnings/daily")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<Page<EarningsSnapshotResponse>>> getUserEarningsSnapshots(
             @RequestParam UUID userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "30") int size) {
+        accessService.requireSelfOrAdmin(userId);
         return ResponseEntity.ok(ApiResponse.success(analyticsService.getUserEarningsSnapshots(userId, PageRequest.of(page, size))));
     }
 }

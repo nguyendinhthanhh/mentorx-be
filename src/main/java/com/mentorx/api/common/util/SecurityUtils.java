@@ -36,4 +36,31 @@ public class SecurityUtils {
         
         throw new AppException(ErrorCode.ACCESS_DENIED);
     }
+
+    /**
+     * Returns the current authenticated user id, or {@code null} if the request is anonymous
+     * (no principal / not authenticated). Use for endpoints that permit both authenticated and
+     * anonymous callers (e.g. analytics view ingestion per DEC-002).
+     */
+    public static UUID getCurrentUserIdOrNull() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return null;
+        }
+        Object principal = authentication.getPrincipal();
+        if (principal == null || "anonymousUser".equals(principal)) {
+            return null;
+        }
+        if (principal instanceof CustomUserDetails cud) {
+            return cud.getUserId();
+        }
+        if (principal instanceof UserDetails ud) {
+            try {
+                return UUID.fromString(ud.getUsername());
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
+        return null;
+    }
 }
