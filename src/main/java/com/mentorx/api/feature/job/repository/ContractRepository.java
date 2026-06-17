@@ -47,4 +47,24 @@ public interface ContractRepository extends JpaRepository<Contract, UUID> {
         @Param("mentorId") UUID mentorId,
         @Param("excludedStatus") ContractStatus excludedStatus
     );
+
+    @Query("SELECT c.mentor.id, COUNT(c) FROM Contract c " +
+           "WHERE c.completedAt >= :start AND c.completedAt < :end " +
+           "GROUP BY c.mentor.id")
+    List<Object[]> countCompletedByMentorInWindow(@Param("start") java.time.LocalDateTime start,
+                                                  @Param("end") java.time.LocalDateTime end);
+
+    /**
+     * M12.2 Phase H1: per-user count of contracts in ACTIVE state as of a timestamp.
+     * Replaces the previous BUG-A behavior of {@code contractRepository.count()} (whole-system)
+     * that wrote the platform-wide total into every user's {@code contracts_active} field.
+     * The {@code asOf} parameter is the snapshot end-of-day timestamp; only contracts created
+     * before that timestamp are counted (active state is current, not time-windowed).
+     */
+    @Query("SELECT c.mentor.id, COUNT(c) FROM Contract c " +
+           "WHERE c.status = com.mentorx.api.feature.job.enums.ContractStatus.ACTIVE " +
+           "AND c.mentor.id IS NOT NULL " +
+           "AND c.createdAt < :asOf " +
+           "GROUP BY c.mentor.id")
+    List<Object[]> countActiveByMentorAsOf(@Param("asOf") java.time.LocalDateTime asOf);
 }

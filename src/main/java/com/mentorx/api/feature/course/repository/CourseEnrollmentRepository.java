@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -42,4 +43,18 @@ public interface CourseEnrollmentRepository extends JpaRepository<CourseEnrollme
     
     @Query("SELECT AVG(ce.progressPercent) FROM CourseEnrollment ce WHERE ce.course.id = :courseId")
     Double getAverageProgressByCourseId(@Param("courseId") UUID courseId);
+
+    /**
+     * M12.2 Phase H1.4: per-instructor enrollment count within a time window.
+     * Replaces the previous BUG-D behavior in
+     * {@code EarningsAggregationJob.aggregateEnrollmentsByInstructor} which
+     * called {@code revenueByCourseInWindow} + filtered {@code countEnrollmentsByCourseInWindow}
+     * in an O(N×K) nested loop. This direct GROUP BY instructor collapses the work to O(N).
+     */
+    @Query("SELECT ce.course.instructor.id, COUNT(ce) FROM CourseEnrollment ce " +
+           "WHERE ce.enrolledAt >= :start AND ce.enrolledAt < :end " +
+           "AND ce.course.instructor IS NOT NULL " +
+           "GROUP BY ce.course.instructor.id")
+    List<Object[]> countEnrollmentsByInstructorInWindow(@Param("start") LocalDateTime start,
+                                                        @Param("end") LocalDateTime end);
 }

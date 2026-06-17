@@ -101,19 +101,7 @@ public class EarningsAggregationJob {
                     .coursesMxc = amount;
         }
 
-        // Withdrawals (DEBIT side) → withdrawn_mxc
-        for (Object[] row : transactionRepository.sumCreditsByUserInWindow(
-                TxnType.WITHDRAWAL, start, end)) {
-            // WITHDRAWAL is a DEBIT not a CREDIT — we use a dedicated query path below.
-            // The helper name above is a misnomer for DEBIT flows; ignore this loop result.
-            // (Kept for source attribution symmetry; the actual DEBIT sum is computed separately.)
-            if (row[0] != null) {
-                UUID userId = (UUID) row[0];
-                byUser.computeIfAbsent(userId, id -> new EarningsRow());
-            }
-        }
-
-        // DEBIT-side: WITHDRAWAL is a DEBIT for the user — fetch a separate sum.
+        // DEBIT-side: WITHDRAWAL sum per user (M12.2 H2.1: uses dedicated query with direction=DEBIT filter)
         Map<UUID, BigDecimal> withdrawals = sumDebitsByUser(TxnType.WITHDRAWAL, start, end);
         withdrawals.forEach((uid, amount) ->
                 byUser.computeIfAbsent(uid, id -> new EarningsRow()).withdrawnMxc = amount);
@@ -122,11 +110,13 @@ public class EarningsAggregationJob {
         platformFees.forEach((uid, amount) ->
                 byUser.computeIfAbsent(uid, id -> new EarningsRow()).platformFeeMxc = amount);
 
-        // Contract completions → jobs_completed
+        // Contract completions → jobs_completed (and contractsCompleted — same source, separate field per M12.2 BUG-B)
         for (Object[] row : contractRepository.countCompletedByMentorInWindow(start, end)) {
             UUID userId = (UUID) row[0];
             long completed = ((Number) row[1]).longValue();
-            byUser.computeIfAbsent(userId, id -> new EarningsRow()).jobsCompleted = (int) completed;
+            EarningsRow r = byUser.computeIfAbsent(userId, id -> new EarningsRow());
+            r.jobsCompleted = (int) completed;
+            r.contractsCompleted = (int) completed;  // BUG-B fix: explicit separate field, not aliased
         }
 
         // Proposals sent / accepted
@@ -141,11 +131,15 @@ public class EarningsAggregationJob {
             byUser.computeIfAbsent(userId, id -> new EarningsRow()).proposalsAccepted = (int) count;
         }
 
-        // Active contracts as of the snapshot date
-        long active = contractRepository.count();
-        byUser.values().forEach(r -> r.contractsActive = (int) active);
+        // M12.2 H1.2 (BUG-A fix): per-user count of ACTIVE contracts as of end-of-day.
+        // Replaces previous `contractRepository.count()` (whole-system) behavior.
+        for (Object[] row : contractRepository.countActiveByMentorAsOf(end)) {
+            UUID userId = (UUID) row[0];
+            int active = ((Number) row[1]).intValue();
+            byUser.computeIfAbsent(userId, id -> new EarningsRow()).contractsActive = active;
+        }
 
-        // Enrollments per course → course_enrollments (rollup per user via their courses)
+        // M12.2 H1.5 (BUG-D fix): single grouped query replaces O(N×K) nested loop.
         Map<UUID, Integer> enrollmentsByInstructor = aggregateEnrollmentsByInstructor(start, end);
         enrollmentsByInstructor.forEach((uid, count) ->
                 byUser.computeIfAbsent(uid, id -> new EarningsRow()).courseEnrollments = count);
@@ -176,7 +170,7 @@ public class EarningsAggregationJob {
             snapshot.setProposalsSent(row.proposalsSent);
             snapshot.setProposalsAccepted(row.proposalsAccepted);
             snapshot.setContractsActive(row.contractsActive);
-            snapshot.setContractsCompleted(row.jobsCompleted);
+            snapshot.setContractsCompleted(row.contractsCompleted);
             snapshot.setCourseEnrollments(row.courseEnrollments);
 
             // Balance snapshots
@@ -248,16 +242,18 @@ public class EarningsAggregationJob {
         return result;
     }
 
+    /**
+     * M12.2 H1.5 (BUG-D fix): single grouped query. The previous implementation
+     * iterated over {@code revenueByCourseInWindow} and re-called
+     * {@code countEnrollmentsByCourseInWindow} for each course, filtering in Java —
+     * O(N×K) where N=courses per day, K=total courses. This collapses to O(N).
+     */
     private Map<UUID, Integer> aggregateEnrollmentsByInstructor(LocalDateTime start, LocalDateTime end) {
         Map<UUID, Integer> out = new HashMap<>();
-        for (Object[] row : enrollmentRepository.revenueByCourseInWindow(start, end)) {
-            UUID instructorId = (UUID) row[1];
-            int count = enrollmentRepository.countEnrollmentsByCourseInWindow(start, end).stream()
-                    .filter(r -> r[0].equals(row[0]))
-                    .map(r -> ((Number) r[1]).intValue())
-                    .findFirst()
-                    .orElse(0);
-            out.merge(instructorId, count, Integer::sum);
+        for (Object[] row : enrollmentRepository.countEnrollmentsByInstructorInWindow(start, end)) {
+            UUID instructorId = (UUID) row[0];
+            int count = ((Number) row[1]).intValue();
+            out.put(instructorId, count);
         }
         return out;
     }
