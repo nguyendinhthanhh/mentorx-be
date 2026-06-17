@@ -1,6 +1,8 @@
 package com.mentorx.api.feature.analytics.controller;
 
 import com.mentorx.api.common.response.ApiResponse;
+import com.mentorx.api.common.security.MentorModeAccessService;
+import com.mentorx.api.common.util.SecurityUtils;
 import com.mentorx.api.feature.analytics.dto.request.ViewEventRequest;
 import com.mentorx.api.feature.analytics.dto.response.EarningsSnapshotResponse;
 import com.mentorx.api.feature.analytics.service.AnalyticsService;
@@ -9,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
