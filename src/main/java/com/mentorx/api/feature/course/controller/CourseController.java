@@ -5,6 +5,7 @@ import com.mentorx.api.common.enums.CourseProductType;
 import com.mentorx.api.common.enums.SupportedLanguage;
 import com.mentorx.api.common.response.ApiResponse;
 import com.mentorx.api.feature.course.dto.request.CourseCreateRequest;
+import com.mentorx.api.feature.course.dto.request.CourseCreateWithCurriculumRequest;
 import com.mentorx.api.feature.course.dto.request.CourseUpdateRequest;
 import com.mentorx.api.feature.course.dto.response.CourseResponse;
 import com.mentorx.api.feature.course.service.CourseService;
@@ -31,6 +32,11 @@ public class CourseController {
     @PostMapping
     public ResponseEntity<ApiResponse<CourseResponse>> create(@Valid @RequestBody CourseCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(courseService.create(request)));
+    }
+
+    @PostMapping("/with-curriculum")
+    public ResponseEntity<ApiResponse<CourseResponse>> createWithCurriculum(@Valid @RequestBody CourseCreateWithCurriculumRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(courseService.createWithCurriculum(request)));
     }
 
     @GetMapping("/{courseId}")
@@ -118,18 +124,4 @@ public class CourseController {
         return ResponseEntity.ok(ApiResponse.success(courseService.getByStatus(status, PageRequest.of(page, size))));
     }
 
-    @PostMapping("/{courseId}/submit-for-review")
-    @PreAuthorize("hasAnyRole('MENTOR', 'INSTRUCTOR', 'ADMIN')")
-    public ResponseEntity<ApiResponse<CourseResponse>> submitForReview(@PathVariable UUID courseId) {
-        return ResponseEntity.ok(ApiResponse.success("Course submitted for review", courseService.submitForReview(courseId)));
-    }
-
-    @PatchMapping("/{courseId}/status")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
-    public ResponseEntity<ApiResponse<CourseResponse>> updateStatus(
-            @PathVariable UUID courseId,
-            @RequestParam CourseStatus status,
-            @RequestParam(required = false) String reason) {
-        return ResponseEntity.ok(ApiResponse.success("Course status updated", courseService.updateStatus(courseId, status, reason)));
-    }
 }

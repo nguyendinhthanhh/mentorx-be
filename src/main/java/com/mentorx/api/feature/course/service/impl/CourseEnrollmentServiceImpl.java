@@ -52,7 +52,7 @@ public class CourseEnrollmentServiceImpl implements CourseEnrollmentService {
             throw new AppException(ErrorCode.ALREADY_ENROLLED);
         }
 
-        Course course = courseRepository.findById(request.getCourseId())
+        Course course = courseRepository.findByIdAndDeletedAtIsNull(request.getCourseId())
                 .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_FOUND));
         if (course.getStatus() != CourseStatus.PUBLISHED) {
             throw new AppException(ErrorCode.BAD_REQUEST, "Only published courses can be enrolled");
@@ -64,8 +64,10 @@ public class CourseEnrollmentServiceImpl implements CourseEnrollmentService {
         CourseEnrollment enrollment = mapper.toEntity(request);
         enrollment.setCourse(course);
         enrollment.setStudent(student);
+        enrollment.setAmountPaidMxc(effectivePrice(course));
         enrollment.setProgressPercent(BigDecimal.ZERO);
         enrollment.setIsCompleted(false);
+        enrollment.setLastAccessedAt(LocalDateTime.now());
 
         CourseEnrollment savedEnrollment = enrollmentRepository.save(enrollment);
         log.info("Enrollment created successfully with ID: {}", savedEnrollment.getId());
@@ -81,7 +83,7 @@ public class CourseEnrollmentServiceImpl implements CourseEnrollmentService {
         return enrollmentRepository.findByCourseIdAndStudentId(courseId, studentId)
                 .map(mapper::toResponse)
                 .orElseGet(() -> {
-                    Course course = courseRepository.findById(courseId)
+                    Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
                             .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_FOUND));
                     if (course.getStatus() != CourseStatus.PUBLISHED) {
                         throw new AppException(ErrorCode.BAD_REQUEST, "Only published courses can be enrolled");
@@ -93,9 +95,10 @@ public class CourseEnrollmentServiceImpl implements CourseEnrollmentService {
                     CourseEnrollment enrollment = CourseEnrollment.builder()
                             .course(course)
                             .student(student)
-                            .amountPaidMxc(BigDecimal.ZERO)
+                            .amountPaidMxc(effectivePrice(course))
                             .progressPercent(BigDecimal.ZERO)
                             .isCompleted(false)
+                            .lastAccessedAt(LocalDateTime.now())
                             .build();
                     CourseEnrollment savedEnrollment = enrollmentRepository.save(enrollment);
                     course.setTotalEnrollments(course.getTotalEnrollments() == null ? 1 : course.getTotalEnrollments() + 1);
@@ -219,5 +222,15 @@ public class CourseEnrollmentServiceImpl implements CourseEnrollmentService {
     public boolean isStudentEnrolled(UUID courseId, UUID studentId) {
         log.debug("Checking if student: {} is enrolled in course: {}", studentId, courseId);
         return enrollmentRepository.existsByCourseIdAndStudentId(courseId, studentId);
+    }
+
+    private BigDecimal effectivePrice(Course course) {
+        LocalDateTime now = LocalDateTime.now();
+        boolean activeDiscount = course.getDiscountPriceMxc() != null
+                && course.getDiscountStartAt() != null
+                && course.getDiscountEndAt() != null
+                && !now.isBefore(course.getDiscountStartAt())
+                && now.isBefore(course.getDiscountEndAt());
+        return activeDiscount ? course.getDiscountPriceMxc() : course.getPriceMxc();
     }
 }

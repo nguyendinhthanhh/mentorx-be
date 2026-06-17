@@ -151,13 +151,45 @@ public class DatabaseInitializationRunner {
         if (!isSchemaAlreadyCreated()) {
             return;
         }
-        log.info("Ensuring courses status constraint allows review workflow statuses...");
+        log.info("Ensuring courses use published/archived lifecycle statuses...");
         try {
+            jdbcTemplate.execute("ALTER TABLE courses ADD COLUMN IF NOT EXISTS discount_price_mxc NUMERIC(12, 2)");
+            jdbcTemplate.execute("ALTER TABLE courses ADD COLUMN IF NOT EXISTS discount_start_at TIMESTAMP");
+            jdbcTemplate.execute("ALTER TABLE courses ADD COLUMN IF NOT EXISTS discount_end_at TIMESTAMP");
+            jdbcTemplate.execute("ALTER TABLE course_enrollments ADD COLUMN IF NOT EXISTS last_accessed_at TIMESTAMP");
+            jdbcTemplate.execute("""
+                    UPDATE courses
+                    SET status = 'PUBLISHED',
+                        published_at = COALESCE(published_at, updated_at, created_at, CURRENT_TIMESTAMP),
+                        rejection_reason = NULL,
+                        submitted_at = NULL
+                    WHERE status IN ('DRAFT', 'PENDING_REVIEW', 'REJECTED')
+                    """);
+            jdbcTemplate.execute("""
+                    UPDATE course_enrollments
+                    SET last_accessed_at = COALESCE(last_accessed_at, enrolled_at, completed_at, CURRENT_TIMESTAMP)
+                    WHERE last_accessed_at IS NULL
+                    """);
             jdbcTemplate.execute("ALTER TABLE courses DROP CONSTRAINT IF EXISTS courses_status_check");
             jdbcTemplate.execute("""
                     ALTER TABLE courses
                     ADD CONSTRAINT courses_status_check
-                    CHECK (status IN ('DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'REJECTED', 'ARCHIVED'))
+                    CHECK (status IN ('PUBLISHED', 'ARCHIVED'))
+                    """);
+            jdbcTemplate.execute("ALTER TABLE courses DROP CONSTRAINT IF EXISTS courses_discount_price_check");
+            jdbcTemplate.execute("""
+                    ALTER TABLE courses
+                    ADD CONSTRAINT courses_discount_price_check
+                    CHECK (
+                        discount_price_mxc IS NULL
+                        OR (
+                            discount_price_mxc >= 0
+                            AND discount_price_mxc < price_mxc
+                            AND discount_start_at IS NOT NULL
+                            AND discount_end_at IS NOT NULL
+                            AND discount_start_at < discount_end_at
+                        )
+                    )
                     """);
         } catch (Exception e) {
             log.warn("Could not update courses_status_check constraint: {}", e.getMessage());
