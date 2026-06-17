@@ -39,6 +39,10 @@ public interface CourseLessonRepository extends JpaRepository<CourseLesson, UUID
     
     @Query("SELECT cl FROM CourseLesson cl WHERE cl.section.course.id = :courseId AND cl.isFreePreview = true")
     List<CourseLesson> findFreePreviewLessonsByCourseId(@Param("courseId") UUID courseId);
-    
+
     boolean existsBySectionIdAndLessonOrder(UUID sectionId, Integer lessonOrder);
+
+    // M12.2 H0: required by CourseStatsServiceImpl — total view count across all lessons of a course
+    @Query("SELECT COALESCE(SUM(cl.viewCount), 0) FROM CourseLesson cl WHERE cl.section.course.id = :courseId")
+    Long sumViewCountByCourseId(@Param("courseId") UUID courseId);
 }

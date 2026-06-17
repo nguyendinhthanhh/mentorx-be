@@ -272,6 +272,7 @@ public class EarningsAggregationJob {
         BigDecimal withdrawnMxc = BigDecimal.ZERO;
         BigDecimal platformFeeMxc = BigDecimal.ZERO;
         int jobsCompleted = 0;
+        int contractsCompleted = 0;  // M12.2 BUG-B: separate from jobsCompleted for explicit semantic
         int coursesSold = 0;
         int proposalsSent = 0;
         int proposalsAccepted = 0;

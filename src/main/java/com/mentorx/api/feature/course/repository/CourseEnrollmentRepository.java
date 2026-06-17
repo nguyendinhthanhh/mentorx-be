@@ -57,4 +57,21 @@ public interface CourseEnrollmentRepository extends JpaRepository<CourseEnrollme
            "GROUP BY ce.course.instructor.id")
     List<Object[]> countEnrollmentsByInstructorInWindow(@Param("start") LocalDateTime start,
                                                         @Param("end") LocalDateTime end);
+
+    // M12.2 H0: required by EarningsAggregationJob.aggregateCourseSnapshots
+    @Query("SELECT ce.course.id, COUNT(ce) FROM CourseEnrollment ce " +
+           "WHERE ce.enrolledAt >= :start AND ce.enrolledAt < :end " +
+           "GROUP BY ce.course.id")
+    List<Object[]> countEnrollmentsByCourseInWindow(@Param("start") LocalDateTime start,
+                                                    @Param("end") LocalDateTime end);
+
+    @Query("SELECT ce.course.id, ce.course.instructor.id, COALESCE(SUM(ce.amountPaidMxc), 0) FROM CourseEnrollment ce " +
+           "WHERE ce.enrolledAt >= :start AND ce.enrolledAt < :end " +
+           "GROUP BY ce.course.id, ce.course.instructor.id")
+    List<Object[]> revenueByCourseInWindow(@Param("start") LocalDateTime start,
+                                           @Param("end") LocalDateTime end);
+
+    // M12.2 H0 / H2.4: required by CourseStatsServiceImpl.sumRevenueForCourse
+    @Query("SELECT COALESCE(SUM(ce.amountPaidMxc), 0) FROM CourseEnrollment ce WHERE ce.course.id = :courseId")
+    java.math.BigDecimal sumRevenueByCourseId(@Param("courseId") UUID courseId);
 }

@@ -35,6 +35,14 @@ public interface ContractRepository extends JpaRepository<Contract, UUID> {
     boolean existsByJobIdAndStatusIn(UUID jobId, Collection<ContractStatus> statuses);
     Optional<Contract> findFirstByJobIdAndStatusIn(UUID jobId, Collection<ContractStatus> statuses);
 
+    // M12.2 H0: required by JobStatsServiceImpl — per-mentor count by status
+    long countByMentorIdAndStatus(UUID mentorId, ContractStatus status);
+
+    // M12.2 H0: required by JobStatsServiceImpl — average mentor net amount on COMPLETED contracts
+    @Query("SELECT AVG(c.mentorNetAmount) FROM Contract c " +
+           "WHERE c.mentor.id = :mentorId AND c.status = com.mentorx.api.feature.job.enums.ContractStatus.COMPLETED")
+    java.math.BigDecimal averageCompletedAmountByMentorId(@Param("mentorId") UUID mentorId);
+
     @Query("""
         SELECT CASE WHEN COUNT(c) > 0 THEN true ELSE false END
         FROM Contract c

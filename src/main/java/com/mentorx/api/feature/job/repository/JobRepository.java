@@ -219,4 +219,8 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
     @Modifying
     @Query("UPDATE Job j SET j.status = 'EXPIRED' WHERE j.status = 'OPEN' AND j.deadlineAt IS NOT NULL AND j.deadlineAt < CURRENT_TIMESTAMP")
     int expirePastDeadlineJobs();
+
+    // M12.2 H0: methods required by JobStatsServiceImpl.clientStats
+    long countByClientIdAndDeletedAtIsNull(UUID clientId);
+    long countByClientIdAndStatus(UUID clientId, JobStatus status);
 }

@@ -63,7 +63,17 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 snapshot.getWithdrawnMxc(),
                 snapshot.getPlatformFeeMxc(),
                 snapshot.getJobsCompleted(),
-                snapshot.getCoursesSold()
+                snapshot.getCoursesSold(),
+                snapshot.getEscrowBalanceMxc(),
+                snapshot.getAvailableBalanceMxc(),
+                snapshot.getEarnedFromMentoringMxc(),
+                snapshot.getEarnedFromFreelanceMxc(),
+                snapshot.getEarnedFromCoursesMxc(),
+                snapshot.getProposalsSent(),
+                snapshot.getProposalsAccepted(),
+                snapshot.getContractsActive(),
+                snapshot.getContractsCompleted(),
+                snapshot.getCourseEnrollments()
         );
     }
 }
