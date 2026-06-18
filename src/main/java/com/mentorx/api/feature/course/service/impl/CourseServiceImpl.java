@@ -55,6 +55,7 @@ public class CourseServiceImpl implements CourseService {
         User instructor = userRepository.findById(request.getInstructorId())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
         requireAtLeastOneSkill(request.getSkillIds(), request.getSkills());
+        CourseProductType productType = request.getProductType() != null ? request.getProductType() : CourseProductType.COURSE;
 
         Course course = Course.builder()
                 .instructor(instructor)
@@ -71,9 +72,9 @@ public class CourseServiceImpl implements CourseService {
                 .discountEndAt(request.getDiscountEndAt())
                 .language(request.getLanguage() != null ? request.getLanguage() : com.mentorx.api.common.enums.SupportedLanguage.vi)
                 .level(request.getLevel())
-                .isCertificate(Boolean.TRUE.equals(request.getIsCertificate()))
+                .isCertificate(productType == CourseProductType.COURSE)
                 .previewVideoUrl(request.getPreviewVideoUrl())
-                .productType(request.getProductType() != null ? request.getProductType() : CourseProductType.COURSE)
+                .productType(productType)
                 .status(CourseStatus.PUBLISHED)
                 .publishedAt(LocalDateTime.now())
                 .build();
@@ -182,6 +183,11 @@ public class CourseServiceImpl implements CourseService {
                 && course.getProductType() != null
                 && course.getProductType() != request.getProductType()) {
             throw new AppException(ErrorCode.BAD_REQUEST, "Product type cannot be changed after creation");
+        }
+        if (course.getProductType() == CourseProductType.COURSE) {
+            course.setIsCertificate(true);
+        } else if (course.getProductType() == CourseProductType.DOCUMENT) {
+            course.setIsCertificate(false);
         }
         if (request.getStatus() != null) {
             if (request.getStatus() != CourseStatus.PUBLISHED && request.getStatus() != CourseStatus.ARCHIVED) {
@@ -350,7 +356,7 @@ public class CourseServiceImpl implements CourseService {
                 .totalEnrollments(course.getTotalEnrollments())
                 .averageRating(course.getAverageRating())
                 .totalReviews(course.getTotalReviews())
-                .isCertificate(course.getIsCertificate())
+                .isCertificate(course.getProductType() == CourseProductType.COURSE)
                 .previewVideoUrl(course.getPreviewVideoUrl())
                 .productType(course.getProductType())
                 .rejectionReason(course.getRejectionReason())

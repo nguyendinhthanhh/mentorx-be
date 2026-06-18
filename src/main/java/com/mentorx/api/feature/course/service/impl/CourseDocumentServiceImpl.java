@@ -54,11 +54,12 @@ public class CourseDocumentServiceImpl implements CourseDocumentService {
         CourseLesson lesson = requireLesson(lessonId);
         Course course = lesson.getSection().getCourse();
 
-        boolean isPaidCourse = course.getPriceMxc() != null && course.getPriceMxc().compareTo(BigDecimal.ZERO) > 0;
-        boolean isEnrolled = viewer != null && enrollmentRepository.existsByCourseIdAndStudentId(course.getId(), viewer.getId());
-        boolean previewOnly = isPaidCourse && !isEnrolled;
+        boolean hasFullAccess = hasFullAccess(course, viewer);
+        if (!hasFullAccess && !Boolean.TRUE.equals(lesson.getIsFreePreview())) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
 
-        return buildDocumentPayload(lesson, course, viewer, previewOnly);
+        return buildDocumentPayload(lesson, course, viewer, !hasFullAccess);
     }
 
     @Override
@@ -70,10 +71,7 @@ public class CourseDocumentServiceImpl implements CourseDocumentService {
         CourseLesson lesson = requireLesson(lessonId);
         Course course = lesson.getSection().getCourse();
 
-        boolean isPaidCourse = course.getPriceMxc() != null && course.getPriceMxc().compareTo(BigDecimal.ZERO) > 0;
-        boolean isEnrolled = enrollmentRepository.existsByCourseIdAndStudentId(course.getId(), viewer.getId());
-
-        if (isPaidCourse && !isEnrolled) {
+        if (!hasFullAccess(course, viewer)) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
@@ -104,6 +102,21 @@ public class CourseDocumentServiceImpl implements CourseDocumentService {
         }
 
         return lesson;
+    }
+
+    private boolean hasFullAccess(Course course, User viewer) {
+        if (viewer == null) {
+            return false;
+        }
+        if (course.getInstructor() != null && viewer.getId().equals(course.getInstructor().getId())) {
+            return true;
+        }
+        if (viewer.getUserRoles() != null && viewer.getUserRoles().stream()
+                .anyMatch(userRole -> userRole.getRole() != null
+                        && "ADMIN".equalsIgnoreCase(userRole.getRole().getRoleName()))) {
+            return true;
+        }
+        return enrollmentRepository.existsByCourseIdAndStudentId(course.getId(), viewer.getId());
     }
 
     private CourseDocumentPayload buildDocumentPayload(CourseLesson lesson, Course course, User viewer, boolean previewOnly) {

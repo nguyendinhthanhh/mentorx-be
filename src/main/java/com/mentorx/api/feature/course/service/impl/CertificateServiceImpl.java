@@ -2,6 +2,7 @@ package com.mentorx.api.feature.course.service.impl;
 
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
+import com.mentorx.api.common.enums.CourseProductType;
 import com.mentorx.api.feature.course.entity.CourseEnrollment;
 import com.mentorx.api.feature.course.repository.CourseEnrollmentRepository;
 import com.mentorx.api.feature.course.service.CertificateService;
@@ -30,7 +31,7 @@ public class CertificateServiceImpl implements CertificateService {
     @Override
     @Transactional
     public CourseEnrollment issueIfEligible(CourseEnrollment enrollment) {
-        if (!Boolean.TRUE.equals(enrollment.getCourse().getIsCertificate())
+        if (enrollment.getCourse().getProductType() != CourseProductType.COURSE
                 || !Boolean.TRUE.equals(enrollment.getIsCompleted())) {
             return enrollment;
         }
