@@ -4,7 +4,6 @@ import com.mentorx.api.feature.analytics.dto.response.CourseStatsResponse;
 import com.mentorx.api.feature.analytics.dto.response.CourseStatsResponse.CourseBreakdown;
 import com.mentorx.api.feature.analytics.service.CourseStatsService;
 import com.mentorx.api.feature.course.entity.Course;
-import com.mentorx.api.feature.course.entity.CourseEnrollment;
 import com.mentorx.api.feature.course.repository.CourseEnrollmentRepository;
 import com.mentorx.api.feature.course.repository.CourseLessonRepository;
 import com.mentorx.api.feature.course.repository.CourseRepository;
@@ -98,14 +97,14 @@ public class CourseStatsServiceImpl implements CourseStatsService {
         );
     }
 
+    /**
+     * M12.2 H2.4+H2.5 (L9 fix): uses DB-side SUM aggregate instead of loading all
+     * enrollment entities into JVM heap via {@code findByCourseId(MAX_VALUE)}.
+     * Complexity: O(N) entity load → O(1) single SUM query.
+     */
     private BigDecimal sumRevenueForCourse(UUID courseId) {
-        long count = enrollmentRepository.countByCourseId(courseId);
-        if (count == 0) return BigDecimal.ZERO;
-        Page<CourseEnrollment> page = enrollmentRepository.findByCourseId(
-                courseId, PageRequest.of(0, Integer.MAX_VALUE));
-        return page.getContent().stream()
-                .map(e -> e.getAmountPaidMxc() == null ? BigDecimal.ZERO : e.getAmountPaidMxc())
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal total = enrollmentRepository.sumRevenueByCourseId(courseId);
+        return total == null ? BigDecimal.ZERO : total;
     }
 
     private List<Course> listCoursesForInstructor(UUID userId, UUID courseId) {
