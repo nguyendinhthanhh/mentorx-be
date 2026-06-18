@@ -47,7 +47,7 @@ class AnalyticsServiceImplTest {
                 .thenReturn(Optional.empty());
         when(viewEventRepository.save(any(ViewEvent.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.recordView(req, "127.0.0.1");
+        service.recordView(req, null);
 
         verify(viewEventRepository, times(1)).save(any(ViewEvent.class));
     }
@@ -61,7 +61,7 @@ class AnalyticsServiceImplTest {
         when(viewEventRepository.findLatestForDedup(eq("course"), eq(targetId), eq(null), any()))
                 .thenReturn(Optional.of(existing));
 
-        service.recordView(req, "127.0.0.1");
+        service.recordView(req, null);
 
         verify(viewEventRepository, never()).save(any(ViewEvent.class));
     }
@@ -76,7 +76,7 @@ class AnalyticsServiceImplTest {
                 .thenReturn(Optional.of(existing));
         when(viewEventRepository.save(any(ViewEvent.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.recordView(req, "127.0.0.1");
+        service.recordView(req, null);
 
         verify(viewEventRepository, times(1)).save(any(ViewEvent.class));
     }
@@ -89,7 +89,7 @@ class AnalyticsServiceImplTest {
                 .thenReturn(Optional.empty());
         when(viewEventRepository.save(any(ViewEvent.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.recordView(req, "192.168.1.1");
+        service.recordView(req, null);
 
         verify(viewEventRepository).findLatestForDedup("course", targetId, null, "10.0.0.1");
     }
@@ -113,3 +113,4 @@ class AnalyticsServiceImplTest {
         assertThat(viewerId).isNotNull();
     }
 }
+
