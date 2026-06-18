@@ -8,9 +8,12 @@ import com.mentorx.api.feature.analytics.repository.CourseDailySnapshotRepositor
 import com.mentorx.api.feature.analytics.repository.EarningsDailySnapshotRepository;
 import com.mentorx.api.feature.course.entity.Course;
 import com.mentorx.api.feature.course.repository.CourseEnrollmentRepository;
+import com.mentorx.api.feature.course.repository.CourseLessonRepository;
 import com.mentorx.api.feature.course.repository.CourseRepository;
 import com.mentorx.api.feature.job.repository.ContractRepository;
 import com.mentorx.api.feature.job.repository.ProposalRepository;
+import com.mentorx.api.feature.review.enums.ReviewTargetType;
+import com.mentorx.api.feature.review.repository.ReviewRepository;
 import com.mentorx.api.feature.user.entity.User;
 import com.mentorx.api.feature.user.repository.UserRepository;
 import com.mentorx.api.feature.wallet.entity.Wallet;
@@ -53,7 +56,9 @@ public class EarningsAggregationJob {
     private final ContractRepository contractRepository;
     private final ProposalRepository proposalRepository;
     private final CourseEnrollmentRepository enrollmentRepository;
+    private final CourseLessonRepository lessonRepository;
     private final CourseRepository courseRepository;
+    private final ReviewRepository reviewRepository;
     private final UserRepository userRepository;
 
     /**
@@ -219,25 +224,40 @@ public class EarningsAggregationJob {
             snapshot.setSoldCount(agg.enrollments);
             snapshot.setRevenueMxc(agg.revenue);
 
+            // M12.2 H2.3 (L3 fix): populate the 3 remaining fields on CourseDailySnapshot
+            // that were previously always 0. Data sourced from enrollment, lesson, and review repos.
+            Long completedCount = enrollmentRepository.countCompletedByCourseId(courseId);
+            Long enrolledCount = enrollmentRepository.countByCourseId(courseId);
+            BigDecimal completionRate = (enrolledCount == null || enrolledCount == 0)
+                    ? BigDecimal.ZERO
+                    : BigDecimal.valueOf(completedCount)
+                            .divide(BigDecimal.valueOf(enrolledCount), 4, java.math.RoundingMode.HALF_UP);
+            Long lessonViews = lessonRepository.sumViewCountByCourseId(courseId);
+            BigDecimal avgRating = reviewRepository.averagePublicRatingByTarget(
+                    ReviewTargetType.COURSE, courseId);
+
+            snapshot.setCompletionRate(completionRate);
+            snapshot.setLessonViews(lessonViews == null ? 0 : lessonViews.intValue());
+            snapshot.setAverageRating(avgRating == null ? BigDecimal.ZERO : avgRating);
+
             courseDailyRepository.save(snapshot);
             written.incrementAndGet();
         }
         return written.get();
     }
 
+    /**
+     * M12.2 H2.2 (L2 + L6 fix): uses DB-side aggregation via {@code sumDebitsByUserInWindow}
+     * instead of loading all transactions into JVM heap and filtering in Java.
+     * Previously called {@code findTransactionsBetweenDates} (returns ALL types/directions)
+     * then filtered by type + DEBIT in a loop — O(M×T) memory churn per day.
+     */
     private Map<UUID, BigDecimal> sumDebitsByUser(TxnType type, LocalDateTime start, LocalDateTime end) {
-        // Walk raw transactions because the helper is CREDIT-only. For small windows this is fine.
-        // We use a derived query via transactionRepository to keep the dependency one-way.
         Map<UUID, BigDecimal> result = new HashMap<>();
-        // Use a custom in-memory aggregation: the volume per day is bounded by user transaction count.
-        List<com.mentorx.api.feature.wallet.entity.WalletTransaction> txs =
-                transactionRepository.findTransactionsBetweenDates(start, end);
-        for (var tx : txs) {
-            if (tx.getTxnType() != type) continue;
-            if (tx.getDirection() != com.mentorx.api.common.enums.LedgerDirection.DEBIT) continue;
-            if (tx.getWallet() == null || tx.getWallet().getUser() == null) continue;
-            UUID uid = tx.getWallet().getUser().getId();
-            result.merge(uid, tx.getAmountMxc() == null ? BigDecimal.ZERO : tx.getAmountMxc(), BigDecimal::add);
+        for (Object[] row : transactionRepository.sumDebitsByUserInWindow(type, start, end)) {
+            UUID uid = (UUID) row[0];
+            BigDecimal amount = toBigDecimal(row[1]);
+            result.put(uid, amount);
         }
         return result;
     }
