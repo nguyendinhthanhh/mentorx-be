@@ -31,13 +31,24 @@ public class SkillServiceImpl implements SkillService {
     @Override
     @Transactional
     public SkillResponse create(SkillRequest request) {
-        log.info("Creating skill with slug: {}", request.slug());
+        String labelEn = normalizeLabel(request.labelEn());
+        String labelVi = normalizeLabel(request.labelVi());
+        String slug = normalizeSlug(request.slug(), labelEn);
+        log.info("Creating skill with slug: {}", slug);
 
-        if (skillRepository.existsBySlug(request.slug())) {
-            throw new AppException(ErrorCode.BAD_REQUEST, "Skill with this slug already exists");
+        var existing = skillRepository.findBySlug(slug);
+        if (existing.isPresent()) {
+            return systemMapper.toSkillResponse(existing.get());
         }
 
-        Skill entity = systemMapper.toSkill(request);
+        Skill entity = systemMapper.toSkill(SkillRequest.builder()
+                .slug(slug)
+                .labelEn(labelEn)
+                .labelVi(labelVi)
+                .labelZh(request.labelZh())
+                .labelJa(request.labelJa())
+                .isActive(request.isActive() == null ? true : request.isActive())
+                .build());
         entity.setCreatedAt(LocalDateTime.now());
         
         if (entity.getIsActive() == null) {
@@ -48,6 +59,21 @@ public class SkillServiceImpl implements SkillService {
         log.info("Created skill with ID: {}", saved.getId());
 
         return systemMapper.toSkillResponse(saved);
+    }
+
+    private String normalizeLabel(String value) {
+        return value == null ? "" : value.trim().replaceAll("\\s+", " ");
+    }
+
+    private String normalizeSlug(String value, String fallbackLabel) {
+        String source = value == null || value.isBlank() ? fallbackLabel : value;
+        String slug = source.toLowerCase()
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("(^-+|-+$)", "");
+        if (slug.isBlank()) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Slug is required");
+        }
+        return slug;
     }
 
     @Override
