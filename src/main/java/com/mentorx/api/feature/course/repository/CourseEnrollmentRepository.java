@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -29,6 +30,15 @@ public interface CourseEnrollmentRepository extends JpaRepository<CourseEnrollme
 
     @Query("SELECT COUNT(ce) FROM CourseEnrollment ce WHERE ce.course.id = :courseId AND ce.isCompleted = true")
     Long countCompletedByCourseId(@Param("courseId") UUID courseId);
+
+    @Query("SELECT COALESCE(SUM(ce.amountPaidMxc), 0) FROM CourseEnrollment ce WHERE ce.course.id = :courseId")
+    BigDecimal sumAmountPaidByCourseId(@Param("courseId") UUID courseId);
+
+    @Query("SELECT COALESCE(SUM(ce.amountPaidMxc), 0) FROM CourseEnrollment ce WHERE ce.course.id = :courseId AND ce.enrolledAt >= :from AND ce.enrolledAt < :to")
+    BigDecimal sumAmountPaidByCourseIdAndEnrolledAtBetween(@Param("courseId") UUID courseId, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    @Query("SELECT COUNT(ce) FROM CourseEnrollment ce WHERE ce.course.id = :courseId AND ce.enrolledAt >= :from AND ce.enrolledAt < :to")
+    Long countByCourseIdAndEnrolledAtBetween(@Param("courseId") UUID courseId, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
     
     @Query("SELECT COUNT(ce) FROM CourseEnrollment ce WHERE ce.student.id = :studentId")
     Long countByStudentId(@Param("studentId") UUID studentId);

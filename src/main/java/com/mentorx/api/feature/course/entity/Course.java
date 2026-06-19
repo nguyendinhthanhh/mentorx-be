@@ -73,7 +73,16 @@ public class Course extends BaseEntity {
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private CourseStatus status = CourseStatus.DRAFT;
+    private CourseStatus status = CourseStatus.PUBLISHED;
+
+    @Column(name = "discount_price_mxc", precision = 12, scale = 2)
+    private BigDecimal discountPriceMxc;
+
+    @Column(name = "discount_start_at")
+    private LocalDateTime discountStartAt;
+
+    @Column(name = "discount_end_at")
+    private LocalDateTime discountEndAt;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)

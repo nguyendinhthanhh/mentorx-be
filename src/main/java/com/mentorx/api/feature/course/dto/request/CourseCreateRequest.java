@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -46,6 +47,14 @@ public class CourseCreateRequest {
     @DecimalMin(value = "0.0", inclusive = true, message = "Price must be greater than or equal to 0")
     @Digits(integer = 10, fraction = 0, message = "Price must be a full number")
     private BigDecimal priceMxc;
+
+    @DecimalMin(value = "0.0", inclusive = true, message = "Discount price must be greater than or equal to 0")
+    @Digits(integer = 10, fraction = 0, message = "Discount price must be a full number")
+    private BigDecimal discountPriceMxc;
+
+    private LocalDateTime discountStartAt;
+
+    private LocalDateTime discountEndAt;
 
     @NotNull(message = "Language is required")
     private SupportedLanguage language;

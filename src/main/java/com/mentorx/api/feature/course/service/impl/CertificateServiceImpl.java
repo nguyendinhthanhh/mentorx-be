@@ -2,6 +2,7 @@ package com.mentorx.api.feature.course.service.impl;
 
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
+import com.mentorx.api.common.enums.CourseProductType;
 import com.mentorx.api.feature.course.entity.CourseEnrollment;
 import com.mentorx.api.feature.course.repository.CourseEnrollmentRepository;
 import com.mentorx.api.feature.course.service.CertificateService;
@@ -30,7 +31,7 @@ public class CertificateServiceImpl implements CertificateService {
     @Override
     @Transactional
     public CourseEnrollment issueIfEligible(CourseEnrollment enrollment) {
-        if (!Boolean.TRUE.equals(enrollment.getCourse().getIsCertificate())
+        if (enrollment.getCourse().getProductType() != CourseProductType.COURSE
                 || !Boolean.TRUE.equals(enrollment.getIsCompleted())) {
             return enrollment;
         }
@@ -66,22 +67,22 @@ public class CertificateServiceImpl implements CertificateService {
                 writeCentered(content, "CERTIFICATE OF COMPLETION", PDType1Font.HELVETICA_BOLD, 34, 486);
 
                 content.setNonStrokingColor(100, 116, 139);
-                writeCentered(content, "This certifies that", PDType1Font.HELVETICA, 14, 394);
+                writeCentered(content, "This certifies that", PDType1Font.HELVETICA, 14, 366);
 
                 content.setNonStrokingColor(15, 23, 42);
-                writeCentered(content, safeText(issued.getStudent().getFullName()), PDType1Font.HELVETICA_BOLD, 30, 350);
-                drawRule(content, 236, 335, 556, 335, 226, 232, 240);
+                writeCentered(content, safeText(issued.getStudent().getFullName()), PDType1Font.HELVETICA_BOLD, 30, 322);
+                drawRule(content, 236, 307, 556, 307, 226, 232, 240);
 
                 content.setNonStrokingColor(100, 116, 139);
-                writeCentered(content, "has successfully completed", PDType1Font.HELVETICA, 14, 306);
+                writeCentered(content, "has successfully completed", PDType1Font.HELVETICA, 14, 278);
 
                 content.setNonStrokingColor(79, 70, 229);
-                writeWrappedCentered(content, safeText(issued.getCourse().getTitle()), PDType1Font.HELVETICA_BOLD, 22, 266, 560, 28);
+                writeWrappedCentered(content, safeText(issued.getCourse().getTitle()), PDType1Font.HELVETICA_BOLD, 22, 238, 560, 28);
 
                 String date = issued.getCertificateIssuedAt().format(DateTimeFormatter.ofPattern("MMMM d, yyyy"));
                 content.setNonStrokingColor(51, 65, 85);
-                writeCentered(content, "Issued " + date, PDType1Font.HELVETICA, 12, 178);
-                writeCentered(content, "Certificate ID: " + issued.getCertificateCode(), PDType1Font.HELVETICA_BOLD, 12, 158);
+                writeCentered(content, "Issued " + date, PDType1Font.HELVETICA, 12, 150);
+                writeCentered(content, "Certificate ID: " + issued.getCertificateCode(), PDType1Font.HELVETICA_BOLD, 12, 130);
 
                 drawRule(content, 96, 112, 246, 112, 148, 163, 184);
                 drawRule(content, 546, 112, 696, 112, 148, 163, 184);
@@ -124,15 +125,6 @@ public class CertificateServiceImpl implements CertificateService {
     }
 
     private void drawMedalIcon(PDPageContentStream content, float centerX, float centerY) throws IOException {
-        content.setNonStrokingColor(79, 70, 229);
-        content.moveTo(centerX - 24, centerY - 26);
-        content.lineTo(centerX - 8, centerY - 70);
-        content.lineTo(centerX, centerY - 52);
-        content.lineTo(centerX + 8, centerY - 70);
-        content.lineTo(centerX + 24, centerY - 26);
-        content.closePath();
-        content.fill();
-
         content.setNonStrokingColor(245, 158, 11);
         drawCircle(content, centerX, centerY, 34);
         content.fill();

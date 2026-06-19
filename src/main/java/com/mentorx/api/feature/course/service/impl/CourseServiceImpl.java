@@ -9,6 +9,7 @@ import com.mentorx.api.common.enums.SupportedLanguage;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.feature.course.dto.request.CourseCreateRequest;
+import com.mentorx.api.feature.course.dto.request.CourseCreateWithCurriculumRequest;
 import com.mentorx.api.feature.course.dto.request.CourseUpdateRequest;
 import com.mentorx.api.feature.course.dto.response.CourseResponse;
 import com.mentorx.api.feature.course.entity.Course;
@@ -16,6 +17,7 @@ import com.mentorx.api.feature.course.repository.CourseEnrollmentRepository;
 import com.mentorx.api.feature.course.repository.CourseRepository;
 import com.mentorx.api.feature.system.entity.Skill;
 import com.mentorx.api.feature.system.repository.SkillRepository;
+import com.mentorx.api.feature.course.service.CourseCurriculumService;
 import com.mentorx.api.feature.course.service.CourseService;
 import com.mentorx.api.feature.user.entity.User;
 import com.mentorx.api.feature.user.repository.UserRepository;
@@ -44,6 +46,7 @@ public class CourseServiceImpl implements CourseService {
     private final MentorModeAccessService mentorModeAccessService;
     private final SkillRepository skillRepository;
     private final CloudinaryMediaService cloudinaryMediaService;
+    private final CourseCurriculumService courseCurriculumService;
 
     @Override
     @Transactional
@@ -52,6 +55,7 @@ public class CourseServiceImpl implements CourseService {
         User instructor = userRepository.findById(request.getInstructorId())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
         requireAtLeastOneSkill(request.getSkillIds(), request.getSkills());
+        CourseProductType productType = request.getProductType() != null ? request.getProductType() : CourseProductType.COURSE;
 
         Course course = Course.builder()
                 .instructor(instructor)
@@ -63,14 +67,31 @@ public class CourseServiceImpl implements CourseService {
                 .description(request.getDescription())
                 .thumbnailUrl(request.getThumbnailUrl())
                 .priceMxc(request.getPriceMxc() != null ? request.getPriceMxc() : BigDecimal.ZERO)
+                .discountPriceMxc(request.getDiscountPriceMxc())
+                .discountStartAt(request.getDiscountStartAt())
+                .discountEndAt(request.getDiscountEndAt())
                 .language(request.getLanguage() != null ? request.getLanguage() : com.mentorx.api.common.enums.SupportedLanguage.vi)
                 .level(request.getLevel())
-                .isCertificate(Boolean.TRUE.equals(request.getIsCertificate()))
+                .isCertificate(productType == CourseProductType.COURSE)
                 .previewVideoUrl(request.getPreviewVideoUrl())
-                .productType(request.getProductType() != null ? request.getProductType() : CourseProductType.COURSE)
-                .status(CourseStatus.DRAFT)
+                .productType(productType)
+                .status(CourseStatus.PUBLISHED)
+                .publishedAt(LocalDateTime.now())
                 .build();
+        validateDiscount(course);
         return toResponse(courseRepository.save(course));
+    }
+
+    @Override
+    @Transactional
+    public CourseResponse createWithCurriculum(CourseCreateWithCurriculumRequest request) {
+        CourseResponse createdCourse = create(request.getCourse());
+        if (request.getCurriculum() != null
+                && request.getCurriculum().getSections() != null
+                && !request.getCurriculum().getSections().isEmpty()) {
+            courseCurriculumService.saveCurriculum(createdCourse.getId(), request.getCurriculum());
+        }
+        return getById(createdCourse.getId());
     }
 
     @Override
@@ -146,17 +167,38 @@ public class CourseServiceImpl implements CourseService {
             }
             course.setPriceMxc(request.getPriceMxc());
         }
+        if (Boolean.TRUE.equals(request.getClearDiscount())) {
+            course.setDiscountPriceMxc(null);
+            course.setDiscountStartAt(null);
+            course.setDiscountEndAt(null);
+        }
+        if (request.getDiscountPriceMxc() != null) course.setDiscountPriceMxc(request.getDiscountPriceMxc());
+        if (request.getDiscountStartAt() != null) course.setDiscountStartAt(request.getDiscountStartAt());
+        if (request.getDiscountEndAt() != null) course.setDiscountEndAt(request.getDiscountEndAt());
         if (request.getLanguage() != null) course.setLanguage(request.getLanguage());
         if (request.getLevel() != null) course.setLevel(request.getLevel());
         if (request.getIsCertificate() != null) course.setIsCertificate(request.getIsCertificate());
         if (request.getPreviewVideoUrl() != null) course.setPreviewVideoUrl(request.getPreviewVideoUrl());
-        if (request.getProductType() != null) course.setProductType(request.getProductType());
+        if (request.getProductType() != null
+                && course.getProductType() != null
+                && course.getProductType() != request.getProductType()) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Product type cannot be changed after creation");
+        }
+        if (course.getProductType() == CourseProductType.COURSE) {
+            course.setIsCertificate(true);
+        } else if (course.getProductType() == CourseProductType.DOCUMENT) {
+            course.setIsCertificate(false);
+        }
         if (request.getStatus() != null) {
+            if (request.getStatus() != CourseStatus.PUBLISHED && request.getStatus() != CourseStatus.ARCHIVED) {
+                throw new AppException(ErrorCode.BAD_REQUEST, "Course status must be PUBLISHED or ARCHIVED");
+            }
             course.setStatus(request.getStatus());
             if (request.getStatus() == CourseStatus.PUBLISHED && course.getPublishedAt() == null) {
                 course.setPublishedAt(LocalDateTime.now());
             }
         }
+        validateDiscount(course);
     }
 
     @Override
@@ -164,8 +206,9 @@ public class CourseServiceImpl implements CourseService {
     public void delete(UUID courseId) {
         Course course = findCourse(courseId);
         mentorModeAccessService.requireApprovedMentorContentAccess(course.getInstructor().getId());
-        if (course.getStatus() != CourseStatus.DRAFT && course.getStatus() != CourseStatus.REJECTED) {
-            throw new AppException(ErrorCode.BAD_REQUEST, "Only draft or rejected courses can be deleted");
+        Long enrollmentCount = courseEnrollmentRepository.countByCourseId(courseId);
+        if (enrollmentCount != null && enrollmentCount > 0) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Courses with enrollments cannot be deleted. Archive this course instead.");
         }
         course.setDeletedAt(LocalDateTime.now());
     }
@@ -227,50 +270,6 @@ public class CourseServiceImpl implements CourseService {
         return courseRepository.findByStatusAndDeletedAtIsNull(status, pageable).map(this::toResponse);
     }
 
-    @Override
-    @Transactional
-    public CourseResponse submitForReview(UUID courseId) {
-        Course course = findCourse(courseId);
-        mentorModeAccessService.requireApprovedMentorContentAccess(course.getInstructor().getId());
-        if (course.getStatus() == CourseStatus.ARCHIVED) {
-            throw new AppException(ErrorCode.BAD_REQUEST, "Archived courses cannot be submitted for review");
-        }
-        if (course.getStatus() != CourseStatus.DRAFT && course.getStatus() != CourseStatus.REJECTED) {
-            throw new AppException(ErrorCode.BAD_REQUEST, "Only draft or rejected courses can be submitted for review");
-        }
-        course.setStatus(CourseStatus.PENDING_REVIEW);
-        course.setSubmittedAt(LocalDateTime.now());
-        course.setRejectionReason(null);
-        return toResponse(course);
-    }
-
-    @Override
-    @Transactional
-    public CourseResponse updateStatus(UUID courseId, CourseStatus status, String reason) {
-        Course course = findCourse(courseId);
-        if (status == CourseStatus.PUBLISHED && course.getStatus() != CourseStatus.PENDING_REVIEW) {
-            throw new AppException(ErrorCode.BAD_REQUEST, "Only courses in pending review can be published");
-        }
-        User reviewer = userRepository.findById(mentorModeAccessService.getCurrentUserId()).orElse(null);
-        course.setStatus(status);
-        if (status == CourseStatus.DRAFT && reason != null && !reason.trim().isBlank()) {
-            course.setRejectionReason(reason.trim());
-            course.setSubmittedAt(null);
-        } else if (status == CourseStatus.REJECTED) {
-            course.setRejectionReason(reason);
-        } else if (status == CourseStatus.PENDING_REVIEW) {
-            course.setRejectionReason(null);
-        } else if (status == CourseStatus.PUBLISHED) {
-            course.setRejectionReason(null);
-        }
-        course.setReviewedBy(reviewer);
-        course.setReviewedAt(LocalDateTime.now());
-        if (status == CourseStatus.PUBLISHED && course.getPublishedAt() == null) {
-            course.setPublishedAt(LocalDateTime.now());
-        }
-        return toResponse(course);
-    }
-
     private boolean hasFile(MultipartFile file) {
         return file != null && !file.isEmpty();
     }
@@ -305,7 +304,8 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private Course findCourse(UUID courseId) {
-        return courseRepository.findById(courseId).orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_FOUND));
+        return courseRepository.findByIdAndDeletedAtIsNull(courseId)
+                .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_FOUND));
     }
 
     private void requireCourseVisibleForCurrentUser(Course course) {
@@ -343,6 +343,11 @@ public class CourseServiceImpl implements CourseService {
                 .description(course.getDescription())
                 .thumbnailUrl(course.getThumbnailUrl())
                 .priceMxc(course.getPriceMxc())
+                .discountPriceMxc(course.getDiscountPriceMxc())
+                .discountStartAt(course.getDiscountStartAt())
+                .discountEndAt(course.getDiscountEndAt())
+                .effectivePriceMxc(effectivePrice(course))
+                .activeDiscount(isDiscountActive(course))
                 .status(course.getStatus())
                 .language(course.getLanguage())
                 .level(course.getLevel())
@@ -351,7 +356,7 @@ public class CourseServiceImpl implements CourseService {
                 .totalEnrollments(course.getTotalEnrollments())
                 .averageRating(course.getAverageRating())
                 .totalReviews(course.getTotalReviews())
-                .isCertificate(course.getIsCertificate())
+                .isCertificate(course.getProductType() == CourseProductType.COURSE)
                 .previewVideoUrl(course.getPreviewVideoUrl())
                 .productType(course.getProductType())
                 .rejectionReason(course.getRejectionReason())
@@ -444,5 +449,34 @@ public class CourseServiceImpl implements CourseService {
 
     private String enumName(Enum<?> value) {
         return value == null ? null : value.name();
+    }
+
+    private void validateDiscount(Course course) {
+        if (course.getDiscountPriceMxc() == null) {
+            return;
+        }
+        BigDecimal basePrice = course.getPriceMxc() != null ? course.getPriceMxc() : BigDecimal.ZERO;
+        if (course.getDiscountPriceMxc().compareTo(basePrice) >= 0) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Discount price must be lower than base price");
+        }
+        if (course.getDiscountStartAt() == null || course.getDiscountEndAt() == null) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Discount start and end time are required");
+        }
+        if (!course.getDiscountStartAt().isBefore(course.getDiscountEndAt())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Discount start time must be before end time");
+        }
+    }
+
+    private boolean isDiscountActive(Course course) {
+        LocalDateTime now = LocalDateTime.now();
+        return course.getDiscountPriceMxc() != null
+                && course.getDiscountStartAt() != null
+                && course.getDiscountEndAt() != null
+                && !now.isBefore(course.getDiscountStartAt())
+                && now.isBefore(course.getDiscountEndAt());
+    }
+
+    private BigDecimal effectivePrice(Course course) {
+        return isDiscountActive(course) ? course.getDiscountPriceMxc() : course.getPriceMxc();
     }
 }

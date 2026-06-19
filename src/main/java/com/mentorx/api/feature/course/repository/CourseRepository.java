@@ -21,7 +21,6 @@ public interface CourseRepository extends JpaRepository<Course, UUID> {
                     "LEFT JOIN course_skill_ids csi ON csi.course_id = c.id " +
                     "LEFT JOIN skills s ON s.id = csi.skill_id " +
                     "WHERE c.deleted_at IS NULL " +
-                    "AND (CAST(:status AS varchar) IS NOT NULL OR c.status <> 'REJECTED') " +
                     "AND (CAST(:status AS varchar) IS NULL OR c.status = CAST(:status AS varchar)) " +
                     "AND (CAST(:productType AS varchar) IS NULL OR c.product_type = CAST(:productType AS varchar)) " +
                     "AND (CAST(:instructorId AS uuid) IS NULL OR c.instructor_id = CAST(:instructorId AS uuid)) " +
@@ -38,7 +37,6 @@ public interface CourseRepository extends JpaRepository<Course, UUID> {
                     "LEFT JOIN course_skill_ids csi ON csi.course_id = c.id " +
                     "LEFT JOIN skills s ON s.id = csi.skill_id " +
                     "WHERE c.deleted_at IS NULL " +
-                    "AND (CAST(:status AS varchar) IS NOT NULL OR c.status <> 'REJECTED') " +
                     "AND (CAST(:status AS varchar) IS NULL OR c.status = CAST(:status AS varchar)) " +
                     "AND (CAST(:productType AS varchar) IS NULL OR c.product_type = CAST(:productType AS varchar)) " +
                     "AND (CAST(:instructorId AS uuid) IS NULL OR c.instructor_id = CAST(:instructorId AS uuid)) " +
@@ -103,5 +101,6 @@ public interface CourseRepository extends JpaRepository<Course, UUID> {
 
     Page<Course> findByStatusAndDeletedAtIsNull(CourseStatus status, Pageable pageable);
     Page<Course> findByInstructorIdAndDeletedAtIsNull(UUID instructorId, Pageable pageable);
+    Optional<Course> findByIdAndDeletedAtIsNull(UUID id);
     Optional<Course> findBySlugAndDeletedAtIsNull(String slug);
 }

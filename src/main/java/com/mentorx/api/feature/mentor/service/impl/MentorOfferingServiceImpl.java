@@ -48,7 +48,7 @@ public class MentorOfferingServiceImpl implements MentorOfferingService {
         mentorOffering.setLevel(request.getLevel());
         mentorOffering.setLessonsCount(request.getLessonsCount());
         mentorOffering.setThumbnailUrl(request.getThumbnailUrl());
-        mentorOffering.setStatus(CourseStatus.DRAFT);
+        mentorOffering.setStatus(CourseStatus.PUBLISHED);
 
         MentorOffering saved = mentorOfferingRepository.save(mentorOffering);
         log.info("Course created successfully with ID: {}", saved.getId());

@@ -31,13 +31,27 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional
     public CategoryResponse create(CategoryRequest request) {
-        log.info("Creating category with slug: {}", request.slug());
+        String labelEn = normalizeLabel(request.labelEn());
+        String labelVi = normalizeLabel(request.labelVi());
+        String slug = normalizeSlug(request.slug(), labelEn);
+        log.info("Creating category with slug: {}", slug);
 
-        if (categoryRepository.existsBySlug(request.slug())) {
-            throw new AppException(ErrorCode.BAD_REQUEST, "Category with this slug already exists");
+        var existing = categoryRepository.findBySlug(slug);
+        if (existing.isPresent()) {
+            return systemMapper.toCategoryResponse(existing.get());
         }
 
-        Category entity = systemMapper.toCategory(request);
+        Category entity = systemMapper.toCategory(CategoryRequest.builder()
+                .slug(slug)
+                .labelEn(labelEn)
+                .labelVi(labelVi)
+                .labelZh(request.labelZh())
+                .labelJa(request.labelJa())
+                .iconUrl(request.iconUrl())
+                .parentId(request.parentId())
+                .isActive(request.isActive() == null ? true : request.isActive())
+                .displayOrder(request.displayOrder())
+                .build());
         entity.setCreatedAt(LocalDateTime.now());
         
         if (entity.getIsActive() == null) {
@@ -51,6 +65,21 @@ public class CategoryServiceImpl implements CategoryService {
         log.info("Created category with ID: {}", saved.getId());
 
         return systemMapper.toCategoryResponse(saved);
+    }
+
+    private String normalizeLabel(String value) {
+        return value == null ? "" : value.trim().replaceAll("\\s+", " ");
+    }
+
+    private String normalizeSlug(String value, String fallbackLabel) {
+        String source = value == null || value.isBlank() ? fallbackLabel : value;
+        String slug = source.toLowerCase()
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("(^-+|-+$)", "");
+        if (slug.isBlank()) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Slug is required");
+        }
+        return slug;
     }
 
     @Override

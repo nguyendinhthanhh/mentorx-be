@@ -5,11 +5,16 @@ import com.mentorx.api.feature.course.dto.request.QuizSubmitRequest;
 import com.mentorx.api.feature.course.dto.response.QuizAttemptResponse;
 import com.mentorx.api.feature.course.dto.response.QuizQuestionResponse;
 import com.mentorx.api.feature.course.service.QuizService;
+import com.mentorx.api.common.exception.AppException;
+import com.mentorx.api.common.exception.ErrorCode;
+import com.mentorx.api.feature.user.entity.User;
+import com.mentorx.api.feature.user.repository.UserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,6 +33,7 @@ import java.util.UUID;
 public class QuizController {
 
     private final QuizService quizService;
+    private final UserRepository userRepository;
 
     @PostMapping("/lessons/{lessonId}/questions")
     @PreAuthorize("hasAnyRole('MENTOR', 'INSTRUCTOR', 'ADMIN')")
@@ -38,9 +44,8 @@ public class QuizController {
     }
 
     @GetMapping("/lessons/{lessonId}/questions")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<QuizQuestionResponse>> getQuestions(@PathVariable UUID lessonId) {
-        return ResponseEntity.ok(quizService.getQuestions(lessonId));
+    public ResponseEntity<List<QuizQuestionResponse>> getQuestions(@PathVariable UUID lessonId, Authentication authentication) {
+        return ResponseEntity.ok(quizService.getQuestions(lessonId, resolveCurrentUser(authentication)));
     }
 
     @PutMapping("/questions/{questionId}")
@@ -62,5 +67,14 @@ public class QuizController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<QuizAttemptResponse> submitAttempt(@Valid @RequestBody QuizSubmitRequest request) {
         return ResponseEntity.ok(quizService.submitAttempt(request));
+    }
+
+    private User resolveCurrentUser(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getName())) {
+            return null;
+        }
+
+        return userRepository.findByEmail(authentication.getName())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
     }
 }

@@ -24,6 +24,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -145,7 +147,7 @@ public class CourseEnrollmentController {
         byte[] content = certificateService.renderCertificate(enrollmentId);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"mentorx-certificate.pdf\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"mentorx-certificate.pdf\"")
                 .body(content);
     }
 
@@ -160,11 +162,24 @@ public class CourseEnrollmentController {
         long total = enrollmentRepository.countByCourseId(courseId);
         long completed = enrollmentRepository.countCompletedByCourseId(courseId);
         double completionRate = total == 0 ? 0 : (completed * 100.0) / total;
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime last7DaysStart = now.minusDays(7);
+        LocalDateTime previous7DaysStart = now.minusDays(14);
+        BigDecimal totalRevenue = enrollmentRepository.sumAmountPaidByCourseId(courseId);
+        BigDecimal last7DaysRevenue = enrollmentRepository.sumAmountPaidByCourseIdAndEnrolledAtBetween(courseId, last7DaysStart, now);
+        BigDecimal previous7DaysRevenue = enrollmentRepository.sumAmountPaidByCourseIdAndEnrolledAtBetween(courseId, previous7DaysStart, last7DaysStart);
+        long last7DaysEnrollments = enrollmentRepository.countByCourseIdAndEnrolledAtBetween(courseId, last7DaysStart, now);
+        long previous7DaysEnrollments = enrollmentRepository.countByCourseIdAndEnrolledAtBetween(courseId, previous7DaysStart, last7DaysStart);
         return ResponseEntity.ok(CourseStatsResponse.builder()
                 .courseId(courseId)
                 .totalEnrollments(total)
                 .completedEnrollments(completed)
                 .completionRate(completionRate)
+                .totalRevenueMxc(totalRevenue)
+                .last7DaysRevenueMxc(last7DaysRevenue)
+                .last7DaysEnrollments(last7DaysEnrollments)
+                .previous7DaysRevenueMxc(previous7DaysRevenue)
+                .previous7DaysEnrollments(previous7DaysEnrollments)
                 .build());
     }
 

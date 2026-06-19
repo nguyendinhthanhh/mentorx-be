@@ -67,7 +67,7 @@ public enum ErrorCode {
     BANK_ACCOUNT_ALREADY_EXISTS(HttpStatus.CONFLICT, "Bank account already exists"),
     DEFAULT_BANK_ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "Default bank account not found"),
     WALLET_FROZEN(HttpStatus.FORBIDDEN, "Wallet is frozen"),
-    INSUFFICIENT_BALANCE(HttpStatus.BAD_REQUEST, "Số dư MXC không đủ để thực hiện giao dịch này. Vui lòng nạp thêm tiền."),
+    INSUFFICIENT_BALANCE(HttpStatus.BAD_REQUEST, "Not enough MXC to complete this transaction."),
     INVALID_TRANSACTION_AMOUNT(HttpStatus.BAD_REQUEST, "Invalid transaction amount"),
     TRANSACTION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "Transaction failed"),
     TRANSACTION_NOT_FOUND(HttpStatus.NOT_FOUND, "Transaction not found"),
