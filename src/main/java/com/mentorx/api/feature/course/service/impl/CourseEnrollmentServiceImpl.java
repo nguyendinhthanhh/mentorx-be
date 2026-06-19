@@ -14,8 +14,10 @@ import com.mentorx.api.feature.course.repository.CourseRepository;
 import com.mentorx.api.feature.course.repository.LessonProgressRepository;
 import com.mentorx.api.feature.course.service.CertificateService;
 import com.mentorx.api.feature.course.service.CourseEnrollmentService;
+import com.mentorx.api.feature.system.service.PlatformSettingService;
 import com.mentorx.api.feature.user.entity.User;
 import com.mentorx.api.feature.user.repository.UserRepository;
+import com.mentorx.api.feature.wallet.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -35,6 +37,7 @@ import java.util.UUID;
 @Slf4j
 @Transactional(readOnly = true)
 public class CourseEnrollmentServiceImpl implements CourseEnrollmentService {
+    private static final String PLATFORM_FEE_PERCENT_KEY = "platform_fee_percent";
 
     private final CourseEnrollmentRepository enrollmentRepository;
     private final CourseRepository courseRepository;
@@ -42,6 +45,8 @@ public class CourseEnrollmentServiceImpl implements CourseEnrollmentService {
     private final LessonProgressRepository progressRepository;
     private final CourseMapper mapper;
     private final CertificateService certificateService;
+    private final WalletService walletService;
+    private final PlatformSettingService platformSettingService;
 
     @Override
     @Transactional
@@ -78,7 +83,7 @@ public class CourseEnrollmentServiceImpl implements CourseEnrollmentService {
     @Override
     @Transactional
     public CourseEnrollmentResponse enrollCurrentUser(UUID courseId, UUID studentId) {
-        log.info("Creating free enrollment for current student: {} in course: {}", studentId, courseId);
+        log.info("Creating enrollment for current student: {} in course: {}", studentId, courseId);
 
         return enrollmentRepository.findByCourseIdAndStudentId(courseId, studentId)
                 .map(mapper::toResponse)
@@ -92,17 +97,26 @@ public class CourseEnrollmentServiceImpl implements CourseEnrollmentService {
                     User student = userRepository.findById(studentId)
                             .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
+                    BigDecimal amountPaid = normalizeMoney(effectivePrice(course));
+                    if (amountPaid.compareTo(BigDecimal.ZERO) > 0) {
+                        if (walletService.getUserAvailableBalance(studentId).compareTo(amountPaid) < 0) {
+                            throw new AppException(ErrorCode.INSUFFICIENT_BALANCE);
+                        }
+                        BigDecimal platformFee = calculatePlatformFee(amountPaid);
+                        walletService.processCoursePurchase(studentId, courseId, course.getInstructor().getId(), amountPaid, platformFee);
+                    }
+
                     CourseEnrollment enrollment = CourseEnrollment.builder()
                             .course(course)
                             .student(student)
-                            .amountPaidMxc(effectivePrice(course))
+                            .amountPaidMxc(amountPaid)
                             .progressPercent(BigDecimal.ZERO)
                             .isCompleted(false)
                             .lastAccessedAt(LocalDateTime.now())
                             .build();
                     CourseEnrollment savedEnrollment = enrollmentRepository.save(enrollment);
                     course.setTotalEnrollments(course.getTotalEnrollments() == null ? 1 : course.getTotalEnrollments() + 1);
-                    log.info("Free enrollment created successfully with ID: {}", savedEnrollment.getId());
+                    log.info("Enrollment created successfully with ID: {}", savedEnrollment.getId());
                     return mapper.toResponse(savedEnrollment);
                 });
     }
@@ -232,5 +246,24 @@ public class CourseEnrollmentServiceImpl implements CourseEnrollmentService {
                 && !now.isBefore(course.getDiscountStartAt())
                 && now.isBefore(course.getDiscountEndAt());
         return activeDiscount ? course.getDiscountPriceMxc() : course.getPriceMxc();
+    }
+
+    private BigDecimal calculatePlatformFee(BigDecimal amountPaid) {
+        try {
+            BigDecimal feePercent = new BigDecimal(platformSettingService.getValue(PLATFORM_FEE_PERCENT_KEY));
+            if (feePercent.compareTo(BigDecimal.ZERO) <= 0) {
+                return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+            }
+            return amountPaid
+                    .multiply(feePercent)
+                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        } catch (RuntimeException ex) {
+            log.warn("Unable to resolve platform fee percent for course purchase. Defaulting fee to zero.", ex);
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+    }
+
+    private BigDecimal normalizeMoney(BigDecimal amount) {
+        return (amount == null ? BigDecimal.ZERO : amount).setScale(2, RoundingMode.HALF_UP);
     }
 }
