@@ -53,9 +53,22 @@ public class AnalyticsController {
 
     @PostMapping("/views")
     public ResponseEntity<ApiResponse<Void>> recordView(
-            @Valid @RequestBody ViewEventRequest request) {
+            @Valid @RequestBody ViewEventRequest request,
+            jakarta.servlet.http.HttpServletRequest httpRequest) {
         UUID viewerId = SecurityUtils.getCurrentUserIdOrNull();
-        analyticsService.recordView(request, viewerId);
+        // FE-DEC-005 Option B: resolve IP from request headers for anonymous dedup
+        String ip = request.ipAddress();
+        if (ip == null || ip.isBlank()) {
+            ip = httpRequest.getHeader("X-Forwarded-For");
+            if (ip != null && ip.contains(",")) {
+                ip = ip.split(",")[0].trim(); // first IP in chain = real client
+            }
+            if (ip == null || ip.isBlank()) {
+                ip = httpRequest.getRemoteAddr();
+            }
+        }
+        ViewEventRequest enriched = new ViewEventRequest(request.targetType(), request.targetId(), ip);
+        analyticsService.recordView(enriched, viewerId);
         return ResponseEntity.ok(ApiResponse.success("View recorded successfully", null));
     }
 
