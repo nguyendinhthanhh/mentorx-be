@@ -13,10 +13,33 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Repository
 public interface JobRepository extends JpaRepository<Job, UUID> {
+
+    String JOBS_COLUMNS =
+        "j.id, j.created_at, j.updated_at, j.attachment_url, j.availability_end_time, " +
+        "j.availability_expectation, j.availability_start_time, j.budget_max_mxc, j.budget_min_mxc, " +
+        "j.budget_type, j.category_id, j.closed_at, j.communication_preference, j.current_level, " +
+        "j.custom_category_name, j.deadline_at, j.deleted_at, j.description, j.estimated_hours, " +
+        "j.expected_sessions, j.expected_weeks, j.experience_level, j.hourly_rate_mxc, j.is_featured, " +
+        "j.job_type, j.learning_goals, j.preferred_language, j.proposal_count, j.published_at, " +
+        "j.start_date, j.status, j.status_reason, j.success_criteria, j.timezone, j.title, " +
+        "j.view_count, j.visibility, j.client_id";
+
+    String JOBS_FROM = "FROM jobs j LEFT JOIN users u ON u.id = j.client_id";
+
+    String JOBS_WHERE =
+        "j.deleted_at IS NULL " +
+        "AND (:status IS NULL OR j.status = CAST(:status AS varchar)) " +
+        "AND (:jobType IS NULL OR j.job_type = CAST(:jobType AS varchar)) " +
+        "AND (:categoryId IS NULL OR j.category_id = :categoryId) " +
+        "AND (:skillKeyword IS NULL OR EXISTS (SELECT 1 FROM job_required_skills sk WHERE sk.job_id = j.id AND LOWER(sk.skill) LIKE LOWER(CONCAT('%', :skillKeyword, '%')))) " +
+        "AND (:budgetMin IS NULL OR j.budget_max_mxc >= :budgetMin) " +
+        "AND (:budgetMax IS NULL OR j.budget_min_mxc <= :budgetMax) " +
+        "AND (:budgetType IS NULL OR j.budget_type = CAST(:budgetType AS varchar))";
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT j FROM Job j WHERE j.id = :jobId")
@@ -36,8 +59,7 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
                                  @Param("categoryId") Integer categoryId,
                                  Pageable pageable);
 
-    @Query("SELECT j FROM Job j WHERE j.deletedAt IS NULL AND j.status = 'OPEN' " +
-           "ORDER BY j.publishedAt DESC, j.createdAt DESC")
+    @Query("SELECT j FROM Job j WHERE j.deletedAt IS NULL AND j.status = 'OPEN' ORDER BY j.publishedAt DESC, j.createdAt DESC")
     Page<Job> findOpen(Pageable pageable);
 
     @Query("SELECT j FROM Job j WHERE j.deletedAt IS NULL AND j.status = 'OPEN' " +
@@ -88,6 +110,111 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
                                          @Param("categoryId") Integer categoryId,
                                          @Param("skillKeyword") String skillKeyword,
                                          Pageable pageable);
+
+    @Query(
+            value = "SELECT " + JOBS_COLUMNS + ", u.full_name AS client_name, " +
+                    "CAST(CASE WHEN :keyword IS NOT NULL THEN ts_rank(j.search_vector, plainto_tsquery('simple', :keyword)) ELSE 0 END AS double precision) AS relevance_score " +
+                    JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
+                    "AND (:keyword IS NULL OR j.search_vector @@ plainto_tsquery('simple', :keyword)) " +
+                    "ORDER BY j.published_at DESC NULLS LAST, j.created_at DESC",
+            countQuery = "SELECT COUNT(*) " + JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
+                    "AND (:keyword IS NULL OR j.search_vector @@ plainto_tsquery('simple', :keyword))",
+            nativeQuery = true
+    )
+    Page<Object[]> findOpenWithAllFilters(
+            @Param("status") String status,
+            @Param("jobType") String jobType,
+            @Param("categoryId") Integer categoryId,
+            @Param("skillKeyword") String skillKeyword,
+            @Param("keyword") String keyword,
+            @Param("budgetMin") BigDecimal budgetMin,
+            @Param("budgetMax") BigDecimal budgetMax,
+            @Param("budgetType") String budgetType,
+            Pageable pageable);
+
+    @Query(
+            value = "SELECT " + JOBS_COLUMNS + ", u.full_name AS client_name, " +
+                    "CAST(CASE WHEN :keyword IS NOT NULL THEN ts_rank(j.search_vector, plainto_tsquery('simple', :keyword)) ELSE 0 END AS double precision) AS relevance_score " +
+                    JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
+                    "AND (:keyword IS NULL OR j.search_vector @@ plainto_tsquery('simple', :keyword)) " +
+                    "ORDER BY j.budget_max_mxc DESC NULLS LAST, j.published_at DESC",
+            countQuery = "SELECT COUNT(*) " + JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
+                    "AND (:keyword IS NULL OR j.search_vector @@ plainto_tsquery('simple', :keyword))",
+            nativeQuery = true
+    )
+    Page<Object[]> findOpenBudgetDesc(
+            @Param("status") String status,
+            @Param("jobType") String jobType,
+            @Param("categoryId") Integer categoryId,
+            @Param("skillKeyword") String skillKeyword,
+            @Param("keyword") String keyword,
+            @Param("budgetMin") BigDecimal budgetMin,
+            @Param("budgetMax") BigDecimal budgetMax,
+            @Param("budgetType") String budgetType,
+            Pageable pageable);
+
+    @Query(
+            value = "SELECT " + JOBS_COLUMNS + ", u.full_name AS client_name, " +
+                    "CAST(CASE WHEN :keyword IS NOT NULL THEN ts_rank(j.search_vector, plainto_tsquery('simple', :keyword)) ELSE 0 END AS double precision) AS relevance_score " +
+                    JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
+                    "AND (:keyword IS NULL OR j.search_vector @@ plainto_tsquery('simple', :keyword)) " +
+                    "ORDER BY j.budget_max_mxc ASC NULLS LAST, j.published_at DESC",
+            countQuery = "SELECT COUNT(*) " + JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
+                    "AND (:keyword IS NULL OR j.search_vector @@ plainto_tsquery('simple', :keyword))",
+            nativeQuery = true
+    )
+    Page<Object[]> findOpenBudgetAsc(
+            @Param("status") String status,
+            @Param("jobType") String jobType,
+            @Param("categoryId") Integer categoryId,
+            @Param("skillKeyword") String skillKeyword,
+            @Param("keyword") String keyword,
+            @Param("budgetMin") BigDecimal budgetMin,
+            @Param("budgetMax") BigDecimal budgetMax,
+            @Param("budgetType") String budgetType,
+            Pageable pageable);
+
+    @Query(
+            value = "SELECT " + JOBS_COLUMNS + ", u.full_name AS client_name, " +
+                    "CAST(CASE WHEN :keyword IS NOT NULL THEN ts_rank(j.search_vector, plainto_tsquery('simple', :keyword)) ELSE 0 END AS double precision) AS relevance_score " +
+                    JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
+                    "AND (:keyword IS NULL OR j.search_vector @@ plainto_tsquery('simple', :keyword)) " +
+                    "ORDER BY (j.view_count + j.proposal_count * 3) DESC, j.published_at DESC",
+            countQuery = "SELECT COUNT(*) " + JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
+                    "AND (:keyword IS NULL OR j.search_vector @@ plainto_tsquery('simple', :keyword))",
+            nativeQuery = true
+    )
+    Page<Object[]> findOpenPopular(
+            @Param("status") String status,
+            @Param("jobType") String jobType,
+            @Param("categoryId") Integer categoryId,
+            @Param("skillKeyword") String skillKeyword,
+            @Param("keyword") String keyword,
+            @Param("budgetMin") BigDecimal budgetMin,
+            @Param("budgetMax") BigDecimal budgetMax,
+            @Param("budgetType") String budgetType,
+            Pageable pageable);
+
+    @Query(
+            value = "SELECT " + JOBS_COLUMNS + ", u.full_name AS client_name, " +
+                    "CAST(ts_rank(j.search_vector, plainto_tsquery('simple', :keyword)) AS double precision) AS relevance_score " +
+                    JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
+                    "AND j.search_vector @@ plainto_tsquery('simple', :keyword) " +
+                    "ORDER BY relevance_score DESC, j.published_at DESC",
+            countQuery = "SELECT COUNT(*) " + JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
+                    "AND j.search_vector @@ plainto_tsquery('simple', :keyword)",
+            nativeQuery = true
+    )
+    Page<Object[]> findOpenRelevance(
+            @Param("status") String status,
+            @Param("jobType") String jobType,
+            @Param("categoryId") Integer categoryId,
+            @Param("skillKeyword") String skillKeyword,
+            @Param("keyword") String keyword,
+            @Param("budgetMin") BigDecimal budgetMin,
+            @Param("budgetMax") BigDecimal budgetMax,
+            @Param("budgetType") String budgetType,
+            Pageable pageable);
 
     @Modifying
     @Query("UPDATE Job j SET j.status = 'EXPIRED' WHERE j.status = 'OPEN' AND j.deadlineAt IS NOT NULL AND j.deadlineAt < CURRENT_TIMESTAMP")
