@@ -147,7 +147,7 @@ public class CourseEnrollmentController {
         byte[] content = certificateService.renderCertificate(enrollmentId);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"mentorx-certificate.pdf\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"mentorx-certificate.pdf\"")
                 .body(content);
     }
 
