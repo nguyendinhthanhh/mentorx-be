@@ -18,16 +18,16 @@ import java.util.function.Function;
 @Component
 public class JwtUtil {
 
-    @Value("${jwt.secret}")
+    @Value("${jwt.secret:${JWT_SECRET:CHANGE_THIS_JWT_SECRET_IN_PRODUCTION_MINIMUM_32_CHARACTERS}}")
     private String secret;
 
-    @Value("${jwt.access-token-expiry}")
+    @Value("${jwt.access-token-expiry:${JWT_ACCESS_TOKEN_EXPIRY:900000}}")
     private Long accessTokenExpiry;
 
-    @Value("${jwt.refresh-token-expiry}")
+    @Value("${jwt.refresh-token-expiry:${JWT_REFRESH_TOKEN_EXPIRY:604800000}}")
     private Long refreshTokenExpiry;
 
-    @Value("${jwt.issuer}")
+    @Value("${jwt.issuer:mentorx-api}")
     private String issuer;
 
     private SecretKey getSigningKey() {

@@ -30,6 +30,11 @@ public class CourseResponse {
     private String description;
     private String thumbnailUrl;
     private BigDecimal priceMxc;
+    private BigDecimal discountPriceMxc;
+    private LocalDateTime discountStartAt;
+    private LocalDateTime discountEndAt;
+    private BigDecimal effectivePriceMxc;
+    private Boolean activeDiscount;
     private CourseStatus status;
     private SupportedLanguage language;
     private String level;

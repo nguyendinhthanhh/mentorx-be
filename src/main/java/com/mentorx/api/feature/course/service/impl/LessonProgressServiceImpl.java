@@ -49,6 +49,7 @@ public class LessonProgressServiceImpl implements LessonProgressService {
 
         CourseLesson lesson = lessonRepository.findById(lessonId)
                 .orElseThrow(() -> new AppException(ErrorCode.LESSON_NOT_FOUND));
+        enrollment.setLastAccessedAt(LocalDateTime.now());
 
         LessonProgressId progressId = LessonProgressId.builder()
                 .enrollmentId(enrollmentId)
@@ -126,10 +127,15 @@ public class LessonProgressServiceImpl implements LessonProgressService {
     }
 
     @Override
+    @Transactional
     public List<LessonProgressResponse> getProgressByStudentAndCourse(UUID studentId, UUID courseId) {
         log.debug("Fetching progress for student: {} and course: {}", studentId, courseId);
         
         List<LessonProgress> progressList = progressRepository.findByStudentIdAndCourseId(studentId, courseId);
+        enrollmentRepository.findByCourseIdAndStudentId(courseId, studentId).ifPresent(enrollment -> {
+            enrollment.setLastAccessedAt(LocalDateTime.now());
+            enrollmentRepository.save(enrollment);
+        });
         return mapper.toProgressResponseList(progressList);
     }
 
@@ -159,9 +165,15 @@ public class LessonProgressServiceImpl implements LessonProgressService {
 
     private boolean shouldCompleteByRule(CourseLesson lesson, LessonProgress progress) {
         return switch (lesson.getLessonType()) {
-            case LESSON -> lesson.hasVideoContent()
-                    ? progress.getProgressPercent() != null && progress.getProgressPercent() >= 90
-                    : progress.getScrollPercent() != null && progress.getScrollPercent() >= 90;
+            case LESSON -> {
+                boolean hasVideo = lesson.hasVideoContent();
+                boolean hasArticle = lesson.getArticleContent() != null && !lesson.getArticleContent().isBlank();
+                boolean videoComplete = progress.getProgressPercent() != null && progress.getProgressPercent() >= 90;
+                boolean articleComplete = progress.getScrollPercent() != null && progress.getScrollPercent() >= 90;
+                yield hasVideo && hasArticle
+                        ? videoComplete && articleComplete
+                        : hasVideo ? videoComplete : articleComplete;
+            }
             case VIDEO -> progress.getProgressPercent() != null && progress.getProgressPercent() >= 90;
             case ARTICLE, TEXT, DOWNLOADABLE -> progress.getScrollPercent() != null && progress.getScrollPercent() >= 90;
             case QUIZ, DOCUMENT -> Boolean.TRUE.equals(progress.getIsCompleted());

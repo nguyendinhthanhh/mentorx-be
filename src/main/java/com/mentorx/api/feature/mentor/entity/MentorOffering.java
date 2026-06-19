@@ -47,6 +47,6 @@ public class MentorOffering extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
-    private CourseStatus status = CourseStatus.DRAFT;
+    private CourseStatus status = CourseStatus.PUBLISHED;
 }
 

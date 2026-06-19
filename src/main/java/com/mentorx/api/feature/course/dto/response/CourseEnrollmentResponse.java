@@ -27,5 +27,6 @@ public class CourseEnrollmentResponse {
     private String certificateCode;
     private LocalDateTime certificateIssuedAt;
     private LocalDateTime enrolledAt;
+    private LocalDateTime lastAccessedAt;
     private LocalDateTime completedAt;
 }

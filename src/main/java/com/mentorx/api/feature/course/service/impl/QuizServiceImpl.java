@@ -2,6 +2,7 @@ package com.mentorx.api.feature.course.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mentorx.api.common.enums.CourseStatus;
 import com.mentorx.api.common.enums.LessonType;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
@@ -23,6 +24,7 @@ import com.mentorx.api.feature.course.repository.QuizAttemptRepository;
 import com.mentorx.api.feature.course.repository.QuizQuestionRepository;
 import com.mentorx.api.feature.course.service.LessonProgressService;
 import com.mentorx.api.feature.course.service.QuizService;
+import com.mentorx.api.feature.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,7 +69,8 @@ public class QuizServiceImpl implements QuizService {
     }
 
     @Override
-    public List<QuizQuestionResponse> getQuestions(UUID lessonId) {
+    public List<QuizQuestionResponse> getQuestions(UUID lessonId, User viewer) {
+        CourseLesson lesson = requireAccessibleQuizLesson(lessonId, viewer);
         return questionRepository.findByLessonIdOrderByOrderIndexAsc(lessonId).stream()
                 .map(this::toResponse)
                 .toList();
@@ -154,6 +157,36 @@ public class QuizServiceImpl implements QuizService {
             throw new AppException(ErrorCode.BAD_REQUEST, "Lesson is not a quiz");
         }
         return lesson;
+    }
+
+    private CourseLesson requireAccessibleQuizLesson(UUID lessonId, User viewer) {
+        CourseLesson lesson = requireQuizLesson(lessonId);
+        if (lesson.getIsPublished() == null || !lesson.getIsPublished()) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+        var course = lesson.getSection().getCourse();
+        if (course.getStatus() != CourseStatus.PUBLISHED) {
+            throw new AppException(ErrorCode.COURSE_NOT_PUBLISHED);
+        }
+        if (Boolean.TRUE.equals(lesson.getIsFreePreview()) || hasFullAccess(course, viewer)) {
+            return lesson;
+        }
+        throw new AppException(ErrorCode.ACCESS_DENIED);
+    }
+
+    private boolean hasFullAccess(com.mentorx.api.feature.course.entity.Course course, User viewer) {
+        if (viewer == null) {
+            return false;
+        }
+        if (course.getInstructor() != null && viewer.getId().equals(course.getInstructor().getId())) {
+            return true;
+        }
+        if (viewer.getUserRoles() != null && viewer.getUserRoles().stream()
+                .anyMatch(userRole -> userRole.getRole() != null
+                        && "ADMIN".equalsIgnoreCase(userRole.getRole().getRoleName()))) {
+            return true;
+        }
+        return enrollmentRepository.existsByCourseIdAndStudentId(course.getId(), viewer.getId());
     }
 
     private int nextOrder(UUID lessonId) {

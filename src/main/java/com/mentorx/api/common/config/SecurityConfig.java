@@ -54,6 +54,8 @@ public class SecurityConfig {
         "/api/v1/public/**",
         "/api/v1/feed/**",
         "/api/v1/course-lessons/**",
+        "/api/v1/course-documents/lessons/*/preview",
+        "/api/v1/course-quizzes/lessons/*/questions",
         "/api/mentors/**",
         "/api/courses/**",
         "/api/jobs/**",

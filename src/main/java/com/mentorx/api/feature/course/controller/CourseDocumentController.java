@@ -29,7 +29,6 @@ public class CourseDocumentController {
     private final UserRepository userRepository;
 
     @GetMapping("/lessons/{lessonId}/preview")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<byte[]> previewDocument(@PathVariable UUID lessonId, Authentication authentication) {
         User viewer = resolveCurrentUser(authentication);
         CourseDocumentPayload payload = documentService.getPreview(lessonId, viewer);
@@ -60,8 +59,8 @@ public class CourseDocumentController {
     }
 
     private User resolveCurrentUser(Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getName())) {
+            return null;
         }
 
         String email = authentication.getName();

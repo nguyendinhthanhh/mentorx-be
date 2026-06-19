@@ -29,8 +29,8 @@ public class SkillController {
     private final SkillService skillService;
 
     @PostMapping
-    @Operation(summary = "Create skill", description = "Create a new skill (Admin only)")
-    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Create skill", description = "Create a new skill")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<SkillResponse>> create(
             @Valid @RequestBody SkillRequest request) {
         SkillResponse response = skillService.create(request);

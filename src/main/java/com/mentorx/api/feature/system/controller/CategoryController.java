@@ -29,8 +29,8 @@ public class CategoryController {
     private final CategoryService categoryService;
 
     @PostMapping
-    @Operation(summary = "Create category", description = "Create a new category (Admin only)")
-    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Create category", description = "Create a new category")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<CategoryResponse>> create(
             @Valid @RequestBody CategoryRequest request) {
         CategoryResponse response = categoryService.create(request);
