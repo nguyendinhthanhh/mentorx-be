@@ -67,6 +67,42 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
     @Query("SELECT wt.txnType, COUNT(wt) as txnCount FROM WalletTransaction wt WHERE wt.txnStatus = 'COMPLETED' GROUP BY wt.txnType ORDER BY txnCount DESC")
     List<Object[]> getTransactionTypeStats();
 
+    /**
+     * Aggregation helper for the analytics job: sum of credits per user for a given
+     * {@link TxnType} within a date window, broken out by user. Required by
+     * {@code EarningsAggregationJob.aggregateEarnings} (M12 Phase 1.5/1.6).
+     * M12.2 H1/H2 verified: pre-existing query restored (was referenced but
+     * missing from the repo). M12.2 H2.1 added the DEBIT-side counterpart below.
+     */
+    @Query("SELECT wt.wallet.user.id, COALESCE(SUM(wt.amountMxc), 0) " +
+           "FROM WalletTransaction wt " +
+           "WHERE wt.txnType = :txnType " +
+           "AND wt.direction = com.mentorx.api.common.enums.LedgerDirection.CREDIT " +
+           "AND wt.txnStatus = com.mentorx.api.common.enums.TxnStatus.COMPLETED " +
+           "AND wt.createdAt >= :start AND wt.createdAt < :end " +
+           "GROUP BY wt.wallet.user.id")
+    List<Object[]> sumCreditsByUserInWindow(@Param("txnType") TxnType txnType,
+                                            @Param("start") LocalDateTime start,
+                                            @Param("end") LocalDateTime end);
+
+    /**
+     * M12.2 Phase H2.1 (L2 + L6 fix): DEBIT-side counterpart of
+     * {@link #sumCreditsByUserInWindow}. Server-side aggregation filtered by
+     * {@code direction = DEBIT} replaces the previous in-memory walk of all
+     * transactions in a date window (the {@code findTransactionsBetweenDates}
+     * helper returned all directions/types and filtered in Java).
+     */
+    @Query("SELECT wt.wallet.user.id, COALESCE(SUM(wt.amountMxc), 0) " +
+           "FROM WalletTransaction wt " +
+           "WHERE wt.txnType = :txnType " +
+           "AND wt.direction = com.mentorx.api.common.enums.LedgerDirection.DEBIT " +
+           "AND wt.txnStatus = com.mentorx.api.common.enums.TxnStatus.COMPLETED " +
+           "AND wt.createdAt >= :start AND wt.createdAt < :end " +
+           "GROUP BY wt.wallet.user.id")
+    List<Object[]> sumDebitsByUserInWindow(@Param("txnType") TxnType txnType,
+                                           @Param("start") LocalDateTime start,
+                                           @Param("end") LocalDateTime end);
+
     @Query("SELECT wt FROM WalletTransaction wt " +
            "WHERE wt.wallet.accountType = 'USER_PENDING' " +
            "AND wt.direction = 'CREDIT' " +

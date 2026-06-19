@@ -53,4 +53,35 @@ public interface CourseEnrollmentRepository extends JpaRepository<CourseEnrollme
     
     @Query("SELECT AVG(ce.progressPercent) FROM CourseEnrollment ce WHERE ce.course.id = :courseId")
     Double getAverageProgressByCourseId(@Param("courseId") UUID courseId);
+
+    /**
+     * M12.2 Phase H1.4: per-instructor enrollment count within a time window.
+     * Replaces the previous BUG-D behavior in
+     * {@code EarningsAggregationJob.aggregateEnrollmentsByInstructor} which
+     * called {@code revenueByCourseInWindow} + filtered {@code countEnrollmentsByCourseInWindow}
+     * in an O(N×K) nested loop. This direct GROUP BY instructor collapses the work to O(N).
+     */
+    @Query("SELECT ce.course.instructor.id, COUNT(ce) FROM CourseEnrollment ce " +
+           "WHERE ce.enrolledAt >= :start AND ce.enrolledAt < :end " +
+           "AND ce.course.instructor IS NOT NULL " +
+           "GROUP BY ce.course.instructor.id")
+    List<Object[]> countEnrollmentsByInstructorInWindow(@Param("start") LocalDateTime start,
+                                                        @Param("end") LocalDateTime end);
+
+    // M12.2 H0: required by EarningsAggregationJob.aggregateCourseSnapshots
+    @Query("SELECT ce.course.id, COUNT(ce) FROM CourseEnrollment ce " +
+           "WHERE ce.enrolledAt >= :start AND ce.enrolledAt < :end " +
+           "GROUP BY ce.course.id")
+    List<Object[]> countEnrollmentsByCourseInWindow(@Param("start") LocalDateTime start,
+                                                    @Param("end") LocalDateTime end);
+
+    @Query("SELECT ce.course.id, ce.course.instructor.id, COALESCE(SUM(ce.amountPaidMxc), 0) FROM CourseEnrollment ce " +
+           "WHERE ce.enrolledAt >= :start AND ce.enrolledAt < :end " +
+           "GROUP BY ce.course.id, ce.course.instructor.id")
+    List<Object[]> revenueByCourseInWindow(@Param("start") LocalDateTime start,
+                                           @Param("end") LocalDateTime end);
+
+    // M12.2 H0 / H2.4: required by CourseStatsServiceImpl.sumRevenueForCourse
+    @Query("SELECT COALESCE(SUM(ce.amountPaidMxc), 0) FROM CourseEnrollment ce WHERE ce.course.id = :courseId")
+    java.math.BigDecimal sumRevenueByCourseId(@Param("courseId") UUID courseId);
 }

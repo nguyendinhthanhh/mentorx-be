@@ -110,7 +110,9 @@ public class RedisConfig {
     }
 
     /**
-     * Configure Cache Manager with default TTL for feed cache
+     * Configure Cache Manager with per-cache TTL overrides.
+     * Default: {@code feedCacheTtlHours} (typically 1h) for feed caches.
+     * Override: {@code dashboard} cache uses 5-minute TTL (Phase 7 task 7.4 / M12.2 H2.6).
      */
     @Bean
     public CacheManager cacheManager(
@@ -131,9 +133,16 @@ public class RedisConfig {
                 RedisSerializationContext.SerializationPair.fromSerializer(jsonSerializer)
             )
             .disableCachingNullValues();
-        
+
+        // M12.2 H2.6 (L4 fix): per-cache TTL overrides
+        java.util.Map<String, RedisCacheConfiguration> perCache = java.util.Map.of(
+                "dashboard", defaultConfig.entryTtl(Duration.ofMinutes(5)),
+                "analytics", defaultConfig.entryTtl(Duration.ofMinutes(5))
+        );
+
         return RedisCacheManager.builder(connectionFactory)
             .cacheDefaults(defaultConfig)
+            .withInitialCacheConfigurations(perCache)
             .transactionAware()
             .build();
     }
