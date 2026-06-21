@@ -131,7 +131,12 @@ public enum ErrorCode {
     // Onboarding
     ONBOARDING_INVALID_STEP(HttpStatus.BAD_REQUEST, "Invalid onboarding step or order"),
     ONBOARDING_NOT_READY(HttpStatus.BAD_REQUEST, "Onboarding flow is not ready to finalize"),
-    ONBOARDING_ALREADY_COMPLETED(HttpStatus.CONFLICT, "Onboarding has already been completed");
+    ONBOARDING_ALREADY_COMPLETED(HttpStatus.CONFLICT, "Onboarding has already been completed"),
+
+    // AI
+    AI_TASK_NOT_FOUND(HttpStatus.NOT_FOUND, "Task not found for AI explanation"),
+    AI_UNAUTHORIZED_ACCESS(HttpStatus.FORBIDDEN, "You do not have access to this task"),
+    AI_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI service is temporarily unavailable");
 
     private final HttpStatus status;
     private final String message;
