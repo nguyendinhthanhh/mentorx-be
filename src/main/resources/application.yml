@@ -162,7 +162,13 @@ app:
     cache-hours: ${EXCHANGE_RATE_CACHE_HOURS:6}
     source: ${EXCHANGE_RATE_SOURCE:frankfurter}
 
-  matching:
+ai:
+  openrouter:
+    api-key: ${OPENROUTER_API_KEY:}
+    model: ${OPENROUTER_MODEL:qwen/qwen-2.5-72b-instruct}
+    url: ${OPENROUTER_URL:https://openrouter.ai/api/v1/chat/completions}
+
+matching:
     mentor-score-expiry-hours: 168 # 7 days
     job-relevance-batch-size: 100
     behavior-decay-half-life-days: 30
