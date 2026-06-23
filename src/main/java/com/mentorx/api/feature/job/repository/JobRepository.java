@@ -41,6 +41,14 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
         "AND (:budgetMax IS NULL OR j.budget_min_mxc <= :budgetMax) " +
         "AND (:budgetType IS NULL OR j.budget_type = CAST(:budgetType AS varchar))";
 
+    String KEYWORD_CONDITION =
+        "AND (:keyword IS NULL OR to_tsvector('simple', j.title) @@ plainto_tsquery('simple', :keyword) " +
+        "OR j.title ILIKE CONCAT('%', :keyword, '%'))";
+
+    String KEYWORD_CONDITION_REQUIRED =
+        "AND (to_tsvector('simple', j.title) @@ plainto_tsquery('simple', :keyword) " +
+        "OR j.title ILIKE CONCAT('%', :keyword, '%'))";
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT j FROM Job j WHERE j.id = :jobId")
     java.util.Optional<Job> findByIdForUpdate(@Param("jobId") UUID jobId);
@@ -113,12 +121,12 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
 
     @Query(
             value = "SELECT " + JOBS_COLUMNS + ", u.full_name AS client_name, " +
-                    "CAST(CASE WHEN :keyword IS NOT NULL THEN ts_rank(j.search_vector, plainto_tsquery('simple', :keyword)) ELSE 0 END AS double precision) AS relevance_score " +
+                    "CAST(CASE WHEN :keyword IS NOT NULL THEN ts_rank(to_tsvector('simple', j.title), plainto_tsquery('simple', :keyword)) ELSE 0 END AS double precision) AS relevance_score " +
                     JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
-                    "AND (:keyword IS NULL OR j.search_vector @@ plainto_tsquery('simple', :keyword)) " +
+                    KEYWORD_CONDITION + " " +
                     "ORDER BY j.published_at DESC NULLS LAST, j.created_at DESC",
             countQuery = "SELECT COUNT(*) " + JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
-                    "AND (:keyword IS NULL OR j.search_vector @@ plainto_tsquery('simple', :keyword))",
+                    KEYWORD_CONDITION,
             nativeQuery = true
     )
     Page<Object[]> findOpenWithAllFilters(
@@ -134,12 +142,12 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
 
     @Query(
             value = "SELECT " + JOBS_COLUMNS + ", u.full_name AS client_name, " +
-                    "CAST(CASE WHEN :keyword IS NOT NULL THEN ts_rank(j.search_vector, plainto_tsquery('simple', :keyword)) ELSE 0 END AS double precision) AS relevance_score " +
+                    "CAST(CASE WHEN :keyword IS NOT NULL THEN ts_rank(to_tsvector('simple', j.title), plainto_tsquery('simple', :keyword)) ELSE 0 END AS double precision) AS relevance_score " +
                     JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
-                    "AND (:keyword IS NULL OR j.search_vector @@ plainto_tsquery('simple', :keyword)) " +
+                    KEYWORD_CONDITION + " " +
                     "ORDER BY j.budget_max_mxc DESC NULLS LAST, j.published_at DESC",
             countQuery = "SELECT COUNT(*) " + JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
-                    "AND (:keyword IS NULL OR j.search_vector @@ plainto_tsquery('simple', :keyword))",
+                    KEYWORD_CONDITION,
             nativeQuery = true
     )
     Page<Object[]> findOpenBudgetDesc(
@@ -155,12 +163,12 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
 
     @Query(
             value = "SELECT " + JOBS_COLUMNS + ", u.full_name AS client_name, " +
-                    "CAST(CASE WHEN :keyword IS NOT NULL THEN ts_rank(j.search_vector, plainto_tsquery('simple', :keyword)) ELSE 0 END AS double precision) AS relevance_score " +
+                    "CAST(CASE WHEN :keyword IS NOT NULL THEN ts_rank(to_tsvector('simple', j.title), plainto_tsquery('simple', :keyword)) ELSE 0 END AS double precision) AS relevance_score " +
                     JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
-                    "AND (:keyword IS NULL OR j.search_vector @@ plainto_tsquery('simple', :keyword)) " +
+                    KEYWORD_CONDITION + " " +
                     "ORDER BY j.budget_max_mxc ASC NULLS LAST, j.published_at DESC",
             countQuery = "SELECT COUNT(*) " + JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
-                    "AND (:keyword IS NULL OR j.search_vector @@ plainto_tsquery('simple', :keyword))",
+                    KEYWORD_CONDITION,
             nativeQuery = true
     )
     Page<Object[]> findOpenBudgetAsc(
@@ -176,12 +184,12 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
 
     @Query(
             value = "SELECT " + JOBS_COLUMNS + ", u.full_name AS client_name, " +
-                    "CAST(CASE WHEN :keyword IS NOT NULL THEN ts_rank(j.search_vector, plainto_tsquery('simple', :keyword)) ELSE 0 END AS double precision) AS relevance_score " +
+                    "CAST(CASE WHEN :keyword IS NOT NULL THEN ts_rank(to_tsvector('simple', j.title), plainto_tsquery('simple', :keyword)) ELSE 0 END AS double precision) AS relevance_score " +
                     JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
-                    "AND (:keyword IS NULL OR j.search_vector @@ plainto_tsquery('simple', :keyword)) " +
+                    KEYWORD_CONDITION + " " +
                     "ORDER BY (j.view_count + j.proposal_count * 3) DESC, j.published_at DESC",
             countQuery = "SELECT COUNT(*) " + JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
-                    "AND (:keyword IS NULL OR j.search_vector @@ plainto_tsquery('simple', :keyword))",
+                    KEYWORD_CONDITION,
             nativeQuery = true
     )
     Page<Object[]> findOpenPopular(
@@ -197,12 +205,12 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
 
     @Query(
             value = "SELECT " + JOBS_COLUMNS + ", u.full_name AS client_name, " +
-                    "CAST(ts_rank(j.search_vector, plainto_tsquery('simple', :keyword)) AS double precision) AS relevance_score " +
-                    JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
-                    "AND j.search_vector @@ plainto_tsquery('simple', :keyword) " +
-                    "ORDER BY relevance_score DESC, j.published_at DESC",
+"CAST(ts_rank(to_tsvector('simple', j.title), plainto_tsquery('simple', :keyword)) AS double precision) AS relevance_score " +
+                     JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
+                     KEYWORD_CONDITION_REQUIRED + " " +
+                     "ORDER BY relevance_score DESC, j.published_at DESC",
             countQuery = "SELECT COUNT(*) " + JOBS_FROM + " WHERE " + JOBS_WHERE + " " +
-                    "AND j.search_vector @@ plainto_tsquery('simple', :keyword)",
+                    KEYWORD_CONDITION_REQUIRED,
             nativeQuery = true
     )
     Page<Object[]> findOpenRelevance(
