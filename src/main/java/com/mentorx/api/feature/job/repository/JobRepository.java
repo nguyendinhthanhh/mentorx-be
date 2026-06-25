@@ -37,6 +37,7 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
         "AND (:jobType IS NULL OR j.job_type = CAST(:jobType AS varchar)) " +
         "AND (:categoryId IS NULL OR j.category_id = :categoryId) " +
         "AND (:skillKeyword IS NULL OR EXISTS (SELECT 1 FROM job_required_skills sk WHERE sk.job_id = j.id AND LOWER(sk.skill) LIKE LOWER(CONCAT('%', :skillKeyword, '%')))) " +
+        "AND (:experienceLevel IS NULL OR j.experience_level = CAST(:experienceLevel AS varchar)) " +
         "AND (:budgetMin IS NULL OR j.budget_max_mxc >= :budgetMin) " +
         "AND (:budgetMax IS NULL OR j.budget_min_mxc <= :budgetMax) " +
         "AND (:budgetType IS NULL OR j.budget_type = CAST(:budgetType AS varchar))";
@@ -134,6 +135,7 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
             @Param("jobType") String jobType,
             @Param("categoryId") Integer categoryId,
             @Param("skillKeyword") String skillKeyword,
+            @Param("experienceLevel") String experienceLevel,
             @Param("keyword") String keyword,
             @Param("budgetMin") BigDecimal budgetMin,
             @Param("budgetMax") BigDecimal budgetMax,
@@ -155,6 +157,7 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
             @Param("jobType") String jobType,
             @Param("categoryId") Integer categoryId,
             @Param("skillKeyword") String skillKeyword,
+            @Param("experienceLevel") String experienceLevel,
             @Param("keyword") String keyword,
             @Param("budgetMin") BigDecimal budgetMin,
             @Param("budgetMax") BigDecimal budgetMax,
@@ -176,6 +179,7 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
             @Param("jobType") String jobType,
             @Param("categoryId") Integer categoryId,
             @Param("skillKeyword") String skillKeyword,
+            @Param("experienceLevel") String experienceLevel,
             @Param("keyword") String keyword,
             @Param("budgetMin") BigDecimal budgetMin,
             @Param("budgetMax") BigDecimal budgetMax,
@@ -197,6 +201,7 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
             @Param("jobType") String jobType,
             @Param("categoryId") Integer categoryId,
             @Param("skillKeyword") String skillKeyword,
+            @Param("experienceLevel") String experienceLevel,
             @Param("keyword") String keyword,
             @Param("budgetMin") BigDecimal budgetMin,
             @Param("budgetMax") BigDecimal budgetMax,
@@ -218,6 +223,7 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
             @Param("jobType") String jobType,
             @Param("categoryId") Integer categoryId,
             @Param("skillKeyword") String skillKeyword,
+            @Param("experienceLevel") String experienceLevel,
             @Param("keyword") String keyword,
             @Param("budgetMin") BigDecimal budgetMin,
             @Param("budgetMax") BigDecimal budgetMax,
