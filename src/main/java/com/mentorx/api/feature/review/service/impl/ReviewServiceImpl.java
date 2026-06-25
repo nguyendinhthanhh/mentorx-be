@@ -18,6 +18,10 @@ import com.mentorx.api.feature.review.service.ReviewService;
 import com.mentorx.api.feature.user.entity.User;
 import com.mentorx.api.feature.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import com.mentorx.api.feature.review.entity.ReviewVote;
+import com.mentorx.api.feature.review.repository.ReviewVoteRepository;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -26,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -38,6 +43,7 @@ public class ReviewServiceImpl implements ReviewService {
     private final ContractRepository contractRepository;
     private final CourseRepository courseRepository;
     private final CourseEnrollmentRepository courseEnrollmentRepository;
+    private final ReviewVoteRepository reviewVoteRepository;
 
     @Override
     @Transactional
@@ -156,13 +162,50 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     @Transactional
-    public ReviewResponse voteHelpful(UUID reviewId, boolean isHelpful) {
+    public ReviewResponse voteHelpful(UUID currentUserId, UUID reviewId, boolean isHelpful) {
         Review review = findReview(reviewId);
-        if (isHelpful) {
-            review.setHelpfulCount(review.getHelpfulCount() + 1);
+        User user = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        Optional<ReviewVote> existingVoteOpt = reviewVoteRepository.findByReviewIdAndUserId(reviewId, currentUserId);
+
+        if (existingVoteOpt.isPresent()) {
+            ReviewVote existingVote = existingVoteOpt.get();
+            if (existingVote.getIsHelpful() == isHelpful) {
+                // User clicked the same vote button -> Toggle off (Unlike/Undislike)
+                reviewVoteRepository.delete(existingVote);
+                if (isHelpful) {
+                    review.setHelpfulCount(Math.max(0, review.getHelpfulCount() - 1));
+                } else {
+                    review.setNotHelpfulCount(Math.max(0, review.getNotHelpfulCount() - 1));
+                }
+            } else {
+                // User switched their vote
+                existingVote.setIsHelpful(isHelpful);
+                reviewVoteRepository.save(existingVote);
+                if (isHelpful) {
+                    review.setHelpfulCount(review.getHelpfulCount() + 1);
+                    review.setNotHelpfulCount(Math.max(0, review.getNotHelpfulCount() - 1));
+                } else {
+                    review.setNotHelpfulCount(review.getNotHelpfulCount() + 1);
+                    review.setHelpfulCount(Math.max(0, review.getHelpfulCount() - 1));
+                }
+            }
         } else {
-            review.setNotHelpfulCount(review.getNotHelpfulCount() + 1);
+            // New vote
+            ReviewVote newVote = ReviewVote.builder()
+                    .review(review)
+                    .user(user)
+                    .isHelpful(isHelpful)
+                    .build();
+            reviewVoteRepository.save(newVote);
+            if (isHelpful) {
+                review.setHelpfulCount(review.getHelpfulCount() + 1);
+            } else {
+                review.setNotHelpfulCount(review.getNotHelpfulCount() + 1);
+            }
         }
+
         return toResponse(reviewRepository.save(review));
     }
 
@@ -223,7 +266,23 @@ public class ReviewServiceImpl implements ReviewService {
         });
     }
 
+    private UUID getCurrentUserIdFromContext() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication.getName() == null || authentication.getName().equals("anonymousUser")) {
+            return null;
+        }
+        return userRepository.findByEmail(authentication.getName()).map(User::getId).orElse(null);
+    }
+
     private ReviewResponse toResponse(Review review) {
+        Boolean currentUserVote = null;
+        UUID currentUserId = getCurrentUserIdFromContext();
+        if (currentUserId != null) {
+            currentUserVote = reviewVoteRepository.findByReviewIdAndUserId(review.getId(), currentUserId)
+                    .map(ReviewVote::getIsHelpful)
+                    .orElse(null);
+        }
+
         return new ReviewResponse(
                 review.getId(),
                 review.getReviewer().getId(),
@@ -262,7 +321,8 @@ public class ReviewServiceImpl implements ReviewService {
                 review.getHelpfulnessRatio(),
                 review.canBeEdited(),
                 review.getCreatedAt(),
-                review.getUpdatedAt()
+                review.getUpdatedAt(),
+                currentUserVote
         );
     }
 }

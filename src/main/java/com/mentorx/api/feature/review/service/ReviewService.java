@@ -18,6 +18,6 @@ public interface ReviewService {
     Page<ReviewResponse> getReviewsByTarget(ReviewTargetType targetType, UUID targetId, Pageable pageable);
     Page<ReviewResponse> getReviewsByReviewer(UUID reviewerId, Pageable pageable);
     boolean canReviewMentor(UUID currentUserId, UUID mentorId);
-    ReviewResponse voteHelpful(UUID reviewId, boolean isHelpful);
+    ReviewResponse voteHelpful(UUID currentUserId, UUID reviewId, boolean isHelpful);
     void deleteReview(UUID currentUserId, UUID reviewId);
 }

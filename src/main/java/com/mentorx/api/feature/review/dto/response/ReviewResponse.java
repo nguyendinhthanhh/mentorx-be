@@ -44,5 +44,6 @@ public record ReviewResponse(
         double helpfulnessRatio,
         boolean canBeEdited,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        Boolean currentUserVote
 ) {}
