@@ -89,8 +89,10 @@ public class ReviewController {
     @PostMapping("/{reviewId}/vote")
     public ResponseEntity<ApiResponse<ReviewResponse>> vote(
             @PathVariable UUID reviewId,
-            @RequestParam boolean isHelpful) {
-        return ResponseEntity.ok(ApiResponse.success(reviewService.voteHelpful(reviewId, isHelpful)));
+            @RequestParam boolean isHelpful,
+            Authentication authentication) {
+        UUID currentUserId = resolveCurrentUser(authentication).getId();
+        return ResponseEntity.ok(ApiResponse.success(reviewService.voteHelpful(currentUserId, reviewId, isHelpful)));
     }
 
     @DeleteMapping("/{reviewId}")
