@@ -54,6 +54,7 @@ public class JobController {
             @RequestParam(required = false) JobType jobType,
             @RequestParam(required = false) Integer categoryId,
             @RequestParam(required = false) String skill,
+            @RequestParam(required = false) String experienceLevel,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) BigDecimal budgetMin,
             @RequestParam(required = false) BigDecimal budgetMax,
@@ -69,7 +70,7 @@ public class JobController {
             sort = JobSort.NEWEST;
         }
         return ResponseEntity.ok(ApiResponse.success(
-                jobService.getOpenJobs(jobType, categoryId, skill, keyword, budgetMin, budgetMax, budgetType, status, sort, PageRequest.of(page, size))
+                jobService.getOpenJobs(jobType, categoryId, skill, experienceLevel, keyword, budgetMin, budgetMax, budgetType, status, sort, PageRequest.of(page, size))
         ));
     }
 

@@ -17,7 +17,7 @@ public interface JobService {
     JobResponse getById(UUID jobId);
     JobResponse update(UUID jobId, JobUpdateRequest request);
     void delete(UUID jobId);
-    Page<JobResponse> getOpenJobs(JobType jobType, Integer categoryId, String skillKeyword, String keyword, BigDecimal budgetMin, BigDecimal budgetMax, String budgetType, JobStatus status, JobSort sort, Pageable pageable);
+    Page<JobResponse> getOpenJobs(JobType jobType, Integer categoryId, String skillKeyword, String experienceLevel, String keyword, BigDecimal budgetMin, BigDecimal budgetMax, String budgetType, JobStatus status, JobSort sort, Pageable pageable);
     Page<JobResponse> getAllJobs(JobStatus status, JobType jobType, Integer categoryId, String skillKeyword, Pageable pageable);
     Page<JobResponse> getByClient(UUID clientId, Pageable pageable);
     Page<JobResponse> getByStatus(JobStatus status, Pageable pageable);

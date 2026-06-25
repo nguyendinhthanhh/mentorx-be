@@ -37,6 +37,6 @@ public class UserConsentLog {
     @Column(name = "consented_at", nullable = false, updatable = false)
     private LocalDateTime consentedAt;
 
-    @Column(name = "ip_address", columnDefinition = "INET")
+    @Column(name = "ip_address", length = 45)
     private String ipAddress;
 }

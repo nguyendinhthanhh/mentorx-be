@@ -33,7 +33,7 @@ public class ViewEvent {
     @Column(name = "target_id", nullable = false)
     private UUID targetId;
 
-    @Column(name = "ip_address", columnDefinition = "INET")
+    @Column(name = "ip_address", length = 45)
     private String ipAddress;
 
     @CreatedDate

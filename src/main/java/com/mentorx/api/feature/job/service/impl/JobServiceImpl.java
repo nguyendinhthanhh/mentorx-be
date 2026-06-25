@@ -184,7 +184,7 @@ public class JobServiceImpl implements JobService {
 
     @Override
     public Page<JobResponse> getOpenJobs(JobType jobType, Integer categoryId, String skillKeyword,
-                                         String keyword, BigDecimal budgetMin, BigDecimal budgetMax,
+                                         String experienceLevel, String keyword, BigDecimal budgetMin, BigDecimal budgetMax,
                                          String budgetType, JobStatus status, JobSort sort, Pageable pageable) {
         String jobTypeStr = jobType != null ? jobType.name() : null;
         String skillNorm = normalizeText(skillKeyword);
@@ -200,11 +200,11 @@ public class JobServiceImpl implements JobService {
         }
 
         Page<Object[]> result = switch (sort) {
-            case RELEVANCE -> jobRepository.findOpenRelevance(statusStr, jobTypeStr, categoryId, skillNorm, keywordNorm, budgetMin, budgetMax, budgetTypeStr, pageable);
-            case BUDGET_DESC -> jobRepository.findOpenBudgetDesc(statusStr, jobTypeStr, categoryId, skillNorm, keywordNorm, budgetMin, budgetMax, budgetTypeStr, pageable);
-            case BUDGET_ASC -> jobRepository.findOpenBudgetAsc(statusStr, jobTypeStr, categoryId, skillNorm, keywordNorm, budgetMin, budgetMax, budgetTypeStr, pageable);
-            case POPULAR -> jobRepository.findOpenPopular(statusStr, jobTypeStr, categoryId, skillNorm, keywordNorm, budgetMin, budgetMax, budgetTypeStr, pageable);
-            default -> jobRepository.findOpenWithAllFilters(statusStr, jobTypeStr, categoryId, skillNorm, keywordNorm, budgetMin, budgetMax, budgetTypeStr, pageable);
+            case RELEVANCE -> jobRepository.findOpenRelevance(statusStr, jobTypeStr, categoryId, skillNorm, experienceLevel, keywordNorm, budgetMin, budgetMax, budgetTypeStr, pageable);
+            case BUDGET_DESC -> jobRepository.findOpenBudgetDesc(statusStr, jobTypeStr, categoryId, skillNorm, experienceLevel, keywordNorm, budgetMin, budgetMax, budgetTypeStr, pageable);
+            case BUDGET_ASC -> jobRepository.findOpenBudgetAsc(statusStr, jobTypeStr, categoryId, skillNorm, experienceLevel, keywordNorm, budgetMin, budgetMax, budgetTypeStr, pageable);
+            case POPULAR -> jobRepository.findOpenPopular(statusStr, jobTypeStr, categoryId, skillNorm, experienceLevel, keywordNorm, budgetMin, budgetMax, budgetTypeStr, pageable);
+            default -> jobRepository.findOpenWithAllFilters(statusStr, jobTypeStr, categoryId, skillNorm, experienceLevel, keywordNorm, budgetMin, budgetMax, budgetTypeStr, pageable);
         };
 
         return result.map(this::toResponseWithScore);
