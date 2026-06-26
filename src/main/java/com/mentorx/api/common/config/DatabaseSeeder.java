@@ -41,6 +41,12 @@ import com.mentorx.api.feature.review.entity.Review;
 import com.mentorx.api.feature.review.enums.ReviewTargetType;
 import com.mentorx.api.feature.review.repository.ReviewRepository;
 import com.mentorx.api.feature.system.config.FileStorageProperties;
+import com.mentorx.api.feature.wallet.entity.*;
+import com.mentorx.api.feature.wallet.repository.*;
+import com.mentorx.api.feature.blog.entity.BlogPost;
+import com.mentorx.api.feature.blog.enums.BlogAudience;
+import com.mentorx.api.feature.blog.enums.BlogCategory;
+import com.mentorx.api.feature.blog.repository.BlogPostRepository;
 import com.mentorx.api.feature.system.entity.*;
 import com.mentorx.api.feature.system.repository.*;
 import com.mentorx.api.feature.user.entity.MentorProfile;
@@ -110,6 +116,7 @@ public class DatabaseSeeder implements CommandLineRunner {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomMemberRepository chatRoomMemberRepository;
     private final MessageRepository messageRepository;
+    private final BlogPostRepository blogPostRepository;
     private final FileStorageProperties fileStorageProperties;
     private final PasswordEncoder passwordEncoder;
 
@@ -184,6 +191,12 @@ public class DatabaseSeeder implements CommandLineRunner {
         safeSeed("chat rooms and messages", () -> {
             if (chatRoomRepository.count() == 0) {
                 seedChatData();
+            }
+        });
+
+        safeSeed("blog posts", () -> {
+            if (blogPostRepository.count() == 0) {
+                seedBlogs();
             }
         });
 
@@ -1915,6 +1928,88 @@ public class DatabaseSeeder implements CommandLineRunner {
         proposal.setInterviewRequested(false);
         proposal.setViewCount(0);
         proposalRepository.save(proposal);
+    }
+
+    private void seedBlogs() {
+        log.info("Seeding blog posts...");
+        List<BlogPost> posts = Arrays.asList(
+            BlogPost.builder()
+                .slug("how-to-choose-the-right-mentor-for-your-career")
+                .title("How to Choose the Right Mentor for Your Career")
+                .excerpt("A practical framework to evaluate mentor fit by goals, communication style, and outcome evidence before committing time and budget.")
+                .category(BlogCategory.CAREER_GROWTH)
+                .audience(BlogAudience.FOR_LEARNERS)
+                .author("Linh Tran")
+                .authorRole("Career Mentor")
+                .authorAvatar("https://i.pravatar.cc/120?img=32")
+                .coverImage("https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=1600&auto=format&fit=crop")
+                .content("<p>A practical framework to evaluate mentor fit...</p>")
+                .readTime("7 min read")
+                .featured(true)
+                .tags(Arrays.asList("mentor-fit", "career"))
+                .build(),
+            BlogPost.builder()
+                .slug("from-user-to-mentor-building-your-first-mentor-profile")
+                .title("From User to Mentor: Building Your First Mentor Profile")
+                .excerpt("Position your strengths, define your mentoring promise, and build profile credibility that attracts serious learners.")
+                .category(BlogCategory.MENTORING)
+                .audience(BlogAudience.FOR_MENTORS)
+                .author("Ha Do")
+                .authorRole("Mentor Success Lead")
+                .authorAvatar("https://i.pravatar.cc/120?img=45")
+                .coverImage("https://images.unsplash.com/photo-1517048676732-d65bc937f952?q=80&w=1600&auto=format&fit=crop")
+                .content("<p>Position your strengths...</p>")
+                .readTime("6 min read")
+                .featured(true)
+                .tags(Arrays.asList("mentor-mode", "profile"))
+                .build(),
+            BlogPost.builder()
+                .slug("how-to-set-goals-for-your-first-mentorship-session")
+                .title("How to Set Goals for Your First Mentorship Session")
+                .excerpt("Make the most out of your first meeting by preparing clear, actionable goals and understanding what you want to achieve.")
+                .category(BlogCategory.CAREER_GROWTH)
+                .audience(BlogAudience.FOR_LEARNERS)
+                .author("Alex Nguyen")
+                .authorRole("Senior Product Manager")
+                .authorAvatar("https://i.pravatar.cc/120?img=12")
+                .coverImage("https://images.unsplash.com/photo-1521737604893-d14cc237f11d?q=80&w=1600&auto=format&fit=crop")
+                .content("<p>Make the most out of your first meeting...</p>")
+                .readTime("5 min read")
+                .featured(true)
+                .tags(Arrays.asList("goals", "first-session"))
+                .build(),
+            BlogPost.builder()
+                .slug("transitioning-to-freelance-a-mentors-guide")
+                .title("Transitioning to Freelance: A Mentor's Guide")
+                .excerpt("Learn how to balance your full-time job while building a sustainable freelance business with guidance from experienced mentors.")
+                .category(BlogCategory.FREELANCE_JOBS)
+                .audience(BlogAudience.FOR_LEARNERS)
+                .author("Sarah Chen")
+                .authorRole("Freelance Consultant")
+                .authorAvatar("https://i.pravatar.cc/120?img=24")
+                .coverImage("https://images.unsplash.com/photo-1556761175-5973dc0f32e7?q=80&w=1600&auto=format&fit=crop")
+                .content("<p>Learn how to balance your full-time job...</p>")
+                .readTime("8 min read")
+                .featured(false)
+                .tags(Arrays.asList("freelance", "career-change"))
+                .build(),
+            BlogPost.builder()
+                .slug("the-importance-of-continuous-learning-in-tech")
+                .title("The Importance of Continuous Learning in Tech")
+                .excerpt("Why staying updated with the latest technologies is crucial for your career and how a mentor can help you navigate the landscape.")
+                .category(BlogCategory.TECHNOLOGY)
+                .audience(BlogAudience.CAREER_GROWTH)
+                .author("David Kim")
+                .authorRole("Tech Lead")
+                .authorAvatar("https://i.pravatar.cc/120?img=33")
+                .coverImage("https://images.unsplash.com/photo-1504384308090-c894fdcc538d?q=80&w=1600&auto=format&fit=crop")
+                .content("<p>Why staying updated with the latest technologies...</p>")
+                .readTime("6 min read")
+                .featured(false)
+                .tags(Arrays.asList("tech", "learning"))
+                .build()
+        );
+        blogPostRepository.saveAll(posts);
     }
 
     private record DemoUserSeed(
