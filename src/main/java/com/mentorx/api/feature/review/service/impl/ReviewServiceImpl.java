@@ -117,14 +117,34 @@ public class ReviewServiceImpl implements ReviewService {
     @Transactional
     public ReviewResponse respondToReview(UUID currentUserId, UUID reviewId, ReviewResponseRequest request) {
         Review review = findReview(reviewId);
-        if (review.getTargetType() != ReviewTargetType.COURSE) {
-            throw new AppException(ErrorCode.REVIEW_NOT_ALLOWED);
+        
+        switch (review.getTargetType()) {
+            case COURSE:
+                Course course = courseRepository.findById(review.getTargetId())
+                        .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_FOUND));
+                if (!course.getInstructor().getId().equals(currentUserId)) {
+                    throw new AppException(ErrorCode.ACCESS_DENIED);
+                }
+                break;
+            case JOB_CONTRACT:
+                com.mentorx.api.feature.job.entity.Contract contract = contractRepository.findById(review.getTargetId())
+                        .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
+                if (!contract.getMentor().getId().equals(currentUserId) && !contract.getClient().getId().equals(currentUserId)) {
+                    throw new AppException(ErrorCode.ACCESS_DENIED);
+                }
+                if (review.getReviewer().getId().equals(currentUserId)) {
+                    throw new AppException(ErrorCode.ACCESS_DENIED);
+                }
+                break;
+            case MENTOR, CLIENT:
+                if (!review.getTargetId().equals(currentUserId)) {
+                    throw new AppException(ErrorCode.ACCESS_DENIED);
+                }
+                break;
+            default:
+                throw new AppException(ErrorCode.REVIEW_NOT_ALLOWED);
         }
-        Course course = courseRepository.findById(review.getTargetId())
-                .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_FOUND));
-        if (!course.getInstructor().getId().equals(currentUserId)) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
-        }
+
         review.setResponseText(request.responseText().trim());
         review.setResponseAt(LocalDateTime.now());
         review.setResponseByUserId(currentUserId);
@@ -283,12 +303,31 @@ public class ReviewServiceImpl implements ReviewService {
                     .orElse(null);
         }
 
+        String targetTitle = "Unknown Target";
+        try {
+            switch (review.getTargetType()) {
+                case COURSE -> targetTitle = courseRepository.findById(review.getTargetId())
+                        .map(com.mentorx.api.feature.course.entity.Course::getTitle)
+                        .orElse("Unknown Course");
+                case JOB_CONTRACT -> targetTitle = contractRepository.findById(review.getTargetId())
+                        .map(c -> c.getJob().getTitle())
+                        .orElse("Unknown Contract");
+                case MENTOR, CLIENT -> targetTitle = userRepository.findById(review.getTargetId())
+                        .map(com.mentorx.api.feature.user.entity.User::getFullName)
+                        .orElse("Unknown User");
+                default -> targetTitle = "Unknown Target";
+            }
+        } catch (Exception e) {
+            targetTitle = "Information unavailable";
+        }
+
         return new ReviewResponse(
                 review.getId(),
                 review.getReviewer().getId(),
                 review.getReviewerDisplayName(),
                 review.getTargetType(),
                 review.getTargetId(),
+                targetTitle,
                 review.getOverallRating(),
                 review.getCommunicationRating(),
                 review.getQualityRating(),

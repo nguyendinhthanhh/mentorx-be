@@ -12,6 +12,7 @@ public record ReviewResponse(
         String reviewerName,
         ReviewTargetType targetType,
         UUID targetId,
+        String targetTitle,
         BigDecimal overallRating,
         BigDecimal communicationRating,
         BigDecimal qualityRating,
