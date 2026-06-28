@@ -8,14 +8,14 @@ WORKDIR /app
 COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
 
+# Deploy
+RUN chmod +x mvnw
+
 # Download dependencies (cached layer)
 RUN ./mvnw dependency:go-offline -B
 
 # Copy source code
 COPY src ./src
-
-# Deploy
-RUN chmod +x mvnw
 
 # Build the application
 RUN ./mvnw clean package -DskipTests
