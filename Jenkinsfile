@@ -116,7 +116,10 @@ pipeline {
 
     stages {
         stage('Checkout') {
-            steps { checkout scm }
+            steps {
+                checkout scm
+                sh 'chmod +x ./mvnw'
+            }
         }
 
         // ── PR Gating: compile + test in parallel on every PR to main ──
@@ -197,14 +200,26 @@ pipeline {
             cleanWs()
         }
         failure {
-            mail to: "${env.NOTIFY_TO}",
-                 subject: "FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: "Branch: ${env.BRANCH_NAME}\nCommit: ${env.GIT_COMMIT}\nURL: ${env.BUILD_URL}"
+            script {
+                try {
+                    mail to: "${env.NOTIFY_TO}",
+                         subject: "FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                         body: "Branch: ${env.BRANCH_NAME}\nCommit: ${env.GIT_COMMIT}\nURL: ${env.BUILD_URL}"
+                } catch (e) {
+                    echo "[WARN] Mail notification failed (SMTP not configured): ${e.message}"
+                }
+            }
         }
         fixed {
-            mail to: "${env.NOTIFY_TO}",
-                 subject: "FIXED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: "Branch: ${env.BRANCH_NAME}\nCommit: ${env.GIT_COMMIT}\nURL: ${env.BUILD_URL}"
+            script {
+                try {
+                    mail to: "${env.NOTIFY_TO}",
+                         subject: "FIXED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                         body: "Branch: ${env.BRANCH_NAME}\nCommit: ${env.GIT_COMMIT}\nURL: ${env.BUILD_URL}"
+                } catch (e) {
+                    echo "[WARN] Mail notification failed (SMTP not configured): ${e.message}"
+                }
+            }
         }
     }
 }
