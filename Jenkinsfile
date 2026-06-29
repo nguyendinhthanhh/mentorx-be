@@ -104,12 +104,14 @@ pipeline {
     options {
         disableConcurrentBuilds()
         timestamps()
+        timeout(time: 1, unit: 'HOURS')
     }
 
     environment {
         IMAGE               = 'thekhiem7/mentorx-api'
         REGISTRY_CREDENTIAL = 'thekhiem7-dockerhub-credentials'
         REGISTRY_URL        = 'https://index.docker.io/v1/'
+        NOTIFY_TO           = 'team@mentorx.local'
     }
 
     stages {
@@ -117,17 +119,19 @@ pipeline {
             steps { checkout scm }
         }
 
-        // ── PR Gating: compile + test on every PR to main ──
-        stage('Compile Check') {
+        // ── PR Gating: compile + test in parallel on every PR to main ──
+        stage('PR Validation') {
             when { changeRequest target: 'main' }
-            steps { script { mvnCompile() } }
-        }
-
-        stage('Test Check') {
-            when { changeRequest target: 'main' }
-            steps {
-                script { mvnTest() }
-                junit 'target/surefire-reports/**/*.xml'
+            parallel {
+                stage('Compile Check') {
+                    steps { script { mvnCompile() } }
+                }
+                stage('Test Check') {
+                    steps {
+                        script { mvnTest() }
+                        junit 'target/surefire-reports/**/*.xml'
+                    }
+                }
             }
         }
 
@@ -182,9 +186,25 @@ pipeline {
         stage('Cleanup') {
             steps {
                 script {
-                    sh 'docker images --filter "dangling=true" --filter "reference=${IMAGE}" -q | xargs -r docker rmi || true'
+                    sh "docker images --filter \"dangling=true\" --filter \"reference=${IMAGE}\" -q | xargs -r docker rmi || true"
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        failure {
+            mail to: "${env.NOTIFY_TO}",
+                 subject: "FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                 body: "Branch: ${env.BRANCH_NAME}\nCommit: ${env.GIT_COMMIT}\nURL: ${env.BUILD_URL}"
+        }
+        fixed {
+            mail to: "${env.NOTIFY_TO}",
+                 subject: "FIXED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                 body: "Branch: ${env.BRANCH_NAME}\nCommit: ${env.GIT_COMMIT}\nURL: ${env.BUILD_URL}"
         }
     }
 }
