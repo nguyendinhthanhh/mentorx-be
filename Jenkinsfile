@@ -105,6 +105,7 @@ pipeline {
         disableConcurrentBuilds()
         timestamps()
         timeout(time: 1, unit: 'HOURS')
+        skipDefaultCheckout()
     }
 
     environment {
@@ -116,6 +117,12 @@ pipeline {
 
     stages {
         stage('Checkout') {
+            when {
+                anyOf {
+                    branch 'main'
+                    changeRequest()
+                }
+            }
             steps {
                 checkout scm
                 sh 'chmod +x ./mvnw'
@@ -187,6 +194,12 @@ pipeline {
         }
 
         stage('Cleanup') {
+            when {
+                anyOf {
+                    branch 'main'
+                    changeRequest()
+                }
+            }
             steps {
                 script {
                     sh "docker images --filter \"dangling=true\" --filter \"reference=${IMAGE}\" -q | xargs -r docker rmi || true"
