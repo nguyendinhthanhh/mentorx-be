@@ -24,6 +24,7 @@ pipeline {
         }
 
         stage('Build & Push') {
+            when { branch 'main' }
             steps {
                 script {
                     def tags = dockerTag()
@@ -37,6 +38,7 @@ pipeline {
         }
 
         stage('Deploy') {
+            when { branch 'main' }
             steps {
                 withCredentials([
                     string(credentialsId: 'portainer-mentorx-webhook', variable: 'PORTAINER_WEBHOOK')
