@@ -11,6 +11,8 @@ import java.util.UUID;
 public interface CourseEnrollmentService {
     
     CourseEnrollmentResponse createEnrollment(CourseEnrollmentCreateRequest request);
+
+    CourseEnrollmentResponse enrollCurrentUser(UUID courseId, UUID studentId);
     
     CourseEnrollmentResponse getEnrollmentById(UUID id);
     

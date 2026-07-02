@@ -41,6 +41,12 @@ import com.mentorx.api.feature.review.entity.Review;
 import com.mentorx.api.feature.review.enums.ReviewTargetType;
 import com.mentorx.api.feature.review.repository.ReviewRepository;
 import com.mentorx.api.feature.system.config.FileStorageProperties;
+import com.mentorx.api.feature.wallet.entity.*;
+import com.mentorx.api.feature.wallet.repository.*;
+import com.mentorx.api.feature.blog.entity.BlogPost;
+import com.mentorx.api.feature.blog.enums.BlogAudience;
+import com.mentorx.api.feature.blog.enums.BlogCategory;
+import com.mentorx.api.feature.blog.repository.BlogPostRepository;
 import com.mentorx.api.feature.system.entity.*;
 import com.mentorx.api.feature.system.repository.*;
 import com.mentorx.api.feature.user.entity.MentorProfile;
@@ -110,6 +116,7 @@ public class DatabaseSeeder implements CommandLineRunner {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomMemberRepository chatRoomMemberRepository;
     private final MessageRepository messageRepository;
+    private final BlogPostRepository blogPostRepository;
     private final FileStorageProperties fileStorageProperties;
     private final PasswordEncoder passwordEncoder;
 
@@ -117,7 +124,6 @@ public class DatabaseSeeder implements CommandLineRunner {
     private boolean seedData;
 
     @Override
-    @Transactional
     public void run(String... args) {
         if (!seedData) {
             log.info("Database seeding is disabled by configuration (app.database.seed-data=false).");
@@ -126,72 +132,84 @@ public class DatabaseSeeder implements CommandLineRunner {
 
         log.info("Checking database state for seeding...");
 
-        if (roleRepository.count() == 0) {
-            log.info("Seeding roles and permissions...");
-            seedRoles();
-            seedPermissions();
-            seedRolePermissions();
-        }
+        safeSeed("roles and permissions", () -> {
+            if (roleRepository.count() == 0) {
+                seedRoles();
+                seedPermissions();
+                seedRolePermissions();
+            }
+        });
 
-        if (platformSettingRepository.count() == 0) {
-            log.info("Seeding platform settings...");
-            seedPlatformSettings();
-        }
+        safeSeed("platform settings", () -> {
+            if (platformSettingRepository.count() == 0) {
+                seedPlatformSettings();
+            }
+        });
 
-        if (skillRepository.count() == 0) {
-            log.info("Seeding skills...");
-            seedSkills();
-        }
+        safeSeed("skills", () -> {
+            if (skillRepository.count() == 0) {
+                seedSkills();
+            }
+        });
 
-        if (categoryRepository.count() == 0) {
-            log.info("Seeding categories...");
-            seedCategories();
-        }
+        safeSeed("categories", () -> {
+            if (categoryRepository.count() == 0) {
+                seedCategories();
+            }
+        });
 
-        if (walletRepository.count() == 0) {
-            log.info("Seeding system wallets...");
-            seedSystemWallets();
-        }
+        safeSeed("system wallets", () -> {
+            if (walletRepository.count() == 0) {
+                seedSystemWallets();
+            }
+        });
 
-        seedExchangeRates();
+        safeSeed("exchange rates", this::seedExchangeRates);
 
-        log.info("Ensuring sample users exist...");
-        seedUsers();
+        safeSeed("sample users", this::seedUsers);
 
-        if (mentorProfileRepository.count() == 0) {
-            log.info("Seeding sample mentor profiles...");
-        }
-        seedMentorProfiles();
+        safeSeed("mentor profiles", this::seedMentorProfiles);
 
-        log.info("Ensuring sample courses exist...");
-        seedCourses();
+        safeSeed("courses", this::seedCourses);
 
-        log.info("Ensuring sample open jobs exist...");
-        seedJobs();
+        safeSeed("jobs", this::seedJobs);
 
-        log.info("Ensuring sample job proposals exist...");
-        seedProposals();
+        safeSeed("proposals", this::seedProposals);
 
-        log.info("Ensuring mentor packages exist...");
-        seedMentorPackages();
+        safeSeed("mentor packages", this::seedMentorPackages);
 
-        log.info("Ensuring mentor availability exists...");
-        seedMentorAvailability();
+        safeSeed("mentor availability", this::seedMentorAvailability);
 
-        log.info("Ensuring sample reviews exist...");
-        seedReviews();
+        safeSeed("reviews", this::seedReviews);
 
-        if (notificationRepository.count() == 0) {
-            log.info("Seeding sample notifications...");
-            seedNotifications();
-        }
+        safeSeed("notifications", () -> {
+            if (notificationRepository.count() == 0) {
+                seedNotifications();
+            }
+        });
 
-        if (chatRoomRepository.count() == 0) {
-            log.info("Seeding sample chat rooms and messages...");
-            seedChatData();
-        }
+        safeSeed("chat rooms and messages", () -> {
+            if (chatRoomRepository.count() == 0) {
+                seedChatData();
+            }
+        });
+
+        safeSeed("blog posts", () -> {
+            if (blogPostRepository.count() == 0) {
+                seedBlogs();
+            }
+        });
 
         log.info("Database seeding check completed.");
+    }
+
+    private void safeSeed(String name, Runnable block) {
+        try {
+            log.info("Seeding {}...", name);
+            block.run();
+        } catch (Exception e) {
+            log.error("Failed to seed {}: {}", name, e.getMessage());
+        }
     }
 
     private void seedRoles() {
@@ -575,16 +593,16 @@ public class DatabaseSeeder implements CommandLineRunner {
         sampleDocumentUrl = ensureSampleDocument("mentorx-sample-document", "MentorX Sample Document");
 
         CourseSection course1Section1 = createSection(course1, 1, "Khởi động dự án", "Cài đặt môi trường và hiểu cấu trúc dự án.");
-        createLesson(course1Section1, 1, "Giới thiệu khóa học", "Tổng quan lộ trình và kết quả đạt được.", LessonType.VIDEO, 8, true,
+        createLesson(course1Section1, 1, "Giới thiệu khóa học", "Tổng quan lộ trình và kết quả đạt được.", LessonType.LESSON, 8, true,
                 "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4", null, null);
-        createLesson(course1Section1, 2, "Tài liệu setup môi trường", "Checklist cài đặt JDK, IDE, và Postgres.", LessonType.ARTICLE, 12, false,
+        createLesson(course1Section1, 2, "Tài liệu setup môi trường", "Checklist cài đặt JDK, IDE, và Postgres.", LessonType.LESSON, 12, false,
                 null, "Hướng dẫn chi tiết cài đặt môi trường phát triển Spring Boot.", sampleDocumentUrl);
         updateSectionDuration(course1Section1);
 
         CourseSection course1Section2 = createSection(course1, 2, "Xây dựng REST API", "Thiết kế API và triển khai CRUD chuẩn.");
-        createLesson(course1Section2, 1, "Thiết kế data model", "Xây entity và mapping JPA hiệu quả.", LessonType.VIDEO, 18, false,
+        createLesson(course1Section2, 1, "Thiết kế data model", "Xây entity và mapping JPA hiệu quả.", LessonType.LESSON, 18, false,
                 "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4", null, null);
-        createLesson(course1Section2, 2, "Tài liệu API mẫu", "Swagger template và checklist kiểm thử.", LessonType.ARTICLE, 10, false,
+        createLesson(course1Section2, 2, "Tài liệu API mẫu", "Swagger template và checklist kiểm thử.", LessonType.LESSON, 10, false,
                 null, "Template Swagger và checklist kiểm thử cơ bản.", sampleDocumentUrl);
         updateSectionDuration(course1Section2);
 
@@ -614,16 +632,16 @@ public class DatabaseSeeder implements CommandLineRunner {
         course2 = courseRepository.save(course2);
 
         CourseSection course2Section1 = createSection(course2, 1, "Discovery & Research", "Hiểu người dùng và xác định vấn đề.");
-        createLesson(course2Section1, 1, "Research plan", "Cách xây dựng kế hoạch research nhanh.", LessonType.VIDEO, 14, true,
+        createLesson(course2Section1, 1, "Research plan", "Cách xây dựng kế hoạch research nhanh.", LessonType.LESSON, 14, true,
                 "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4", null, null);
-        createLesson(course2Section1, 2, "Research template", "Mẫu interview script và summary.", LessonType.ARTICLE, 9, false,
+        createLesson(course2Section1, 2, "Research template", "Mẫu interview script và summary.", LessonType.LESSON, 9, false,
                 null, "Mẫu câu hỏi interview và template tổng hợp insight.", sampleDocumentUrl);
         updateSectionDuration(course2Section1);
 
         CourseSection course2Section2 = createSection(course2, 2, "Prototype & Handoff", "Thiết kế prototype và bàn giao dev.");
-        createLesson(course2Section2, 1, "Prototype nhanh với Figma", "Thực hành flow và component.", LessonType.VIDEO, 16, false,
+        createLesson(course2Section2, 1, "Prototype nhanh với Figma", "Thực hành flow và component.", LessonType.LESSON, 16, false,
                 "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4", null, null);
-        createLesson(course2Section2, 2, "Checklist handoff", "Đảm bảo dev hiểu spec.", LessonType.ARTICLE, 7, false,
+        createLesson(course2Section2, 2, "Checklist handoff", "Đảm bảo dev hiểu spec.", LessonType.LESSON, 7, false,
                 null, "Checklist bàn giao thiết kế và QA UI.", sampleDocumentUrl);
         updateSectionDuration(course2Section2);
 
@@ -652,9 +670,9 @@ public class DatabaseSeeder implements CommandLineRunner {
         course3 = courseRepository.save(course3);
 
         CourseSection course3Section1 = createSection(course3, 1, "Tài liệu cốt lõi", "Bộ file và guideline đi kèm.");
-        createLesson(course3Section1, 1, "API design guideline", "Nguyên tắc thiết kế endpoint và naming.", LessonType.ARTICLE, 6, true,
+        createLesson(course3Section1, 1, "API design guideline", "Nguyên tắc thiết kế endpoint và naming.", LessonType.LESSON, 6, true,
                 null, "Bộ guideline thiết kế API nhất quán cho team backend.", sampleDocumentUrl);
-        createLesson(course3Section1, 2, "Checklist release", "Checklist trước khi release API.", LessonType.ARTICLE, 5, false,
+        createLesson(course3Section1, 2, "Checklist release", "Checklist trước khi release API.", LessonType.LESSON, 5, false,
                 null, "Checklist kiểm tra security, logging, monitoring.", sampleDocumentUrl);
         updateSectionDuration(course3Section1);
 
@@ -778,7 +796,7 @@ public class DatabaseSeeder implements CommandLineRunner {
                 .section(section)
                 .title(title)
                 .description(description)
-                .lessonType(lessonType)
+                .lessonType(normalizeLessonTypeForWrite(lessonType))
                 .lessonOrder(order)
                 .durationMinutes(durationMinutes)
                 .videoUrl(videoUrl)
@@ -789,6 +807,10 @@ public class DatabaseSeeder implements CommandLineRunner {
                 .isMandatory(true)
                 .build();
         return courseLessonRepository.save(lesson);
+    }
+
+    private LessonType normalizeLessonTypeForWrite(LessonType lessonType) {
+        return LessonType.QUIZ.equals(lessonType) ? LessonType.QUIZ : LessonType.LESSON;
     }
 
     private void updateSectionDuration(CourseSection section) {
@@ -930,13 +952,13 @@ public class DatabaseSeeder implements CommandLineRunner {
     }
 
     private void seedJobs() {
-        if (jobRepository.findAll().stream().anyMatch(job -> "Backend Developer for Spring Boot API".equals(job.getTitle()))) {
+        if (jobRepository.count() > 0) {
             return;
         }
 
         User client = userRepository.findByEmail("client1@mentorx.demo")
                 .orElseGet(() -> {
-                    User user = createUser("client1@mentorx.demo", "ABC Company", "ABC Company", UserStatus.ACTIVE, false, MentorStatus.NONE);
+                    User user = createUser("client1@mentorx.demo", "Công ty ABC", "ABC Company", UserStatus.ACTIVE, false, MentorStatus.NONE);
                     assignRoleToUserIfMissing(user, "USER");
                     setupUserAccountIfMissing(user);
                     return user;
@@ -951,161 +973,176 @@ public class DatabaseSeeder implements CommandLineRunner {
         jobRepository.saveAll(List.of(
                 Job.builder()
                         .client(client)
-                        .categoryId(softwareCategoryId)
+                        .categoryId(dataCategoryId)
                         .jobType(JobType.FREELANCE_PROJECT)
-                        .title("Backend Developer for Spring Boot API")
-                        .description("Build and optimize REST APIs, authentication flows, and PostgreSQL data access for a mentoring platform.")
+                        .title("Cần giúp làm bài tập LAB môn Học Máy - Classification ảnh")
+                        .description("Mình đang học môn Học Máy (Machine Learning) ngành AI. Thầy giao bài tập LAB yêu cầu xây dựng mô hình classification ảnh trên tập dữ liệu CIFAR-10. Mình đã code được phần load dữ liệu nhưng đang bị overfitting, accuracy chỉ đạt ~60%. Cần mentor hướng dẫn cách cải thiện model (data augmentation, điều chỉnh architecture, regularization) và giải thích lý thuyết để mình hiểu bản chất.")
                         .budgetType(BudgetType.FIXED)
-                        .budgetMinMxc(new BigDecimal("1200.00"))
-                        .budgetMaxMxc(new BigDecimal("2500.00"))
-                        .deadlineAt(now.plusDays(21))
+                        .budgetMinMxc(new BigDecimal("300.00"))
+                        .budgetMaxMxc(new BigDecimal("600.00"))
+                        .deadlineAt(now.plusDays(7))
                         .status(JobStatus.OPEN)
                         .isFeatured(true)
                         .proposalCount(6)
                         .publishedAt(now.minusDays(2))
+                        .learningGoals("Hiểu về CNN architecture, data augmentation, regularization techniques")
+                        .successCriteria("Accuracy trên test set đạt >80%, code chạy được, hiểu và giải thích được từng bước")
+                        .requiredSkills(List.of("Python", "TensorFlow/PyTorch", "Deep Learning", "Xử lý ảnh"))
+                        .experienceLevel("INTERMEDIATE")
                         .build(),
                 Job.builder()
                         .client(client)
-                        .categoryId(designCategoryId)
+                        .categoryId(softwareCategoryId)
                         .jobType(JobType.QUICK_FIX)
-                        .title("UX Review for Onboarding Flow")
-                        .description("Review a multi-step onboarding flow and provide concrete UX improvements for conversion and clarity.")
+                        .title("Lỗi HikariCP Connection Pool trong Spring Boot khi deploy lên server")
+                        .description("Mình deploy Spring Boot app lên VPS, sau một thời gian hoạt động thì bị lỗi 'HikariPool-1 - Connection is not available, request timed out after 30000ms'. Mình đã thử tăng maximum-pool-size nhưng vẫn bị. Cần mentor giúp debug nguyên nhân gốc rễ: kiểm tra cấu hình datasource, phát hiện connection leak, tối ưu pool settings và hướng dẫn cách monitor connection pool trong production.")
                         .budgetType(BudgetType.HOURLY)
-                        .hourlyRateMxc(new BigDecimal("350.00"))
-                        .estimatedHours(new BigDecimal("6.00"))
-                        .deadlineAt(now.plusDays(10))
+                        .hourlyRateMxc(new BigDecimal("150.00"))
+                        .estimatedHours(new BigDecimal("4.00"))
+                        .deadlineAt(now.plusDays(3))
                         .status(JobStatus.OPEN)
                         .isFeatured(true)
                         .proposalCount(4)
                         .publishedAt(now.minusDays(1))
+                        .requiredSkills(List.of("Java", "Spring Boot", "HikariCP", "PostgreSQL"))
+                        .learningGoals("Hiểu cách HikariCP hoạt động, biết cách debug connection leak, cấu hình production-ready")
+                        .successCriteria("Server chạy ổn định >48h không lỗi, có script monitor pool")
                         .build(),
                 Job.builder()
                         .client(client)
-                        .categoryId(dataCategoryId)
+                        .categoryId(designCategoryId)
                         .jobType(JobType.LONG_TERM_MENTORING)
-                        .title("Data Analyst Mentor for Dashboard Project")
-                        .description("Guide a junior analyst on metric design, SQL analysis, and dashboard storytelling over several sessions.")
+                        .title("Cần mentor thiết kế UI/UX cho web bán hàng (dự án cá nhân)")
+                        .description("Mình đang tự làm một web bán hàng thời trang để hoàn thiện portfolio. Mình tự học code nên UI rất xấu, bố cục lộn xộn, không biết sắp xếp thông tin sản phẩm thế nào cho hợp lý. Cần mentor hướng dẫn về UX research, wireframing, design system, màu sắc, typography. Mỗi tuần 1-2 buổi online để review design và đưa ra góp ý cải thiện.")
                         .budgetType(BudgetType.FIXED)
-                        .budgetMinMxc(new BigDecimal("900.00"))
-                        .budgetMaxMxc(new BigDecimal("1800.00"))
+                        .budgetMinMxc(new BigDecimal("500.00"))
+                        .budgetMaxMxc(new BigDecimal("1200.00"))
                         .deadlineAt(now.plusDays(30))
                         .status(JobStatus.OPEN)
                         .isFeatured(false)
                         .proposalCount(3)
                         .publishedAt(now.minusDays(3))
+                        .learningGoals("Nắm được quy trình thiết kế UI/UX cơ bản, biết dùng Figma, hiểu về design system")
+                        .successCriteria("Hoàn thiện được bộ mockup 5 trang chính: Home, Product List, Product Detail, Cart, Checkout")
+                        .requiredSkills(List.of("UI/UX Design", "Figma", "Thiết kế Web", "Design System"))
+                        .experienceLevel("BEGINNER")
+                        .currentLevel(com.mentorx.api.common.enums.UserLevel.BEGINNER)
                         .build(),
                 Job.builder()
                         .client(client)
-                        .categoryId(businessCategoryId)
-                        .jobType(JobType.FREELANCE_PROJECT)
-                        .title("Go-to-Market Strategy Consultation")
-                        .description("Help refine positioning, pricing, and launch strategy for an early-stage SaaS product.")
+                        .categoryId(softwareCategoryId)
+                        .jobType(JobType.QUICK_FIX)
+                        .title("Cần ai đó giải thích thuật toán Binary Search Tree - bài tập Cấu trúc dữ liệu")
+                        .description("Mình học môn Cấu trúc dữ liệu & Giải thuật, đang làm assignment về Binary Search Tree (BST) với các thao tác insert, delete, search, và duyệt cây theo inorder/preorder/postorder. Code của mình chạy được insert và search nhưng delete bị sai, với cả mình không hiểu cách duyệt cây đệ quy hoạt động thế nào. Cần mentor giải thích và debug giúp.")
                         .budgetType(BudgetType.HOURLY)
-                        .hourlyRateMxc(new BigDecimal("500.00"))
-                        .estimatedHours(new BigDecimal("8.00"))
-                        .deadlineAt(now.plusDays(14))
+                        .hourlyRateMxc(new BigDecimal("120.00"))
+                        .estimatedHours(new BigDecimal("3.00"))
+                        .deadlineAt(now.plusDays(5))
                         .status(JobStatus.OPEN)
                         .isFeatured(true)
                         .proposalCount(5)
                         .publishedAt(now.minusDays(4))
+                        .requiredSkills(List.of("Java/C++", "Cấu trúc dữ liệu", "Binary Search Tree"))
+                        .learningGoals("Hiểu sâu về BST, đệ quy, các thuật toán duyệt cây")
+                        .successCriteria("Code delete hoạt động đúng, giải thích được bằng lời từng bước duyệt cây")
                         .build()
         ));
 
         createJobIfMissing(ensureDemoUser("client2@mentorx.demo", "XYZ Startup", "XYZ Startup", false, MentorStatus.NONE),
-                softwareCategoryId, JobType.QUICK_FIX, "React Dashboard Performance Audit",
-                "Find rendering bottlenecks and propose a safe refactor plan for a React analytics dashboard.",
-                BudgetType.HOURLY, null, null, new BigDecimal("420.00"), new BigDecimal("10.00"),
-                now.plusDays(12), JobStatus.OPEN, true, now.minusDays(2));
+                dataCategoryId, JobType.QUICK_FIX, "Truy vấn SQL báo cáo doanh thu chạy rất chậm - cần tối ưu",
+                "Mình làm báo cáo doanh thu theo tháng, query JOIN 5 bảng với hơn 1 triệu records. Mỗi lần chạy mất 30-40 giây. Cần mentor giúp phân tích EXPLAIN, tối ưu index, viết lại query cho hiệu quả hơn. Mình biết SQL cơ bản nhưng chưa rành về query optimization.",
+                BudgetType.HOURLY, null, null, new BigDecimal("180.00"), new BigDecimal("5.00"),
+                now.plusDays(4), JobStatus.OPEN, true, now.minusDays(2));
         createJobIfMissing(ensureDemoUser("client2@mentorx.demo", "XYZ Startup", "XYZ Startup", false, MentorStatus.NONE),
-                dataCategoryId, JobType.FREELANCE_PROJECT, "SQL Query Review for BI Warehouse",
-                "Review warehouse queries, index usage, and dashboard query costs for a BI team.",
-                BudgetType.FIXED, new BigDecimal("800.00"), new BigDecimal("1600.00"), null, null,
-                now.plusDays(16), JobStatus.OPEN, false, now.minusDays(5));
+                softwareCategoryId, JobType.FREELANCE_PROJECT, "Cần mentor React Redux Toolkit - state management phức tạp",
+                "Mình đang làm web dashboard với React, dữ liệu có nhiều dependency chéo, các component cần share state phức tạp. Mình dùng Context API đang bị re-render nhiều quá, app chậm dần. Cần mentor hướng dẫn chuyển sang Redux Toolkit: thiết kế store, slices, async thunks, và best practices.",
+                BudgetType.FIXED, new BigDecimal("400.00"), new BigDecimal("900.00"), null, null,
+                now.plusDays(14), JobStatus.OPEN, false, now.minusDays(5));
         createJobIfMissing(ensureDemoUser("client3@mentorx.demo", "DEF Enterprise", "DEF Enterprise", false, MentorStatus.NONE),
-                designCategoryId, JobType.LONG_TERM_MENTORING, "Design System Coaching for Startup Team",
-                "Coach a small team on component consistency, handoff discipline, and design token adoption.",
-                BudgetType.FIXED, new BigDecimal("1100.00"), new BigDecimal("2200.00"), null, null,
-                now.plusDays(24), JobStatus.OPEN, false, now.minusDays(3));
+                dataCategoryId, JobType.LONG_TERM_MENTORING, "Cần mentor học Machine Learning từ cơ bản đến ứng dụng",
+                "Mình là sinh viên năm 3 ngành CNTT, muốn theo hướng AI/ML. Đã biết Python cơ bản. Cần lộ trình học bài bản: từ linear regression, decision trees, neural networks đến các thư viện scikit-learn, TensorFlow. Mong mentor hướng dẫn hàng tuần, giao bài tập và review code.",
+                BudgetType.FIXED, new BigDecimal("600.00"), new BigDecimal("1500.00"), null, null,
+                now.plusDays(45), JobStatus.OPEN, false, now.minusDays(3));
         createJobIfMissing(ensureDemoUser("client3@mentorx.demo", "DEF Enterprise", "DEF Enterprise", false, MentorStatus.NONE),
-                businessCategoryId, JobType.QUICK_FIX, "Interview Preparation for Engineering Manager",
-                "Need a mentor to rehearse leadership stories, technical judgment, and stakeholder communication.",
-                BudgetType.HOURLY, null, null, new BigDecimal("300.00"), new BigDecimal("5.00"),
-                now.plusDays(9), JobStatus.OPEN, false, now.minusDays(1));
+                dataCategoryId, JobType.QUICK_FIX, "Cần giúp deploy model ML lên production với FastAPI",
+                "Mình đã train xong model NLP classification, muốn deploy thành API để app mobile gọi. Chưa biết cách dùng FastAPI để serve model, optimize inference speed, và xử lý request lớn. Cần mentor hướng dẫn từ A-Z: tạo API endpoint, load model, preprocessing input, testing với Locust.",
+                BudgetType.HOURLY, null, null, new BigDecimal("250.00"), new BigDecimal("8.00"),
+                now.plusDays(7), JobStatus.OPEN, false, now.minusDays(1));
         createJobIfMissing(ensureDemoUser("client4@mentorx.demo", "Northwind Labs", "Northwind Labs", false, MentorStatus.NONE),
-                softwareCategoryId, JobType.LONG_TERM_MENTORING, "Java Refactoring Mentorship",
-                "Need weekly guidance to simplify a legacy Spring codebase without breaking delivery.",
-                BudgetType.FIXED, new BigDecimal("1300.00"), new BigDecimal("2600.00"), null, null,
-                now.plusDays(28), JobStatus.OPEN, true, now.minusDays(6));
+                softwareCategoryId, JobType.LONG_TERM_MENTORING, "Mentoring lộ trình học React cho người đã biết JavaScript",
+                "Mình đã làm việc với JavaScript được 2 năm (chủ yếu jQuery và một ít Vue). Giờ muốn chuyển sang React để có cơ hội việc tốt hơn. Cần mentor xây dựng lộ trình, hướng dẫn từ React basics, hooks, routing, đến testing và deployment. Mỗi tuần 1-2 buổi.",
+                BudgetType.FIXED, new BigDecimal("800.00"), new BigDecimal("1800.00"), null, null,
+                now.plusDays(35), JobStatus.OPEN, true, now.minusDays(6));
         createJobIfMissing(ensureDemoUser("client4@mentorx.demo", "Northwind Labs", "Northwind Labs", false, MentorStatus.NONE),
-                designCategoryId, JobType.FREELANCE_PROJECT, "Landing Page Copy and UX Critique",
-                "Review messaging hierarchy, CTA placement, and friction points on a SaaS landing page.",
-                BudgetType.FIXED, new BigDecimal("700.00"), new BigDecimal("1200.00"), null, null,
-                now.plusDays(11), JobStatus.OPEN, false, now.minusDays(2));
-        createJobIfMissing(ensureDemoUser("client5@mentorx.demo", "BluePeak Studio", "BluePeak Studio", false, MentorStatus.NONE),
-                dataCategoryId, JobType.QUICK_FIX, "Product Metrics Framework Setup",
-                "Need help defining activation, retention, and monetization metrics for a B2B app.",
-                BudgetType.HOURLY, null, null, new BigDecimal("460.00"), new BigDecimal("7.00"),
-                now.plusDays(13), JobStatus.OPEN, true, now.minusDays(4));
-        createJobIfMissing(ensureDemoUser("client5@mentorx.demo", "BluePeak Studio", "BluePeak Studio", false, MentorStatus.NONE),
-                businessCategoryId, JobType.LONG_TERM_MENTORING, "Career Coaching for Mid-level Engineer",
-                "Looking for structured mentorship on promotion planning and communication habits.",
-                BudgetType.FIXED, new BigDecimal("600.00"), new BigDecimal("1400.00"), null, null,
+                softwareCategoryId, JobType.FREELANCE_PROJECT, "Viết Unit Test cho code Java Spring Boot - Test Coverage < 10%",
+                "Dự án Spring Boot của team mình không có test, sắp tới cần release major update. Sếp yêu cầu tăng test coverage lên >70%. Cần mentor hướng dẫn: viết JUnit + Mockito cho Controller/Service/Repository, integration test với TestContainers, và thiết lập CI pipeline chạy test tự động.",
+                BudgetType.FIXED, new BigDecimal("500.00"), new BigDecimal("1100.00"), null, null,
                 now.plusDays(20), JobStatus.OPEN, false, now.minusDays(2));
+        createJobIfMissing(ensureDemoUser("client5@mentorx.demo", "BluePeak Studio", "BluePeak Studio", false, MentorStatus.NONE),
+                softwareCategoryId, JobType.QUICK_FIX, "Lỗi CORS và REST API Spring Boot không trả về JSON đúng format",
+                "Frontend React của mình gọi API Spring Boot bị lỗi CORS. Mình đã config @CrossOrigin nhưng vẫn bị. Ngoài ra response JSON trả về có field null bị thiếu, frontend báo lỗi. Cần mentor giúp cấu hình CORS đúng, dùng Jackson annotations để kiểm soát JSON output.",
+                BudgetType.FIXED, new BigDecimal("150.00"), new BigDecimal("350.00"), null, null,
+                now.plusDays(2), JobStatus.OPEN, true, now.minusDays(4));
+        createJobIfMissing(ensureDemoUser("client5@mentorx.demo", "BluePeak Studio", "BluePeak Studio", false, MentorStatus.NONE),
+                softwareCategoryId, JobType.FREELANCE_PROJECT, "Tối ưu performance website React bị lag khi render danh sách lớn",
+                "Web dashboard của mình hiển thị bảng 5000+ dòng dữ liệu, kéo xuống bị giật, filter/sort chậm. Đã thử React.memo nhưng không cải thiện nhiều. Cần mentor phân tích nguyên nhân (bottleneck ở component nào?) và đề xuất giải pháp: virtualization, useMemo, code splitting phù hợp.",
+                BudgetType.FIXED, new BigDecimal("350.00"), new BigDecimal("750.00"), null, null,
+                now.plusDays(10), JobStatus.OPEN, false, now.minusDays(3));
         createJobIfMissing(ensureDemoUser("client6@mentorx.demo", "Mekong Analytics", "Mekong Analytics", false, MentorStatus.NONE),
-                softwareCategoryId, JobType.FREELANCE_PROJECT, "API Error Handling Review",
-                "Audit error codes, response consistency, and exception handling in a production API.",
-                BudgetType.FIXED, new BigDecimal("950.00"), new BigDecimal("1700.00"), null, null,
-                now.plusDays(15), JobStatus.OPEN, false, now.minusDays(3));
+                softwareCategoryId, JobType.QUICK_FIX, "Cần review code Python ETL pipeline bị lỗi khi xử lý file lớn",
+                "Mình viết Python script đọc file CSV 2GB, transform dữ liệu rồi ghi vào database. Script chạy được với file nhỏ nhưng với file lớn bị memory error và timeout. Cần mentor review code, đề xuất xử lý theo từng chunk, dùng pandas hiệu quả hơn và logging lỗi đúng cách.",
+                BudgetType.HOURLY, null, null, new BigDecimal("160.00"), new BigDecimal("4.00"),
+                now.plusDays(5), JobStatus.OPEN, false, now.minusDays(3));
         createJobIfMissing(ensureDemoUser("client6@mentorx.demo", "Mekong Analytics", "Mekong Analytics", false, MentorStatus.NONE),
-                dataCategoryId, JobType.LONG_TERM_MENTORING, "Dashboard Narrative Mentoring",
-                "Help an analytics team improve stakeholder communication through better dashboard narratives.",
-                BudgetType.FIXED, new BigDecimal("1000.00"), new BigDecimal("1900.00"), null, null,
-                now.plusDays(18), JobStatus.OPEN, false, now.minusDays(3));
+                softwareCategoryId, JobType.LONG_TERM_MENTORING, "Mentoring Docker & Docker Compose cho microservices",
+                "Team mình chuyển sang microservices, có 6 services cần chạy cùng lúc. Chưa ai biết Docker. Cần mentor hướng dẫn: viết Dockerfile cho từng service, docker-compose orchestration, networking, volumes, environment variables, và CI/CD tích hợp Docker.",
+                BudgetType.FIXED, new BigDecimal("700.00"), new BigDecimal("1600.00"), null, null,
+                now.plusDays(21), JobStatus.OPEN, false, now.minusDays(3));
     }
 
     private void seedProposals() {
         List<Job> openJobs = jobRepository.findOpen(PageRequest.of(0, 50)).getContent();
-        Optional<Job> backendJob = openJobs.stream()
-                .filter(job -> "Backend Developer for Spring Boot API".equals(job.getTitle()))
+        Optional<Job> mlLabJob = openJobs.stream()
+                .filter(job -> "Cần giúp làm bài tập LAB môn Học Máy - Classification ảnh".equals(job.getTitle()))
                 .findFirst();
-        Optional<Job> uxJob = openJobs.stream()
-                .filter(job -> "UX Review for Onboarding Flow".equals(job.getTitle()))
+        Optional<Job> hikariCpJob = openJobs.stream()
+                .filter(job -> "Lỗi HikariCP Connection Pool trong Spring Boot khi deploy lên server".equals(job.getTitle()))
                 .findFirst();
-        Optional<Job> dataJob = openJobs.stream()
-                .filter(job -> "Data Analyst Mentor for Dashboard Project".equals(job.getTitle()))
+        Optional<Job> uiUxMentorJob = openJobs.stream()
+                .filter(job -> "Cần mentor thiết kế UI/UX cho web bán hàng (dự án cá nhân)".equals(job.getTitle()))
                 .findFirst();
-        Optional<Job> strategyJob = openJobs.stream()
-                .filter(job -> "Go-to-Market Strategy Consultation".equals(job.getTitle()))
+        Optional<Job> bstJob = openJobs.stream()
+                .filter(job -> "Cần ai đó giải thích thuật toán Binary Search Tree - bài tập Cấu trúc dữ liệu".equals(job.getTitle()))
+                .findFirst();
+        Optional<Job> sqlOptimizeJob = openJobs.stream()
+                .filter(job -> "Truy vấn SQL báo cáo doanh thu chạy rất chậm - cần tối ưu".equals(job.getTitle()))
+                .findFirst();
+        Optional<Job> reduxJob = openJobs.stream()
+                .filter(job -> "Cần mentor React Redux Toolkit - state management phức tạp".equals(job.getTitle()))
+                .findFirst();
+        Optional<Job> mlMentorJob = openJobs.stream()
+                .filter(job -> "Cần mentor học Machine Learning từ cơ bản đến ứng dụng".equals(job.getTitle()))
+                .findFirst();
+        Optional<Job> fastapiJob = openJobs.stream()
+                .filter(job -> "Cần giúp deploy model ML lên production với FastAPI".equals(job.getTitle()))
+                .findFirst();
+        Optional<Job> reactMentorJob = openJobs.stream()
+                .filter(job -> "Mentoring lộ trình học React cho người đã biết JavaScript".equals(job.getTitle()))
+                .findFirst();
+        Optional<Job> unitTestJob = openJobs.stream()
+                .filter(job -> "Viết Unit Test cho code Java Spring Boot - Test Coverage < 10%".equals(job.getTitle()))
+                .findFirst();
+        Optional<Job> corsJob = openJobs.stream()
+                .filter(job -> "Lỗi CORS và REST API Spring Boot không trả về JSON đúng format".equals(job.getTitle()))
                 .findFirst();
         Optional<Job> reactPerfJob = openJobs.stream()
-                .filter(job -> "React Dashboard Performance Audit".equals(job.getTitle()))
+                .filter(job -> "Tối ưu performance website React bị lag khi render danh sách lớn".equals(job.getTitle()))
                 .findFirst();
-        Optional<Job> sqlReviewJob = openJobs.stream()
-                .filter(job -> "SQL Query Review for BI Warehouse".equals(job.getTitle()))
+        Optional<Job> etlJob = openJobs.stream()
+                .filter(job -> "Cần review code Python ETL pipeline bị lỗi khi xử lý file lớn".equals(job.getTitle()))
                 .findFirst();
-        Optional<Job> designSystemJob = openJobs.stream()
-                .filter(job -> "Design System Coaching for Startup Team".equals(job.getTitle()))
-                .findFirst();
-        Optional<Job> interviewPrepJob = openJobs.stream()
-                .filter(job -> "Interview Preparation for Engineering Manager".equals(job.getTitle()))
-                .findFirst();
-        Optional<Job> javaMentorshipJob = openJobs.stream()
-                .filter(job -> "Java Refactoring Mentorship".equals(job.getTitle()))
-                .findFirst();
-        Optional<Job> landingPageJob = openJobs.stream()
-                .filter(job -> "Landing Page Copy and UX Critique".equals(job.getTitle()))
-                .findFirst();
-        Optional<Job> metricsFrameworkJob = openJobs.stream()
-                .filter(job -> "Product Metrics Framework Setup".equals(job.getTitle()))
-                .findFirst();
-        Optional<Job> careerCoachingJob = openJobs.stream()
-                .filter(job -> "Career Coaching for Mid-level Engineer".equals(job.getTitle()))
-                .findFirst();
-        Optional<Job> apiErrorHandlingJob = openJobs.stream()
-                .filter(job -> "API Error Handling Review".equals(job.getTitle()))
-                .findFirst();
-        Optional<Job> dashboardNarrativeJob = openJobs.stream()
-                .filter(job -> "Dashboard Narrative Mentoring".equals(job.getTitle()))
+        Optional<Job> dockerJob = openJobs.stream()
+                .filter(job -> "Mentoring Docker & Docker Compose cho microservices".equals(job.getTitle()))
                 .findFirst();
 
         User mentor1 = userRepository.findByEmail("mentor1@mentorx.demo").orElse(null);
@@ -1115,254 +1152,250 @@ public class DatabaseSeeder implements CommandLineRunner {
         User mentor5 = userRepository.findByEmail("mentor5@mentorx.demo").orElse(null);
         User mentor6 = userRepository.findByEmail("mentor6@mentorx.demo").orElse(null);
 
-        backendJob.ifPresent(job -> {
-            seedProposal(job, mentor1,
-                    "I can help implement the Spring Boot API with clean authentication boundaries, optimized repository queries, and pragmatic testing. I have built similar mentoring and marketplace backends with JWT auth, PostgreSQL, and production-ready DTO mapping.",
-                    new BigDecimal("2100.00"),
-                    null,
-                    12,
-                    "8 years building Java/Spring systems, including API performance tuning, RBAC, and PostgreSQL schema optimization.",
-                    new BigDecimal("94.00"),
-                    ProposalStatus.SUBMITTED);
+        mlLabJob.ifPresent(job -> {
             seedProposal(job, mentor3,
-                    "I can review the existing backend structure first, then deliver the missing API work in small milestones so you can test each part quickly. My focus would be correctness, database access, and clean integration with the frontend.",
-                    new BigDecimal("1850.00"),
+                    "Mình chuyên về Deep Learning và Computer Vision. Có thể giúp bạn debug overfitting, thiết kế CNN architecture phù hợp với CIFAR-10, và hướng dẫn data augmentation. Sẽ giải thích chi tiết từng bước để bạn hiểu bản chất chứ không chỉ chạy code.",
+                    new BigDecimal("480.00"),
                     null,
-                    14,
-                    "Delivered data-heavy APIs and analytics services with Spring Boot, SQL optimization, and test coverage.",
-                    new BigDecimal("88.00"),
-                    ProposalStatus.SUBMITTED);
-            job.setProposalCount((int) proposalRepository.findByJobId(job.getId(), PageRequest.of(0, 100)).getTotalElements());
-            jobRepository.save(job);
-        });
-
-        uxJob.ifPresent(job -> {
-            seedProposal(job, mentor2,
-                    "I can audit the onboarding flow end to end and give you a prioritized list of improvements with revised copy, friction points, and conversion-focused screen recommendations.",
-                    new BigDecimal("1200.00"),
-                    new BigDecimal("350.00"),
-                    3,
-                    "6 years in product design, onboarding optimization, usability review, and SaaS conversion workflows.",
-                    new BigDecimal("91.00"),
-                    ProposalStatus.SUBMITTED);
-            job.setProposalCount((int) proposalRepository.findByJobId(job.getId(), PageRequest.of(0, 100)).getTotalElements());
-            jobRepository.save(job);
-        });
-
-        dataJob.ifPresent(job -> {
-            seedProposal(job, mentor3,
-                    "I can mentor the analyst through metric definition, SQL review, and dashboard storytelling. We can work in weekly sessions with concrete assignments between calls.",
-                    new BigDecimal("1500.00"),
-                    null,
-                    21,
-                    "7 years in data science, analytics workflows, and dashboard decision support.",
-                    new BigDecimal("92.00"),
-                    ProposalStatus.SUBMITTED);
-            seedProposal(job, mentor1,
-                    "I can help structure the data model, review SQL queries, and make sure the dashboard backend is reliable before the reporting layer is polished.",
-                    new BigDecimal("1350.00"),
-                    null,
-                    18,
-                    "Backend and database mentor with strong SQL performance and reporting API experience.",
-                    new BigDecimal("86.00"),
-                    ProposalStatus.SUBMITTED);
-            job.setProposalCount((int) proposalRepository.findByJobId(job.getId(), PageRequest.of(0, 100)).getTotalElements());
-            jobRepository.save(job);
-        });
-
-        strategyJob.ifPresent(job -> {
-            seedProposal(job, mentor2,
-                    "I can help clarify positioning, review the pricing page, and map the launch plan into practical experiments that can be validated quickly.",
-                    new BigDecimal("1600.00"),
-                    new BigDecimal("500.00"),
-                    7,
-                    "Product design and SaaS positioning experience across onboarding, pricing, and launch research.",
-                    new BigDecimal("89.00"),
-                    ProposalStatus.SUBMITTED);
-            job.setProposalCount((int) proposalRepository.findByJobId(job.getId(), PageRequest.of(0, 100)).getTotalElements());
-            jobRepository.save(job);
-        });
-
-        reactPerfJob.ifPresent(job -> {
-            seedProposal(job, mentor4,
-                    "I will profile the current dashboard, isolate expensive rendering paths, and propose a staged refactor that avoids regressions in data-heavy views.",
-                    new BigDecimal("1450.00"),
-                    new BigDecimal("420.00"),
-                    6,
-                    "React performance, TypeScript architecture, and dashboard optimization in production products.",
+                    5,
+                    "5 năm kinh nghiệm trong ML/DL, từng làm nhiều dự án image classification, am hiểu PyTorch và TensorFlow.",
                     new BigDecimal("95.00"),
                     ProposalStatus.SUBMITTED);
-            seedProposal(job, mentor1,
-                    "I can complement the UI work with API and state-shape recommendations so performance improvements hold across the full stack.",
-                    new BigDecimal("1320.00"),
-                    new BigDecimal("390.00"),
-                    7,
-                    "Full-stack optimization across React frontends and Spring-based APIs.",
-                    new BigDecimal("87.00"),
-                    ProposalStatus.SUBMITTED);
-            updateJobProposalCount(job);
-        });
-
-        sqlReviewJob.ifPresent(job -> {
-            seedProposal(job, mentor3,
-                    "I can review query plans, warehouse table usage, and dashboard serving patterns to reduce cost and improve analyst experience.",
-                    new BigDecimal("1180.00"),
-                    null,
-                    8,
-                    "Analytics engineering, SQL optimization, and dashboard reliability for product teams.",
-                    new BigDecimal("93.00"),
-                    ProposalStatus.SUBMITTED);
             seedProposal(job, mentor5,
-                    "I can focus on metric semantics, warehouse query quality, and making the resulting dashboards decision-ready for stakeholders.",
-                    new BigDecimal("1090.00"),
+                    "Có thể hỗ trợ bạn về phần regularization, tuning hyperparameters. Mình sẽ review code hiện tại và đề xuất cải tiến cụ thể, đồng thời giải thích các khái niệm như dropout, batch normalization.",
+                    new BigDecimal("380.00"),
                     null,
-                    9,
-                    "Growth analytics, KPI design, and metric governance for B2B products.",
-                    new BigDecimal("90.00"),
-                    ProposalStatus.SUBMITTED);
-            updateJobProposalCount(job);
-        });
-
-        designSystemJob.ifPresent(job -> {
-            seedProposal(job, mentor2,
-                    "I can coach the team through token decisions, component boundaries, and a documentation process that dev and design can share.",
-                    new BigDecimal("1800.00"),
-                    null,
-                    18,
-                    "Design systems, onboarding UX, and collaborative handoff practices.",
-                    new BigDecimal("92.00"),
-                    ProposalStatus.SUBMITTED);
-            seedProposal(job, mentor4,
-                    "I can pair the design system work with implementation guidance so the component model stays maintainable in React.",
-                    new BigDecimal("1950.00"),
-                    null,
-                    20,
-                    "Frontend architecture and system-scale component maintenance.",
-                    new BigDecimal("89.00"),
-                    ProposalStatus.SUBMITTED);
-            updateJobProposalCount(job);
-        });
-
-        interviewPrepJob.ifPresent(job -> {
-            seedProposal(job, mentor6,
-                    "I can structure targeted mock interviews around leadership stories, conflict management, and decision-making tradeoffs.",
-                    new BigDecimal("860.00"),
-                    new BigDecimal("300.00"),
                     5,
-                    "Career coaching, communication drills, and promotion preparation for technical professionals.",
-                    new BigDecimal("94.00"),
+                    "Data Scientist với 3 năm kinh nghiệm, từng mentor cho sinh viên làm đồ án ML.",
+                    new BigDecimal("82.00"),
                     ProposalStatus.SUBMITTED);
             updateJobProposalCount(job);
         });
 
-        javaMentorshipJob.ifPresent(job -> {
+        hikariCpJob.ifPresent(job -> {
             seedProposal(job, mentor1,
-                    "I can guide a weekly refactor roadmap focused on service boundaries, persistence cleanup, and safe incremental delivery.",
-                    new BigDecimal("2200.00"),
-                    null,
-                    21,
-                    "Java refactoring, Spring modularization, and maintainable backend design.",
+                    "Mình đã từng gặp và fix lỗi này nhiều lần. Nguyên nhân thường là connection leak do không đóng PreparedStatement hoặc transaction không commit. Mình sẽ giúp bạn kiểm tra code, cấu hình HikariCP production-ready, và setup monitoring với Micrometer + Grafana.",
+                    new BigDecimal("180.00"),
+                    new BigDecimal("150.00"),
+                    2,
+                    "8 năm Java/Spring, từng vận hành hệ thống phục vụ 10K+ concurrent users.",
                     new BigDecimal("96.00"),
                     ProposalStatus.SUBMITTED);
             seedProposal(job, mentor4,
-                    "I can contribute on code review process and frontend-facing contract stability while the backend is being simplified.",
-                    new BigDecimal("1750.00"),
-                    null,
-                    18,
-                    "Architecture review across API contracts and delivery coordination.",
-                    new BigDecimal("84.00"),
-                    ProposalStatus.SUBMITTED);
-            updateJobProposalCount(job);
-        });
-
-        landingPageJob.ifPresent(job -> {
-            seedProposal(job, mentor2,
-                    "I can audit the landing page copy hierarchy, CTA clarity, and trust signals, then deliver prioritized recommendations with examples.",
-                    new BigDecimal("980.00"),
-                    null,
-                    6,
-                    "Conversion-focused UX review and product messaging refinement.",
-                    new BigDecimal("91.00"),
-                    ProposalStatus.SUBMITTED);
-            seedProposal(job, mentor6,
-                    "I can sharpen the messaging for audience fit and make the value proposition easier to repeat in sales and recruiting conversations.",
-                    new BigDecimal("920.00"),
-                    null,
-                    7,
-                    "Communication coaching and narrative structuring for product teams.",
+                    "Mình có thể debug qua teamview và chỉ ra chỗ leak connection. Đồng thời hướng dẫn cấu hình connection pool cho phù hợp với resource VPS.",
+                    new BigDecimal("150.00"),
+                    new BigDecimal("150.00"),
+                    1,
+                    "Full-stack developer, từng xử lý performance issue cho nhiều Spring Boot app trên VPS.",
                     new BigDecimal("85.00"),
                     ProposalStatus.SUBMITTED);
             updateJobProposalCount(job);
         });
 
-        metricsFrameworkJob.ifPresent(job -> {
-            seedProposal(job, mentor5,
-                    "I can define a practical metrics tree and help you align activation, retention, and monetization around decision-making needs.",
-                    new BigDecimal("1280.00"),
-                    new BigDecimal("460.00"),
-                    8,
-                    "Product analytics leadership, experimentation, and KPI frameworks.",
-                    new BigDecimal("95.00"),
+        uiUxMentorJob.ifPresent(job -> {
+            seedProposal(job, mentor2,
+                    "Mình sẽ hướng dẫn bạn quy trình thiết kế UI/UX từ A-Z: research, wireframe, prototype đến handoff. Tập trung vào e-commerce UX patterns, sắp xếp thông tin sản phẩm, tối ưu conversion. Mỗi tuần 1 buổi review design của bạn và đưa ra góp ý cụ thể trên Figma.",
+                    new BigDecimal("1000.00"),
+                    null,
+                    28,
+                    "6 năm UI/UX design, từng thiết kế cho 5+ e-commerce platform, thạo Figma và design system.",
+                    new BigDecimal("93.00"),
                     ProposalStatus.SUBMITTED);
-            seedProposal(job, mentor3,
-                    "I can validate the event quality and dashboard model behind the metric framework so analysis stays reliable.",
-                    new BigDecimal("1210.00"),
-                    new BigDecimal("430.00"),
-                    9,
-                    "Data modeling, event analysis, and dashboard reliability.",
+            seedProposal(job, mentor4,
+                    "Mình có thể hỗ trợ bạn cả về UI lẫn frontend implementation. Sẽ hướng dẫn bạn biến design thành code React component chuẩn chỉnh.",
+                    new BigDecimal("850.00"),
+                    null,
+                    30,
+                    "Frontend developer kiêm UI designer, từng xây dựng web bán hàng hoàn chỉnh.",
+                    new BigDecimal("80.00"),
+                    ProposalStatus.SUBMITTED);
+            updateJobProposalCount(job);
+        });
+
+        bstJob.ifPresent(job -> {
+            seedProposal(job, mentor4,
+                    "Mình sẽ giải thích BST và đệ quy bằng hình ảnh trực quan, debug code delete của bạn step-by-step. Sau đó hướng dẫn các cách duyệt cây và ứng dụng thực tế. Guarantee bạn sẽ hiểu sau 1 buổi.",
+                    new BigDecimal("100.00"),
+                    new BigDecimal("120.00"),
+                    2,
+                    "Từng làm TA môn Cấu trúc dữ liệu 2 năm, giải thích dễ hiểu cho sinh viên.",
                     new BigDecimal("90.00"),
                     ProposalStatus.SUBMITTED);
             updateJobProposalCount(job);
         });
 
-        careerCoachingJob.ifPresent(job -> {
-            seedProposal(job, mentor6,
-                    "I can run a focused growth plan with weekly exercises covering visibility, stakeholder communication, and promotion evidence.",
-                    new BigDecimal("940.00"),
+        sqlOptimizeJob.ifPresent(job -> {
+            seedProposal(job, mentor3,
+                    "Mình sẽ phân tích EXPLAIN plan từng query, tối ưu index và viết lại JOIN cho hiệu quả. Có thể giảm thời gian truy vấn từ 40s xuống <1s. Hướng dẫn bạn cách đọc EXPLAIN và thiết kế index phù hợp với business logic.",
+                    new BigDecimal("180.00"),
+                    new BigDecimal("180.00"),
+                    3,
+                    "7 năm data engineering, chuyên về SQL optimization cho hệ thống báo cáo hàng triệu records.",
+                    new BigDecimal("94.00"),
+                    ProposalStatus.SUBMITTED);
+            updateJobProposalCount(job);
+        });
+
+        reduxJob.ifPresent(job -> {
+            seedProposal(job, mentor4,
+                    "Mình sẽ giúp bạn chuyển từ Context API sang Redux Toolkit đúng cách. Thiết kế store structure, phân tách slices, dùng createAsyncThunk cho API calls, và áp dụng best practices để tránh unnecessary re-renders. Có thể làm việc trực tiếp trên codebase của bạn.",
+                    new BigDecimal("750.00"),
                     null,
-                    16,
-                    "Career systems, communication coaching, and interview preparation.",
+                    12,
+                    "5 năm React, từng build nhiều dashboard phức tạp với Redux Toolkit và TypeScript.",
+                    new BigDecimal("95.00"),
+                    ProposalStatus.SUBMITTED);
+            seedProposal(job, mentor1,
+                    "Mình có thể hỗ trợ phần API design để state management phía frontend được đơn giản hơn. Backend trả về dữ liệu đúng cấu trúc sẽ giảm đáng kể complexity cho Redux.",
+                    new BigDecimal("650.00"),
+                    null,
+                    14,
+                    "Full-stack developer, hiểu cả backend và frontend, có thể tư vấn end-to-end.",
+                    new BigDecimal("84.00"),
+                    ProposalStatus.SUBMITTED);
+            updateJobProposalCount(job);
+        });
+
+        mlMentorJob.ifPresent(job -> {
+            seedProposal(job, mentor3,
+                    "Mình sẽ xây dựng lộ trình học ML bài bản cho bạn, từ toán nền tảng đến các model thực tế. Mỗi tuần giao bài tập code, review và giải thích lý thuyết. Đảm bảo sau 6 tuần bạn có thể tự tin làm project ML cơ bản.",
+                    new BigDecimal("1200.00"),
+                    null,
+                    42,
+                    "Data Scientist 5 năm, từng dạy ML cho hơn 100 sinh viên tại các trường ĐH.",
+                    new BigDecimal("96.00"),
+                    ProposalStatus.SUBMITTED);
+            seedProposal(job, mentor1,
+                    "Mình có thể hỗ trợ bạn phần lập trình Python và tích hợp ML model vào ứng dụng thực tế. Kết hợp kiến thức backend để bạn thấy ML được áp dụng trong sản phẩm thế nào.",
+                    new BigDecimal("900.00"),
+                    null,
+                    45,
+                    "Backend developer có kinh nghiệm tích hợp ML models vào production systems.",
+                    new BigDecimal("82.00"),
+                    ProposalStatus.SUBMITTED);
+            updateJobProposalCount(job);
+        });
+
+        fastapiJob.ifPresent(job -> {
+            seedProposal(job, mentor3,
+                    "Mình sẽ hướng dẫn bạn deploy ML model với FastAPI từ đầu: tạo endpoint predict, load model hiệu quả, preprocessing input, tối ưu inference với batching, và load testing với Locust. Có thể deploy lên AWS/GCP nếu bạn cần.",
+                    new BigDecimal("500.00"),
+                    new BigDecimal("250.00"),
+                    5,
+                    "Đã deploy 10+ ML models lên production, thành thạo FastAPI, Docker, và cloud services.",
                     new BigDecimal("93.00"),
                     ProposalStatus.SUBMITTED);
             updateJobProposalCount(job);
         });
 
-        apiErrorHandlingJob.ifPresent(job -> {
-            seedProposal(job, mentor1,
-                    "I can audit exception mapping, error code consistency, and service boundaries so the API fails predictably without hiding root causes.",
+        reactMentorJob.ifPresent(job -> {
+            seedProposal(job, mentor4,
+                    "Mình sẽ thiết kế lộ trình React phù hợp với background JavaScript của bạn. Bắt đầu từ React basics, functional components, hooks, đến routing, state management, testing, và deployment. Mỗi tuần 1-2 buổi + bài tập thực hành.",
                     new BigDecimal("1400.00"),
                     null,
-                    10,
-                    "Spring API design, exception handling, and maintainable service boundaries.",
-                    new BigDecimal("94.00"),
+                    30,
+                    "5 năm React, từng chuyển đổi team từ Vue sang React, mentor cho 20+ junior devs.",
+                    new BigDecimal("95.00"),
                     ProposalStatus.SUBMITTED);
-            seedProposal(job, mentor3,
-                    "I can review the data-facing failure paths and logging assumptions to ensure reporting and analytics remain trustworthy.",
-                    new BigDecimal("1220.00"),
+            seedProposal(job, mentor2,
+                    "Mình có thể hỗ trợ bạn về UI/React component design song song với lộ trình học. Giúp bạn viết component sạch, dễ bảo trì, đúng chuẩn UI/UX.",
+                    new BigDecimal("1100.00"),
                     null,
-                    9,
-                    "Data-heavy service reliability and failure analysis.",
+                    35,
+                    "UI/UX designer có kinh nghiệm làm việc với React teams, biết chuyển design thành component.",
                     new BigDecimal("86.00"),
                     ProposalStatus.SUBMITTED);
             updateJobProposalCount(job);
         });
 
-        dashboardNarrativeJob.ifPresent(job -> {
-            seedProposal(job, mentor5,
-                    "I can mentor the team on turning dashboard output into concise action-oriented narratives for stakeholders and leadership.",
-                    new BigDecimal("1340.00"),
+        unitTestJob.ifPresent(job -> {
+            seedProposal(job, mentor1,
+                    "Mình sẽ hướng dẫn team bạn viết test hiệu quả với JUnit 5 + Mockito, Integration Test với TestContainers, và thiết lập CI pipeline chạy test tự động. Có thể review code hiện tại và đề xuất strategy test phù hợp.",
+                    new BigDecimal("900.00"),
                     null,
-                    12,
-                    "Analytics communication, experimentation, and stakeholder alignment.",
-                    new BigDecimal("92.00"),
+                    18,
+                    "8 năm Java, từng đưa test coverage từ 5% lên 85% cho dự án Spring Boot 50+ services.",
+                    new BigDecimal("96.00"),
                     ProposalStatus.SUBMITTED);
-            seedProposal(job, mentor6,
-                    "I can support the communication side so analysts present tradeoffs and decisions with more confidence and structure.",
-                    new BigDecimal("990.00"),
+            seedProposal(job, mentor4,
+                    "Mình hỗ trợ về phần test React component (Jest + React Testing Library) nếu frontend cũng cần. Có thể kết hợp để đảm bảo full-stack test coverage.",
+                    new BigDecimal("700.00"),
                     null,
-                    12,
-                    "Structured communication coaching for technical teams.",
-                    new BigDecimal("83.00"),
+                    20,
+                    "Full-stack developer với kinh nghiệm unit test cả frontend lẫn backend.",
+                    new BigDecimal("84.00"),
+                    ProposalStatus.SUBMITTED);
+            updateJobProposalCount(job);
+        });
+
+        corsJob.ifPresent(job -> {
+            seedProposal(job, mentor1,
+                    "Mình sẽ fix lỗi CORS ngay lập tức. Vấn đề thường là @CrossOrigin không đủ, cần cấu hình CORS global trong SecurityConfig. Đồng thời hướng dẫn bạn dùng @JsonInclude và Jackson annotations để kiểm soát JSON response, xử lý null fields đúng cách.",
+                    new BigDecimal("300.00"),
+                    null,
+                    2,
+                    "Spring Boot expert, đã xử lý CORS và JSON serialization issues cho nhiều dự án.",
+                    new BigDecimal("97.00"),
+                    ProposalStatus.SUBMITTED);
+            seedProposal(job, mentor4,
+                    "Mình có thể fix cả frontend lẫn backend để CORS hoạt động. Đồng thời hướng dẫn cấu hình axios interceptors cho đồng bộ.",
+                    new BigDecimal("250.00"),
+                    null,
+                    2,
+                    "Full-stack developer, quen thuộc với cả Spring Boot CORS config và React axios setup.",
+                    new BigDecimal("88.00"),
+                    ProposalStatus.SUBMITTED);
+            updateJobProposalCount(job);
+        });
+
+        reactPerfJob.ifPresent(job -> {
+            seedProposal(job, mentor4,
+                    "Mình sẽ profile ứng dụng React của bạn để tìm bottlenecks, sau đó implement virtualization với react-window, tối ưu re-renders với useMemo/useCallback, và code splitting với React.lazy. Cam kết cải thiện performance rõ rệt.",
+                    new BigDecimal("650.00"),
+                    null,
+                    8,
+                    "React performance specialist, đã tối ưu dashboard với 50K+ rows cho công ty fintech.",
+                    new BigDecimal("95.00"),
+                    ProposalStatus.SUBMITTED);
+            seedProposal(job, mentor1,
+                    "Mình hỗ trợ tối ưu phía API để giảm lượng dữ liệu trả về, implement pagination và caching, giúp frontend nhẹ hơn.",
+                    new BigDecimal("500.00"),
+                    null,
+                    10,
+                    "Backend optimization specialist, từng tối ưu API response time từ 5s xuống 200ms.",
+                    new BigDecimal("87.00"),
+                    ProposalStatus.SUBMITTED);
+            updateJobProposalCount(job);
+        });
+
+        etlJob.ifPresent(job -> {
+            seedProposal(job, mentor3,
+                    "Mình sẽ review code Python pipeline của bạn và đề xuất giải pháp xử lý file lớn theo chunk, dùng pandas với chunksize, tối ưu memory usage, thêm logging và error handling. Có thể refactor thành module dễ bảo trì.",
+                    new BigDecimal("160.00"),
+                    new BigDecimal("160.00"),
+                    3,
+                    "Data engineer 5 năm, xử lý file >10GB hàng ngày, thành thạo pandas và Python optimization.",
+                    new BigDecimal("94.00"),
+                    ProposalStatus.SUBMITTED);
+            updateJobProposalCount(job);
+        });
+
+        dockerJob.ifPresent(job -> {
+            seedProposal(job, mentor5,
+                    "Mình sẽ hướng dẫn team bạn Docker từ zero: viết Dockerfile cho từng service, docker-compose với networking, volumes, environment variables, và CI/CD integration. Thực hành trực tiếp trên dự án thật của team.",
+                    new BigDecimal("1300.00"),
+                    null,
+                    21,
+                    "DevOps engineer 5 năm, Docker chuyên sâu, từng chuyển đổi 20+ services sang container.",
+                    new BigDecimal("95.00"),
+                    ProposalStatus.SUBMITTED);
+            seedProposal(job, mentor1,
+                    "Mình có thể hỗ trợ phần Docker hóa Spring Boot services, tối ưu Dockerfile multi-stage build, và kết nối các service với nhau.",
+                    new BigDecimal("1000.00"),
+                    null,
+                    21,
+                    "Backend developer thành thạo Docker, từng container hóa hệ thống microservices cho startup.",
+                    new BigDecimal("88.00"),
                     ProposalStatus.SUBMITTED);
             updateJobProposalCount(job);
         });
@@ -1895,6 +1928,88 @@ public class DatabaseSeeder implements CommandLineRunner {
         proposal.setInterviewRequested(false);
         proposal.setViewCount(0);
         proposalRepository.save(proposal);
+    }
+
+    private void seedBlogs() {
+        log.info("Seeding blog posts...");
+        List<BlogPost> posts = Arrays.asList(
+            BlogPost.builder()
+                .slug("how-to-choose-the-right-mentor-for-your-career")
+                .title("How to Choose the Right Mentor for Your Career")
+                .excerpt("A practical framework to evaluate mentor fit by goals, communication style, and outcome evidence before committing time and budget.")
+                .category(BlogCategory.CAREER_GROWTH)
+                .audience(BlogAudience.FOR_LEARNERS)
+                .author("Linh Tran")
+                .authorRole("Career Mentor")
+                .authorAvatar("https://i.pravatar.cc/120?img=32")
+                .coverImage("https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=1600&auto=format&fit=crop")
+                .content("<p>A practical framework to evaluate mentor fit...</p>")
+                .readTime("7 min read")
+                .featured(true)
+                .tags(Arrays.asList("mentor-fit", "career"))
+                .build(),
+            BlogPost.builder()
+                .slug("from-user-to-mentor-building-your-first-mentor-profile")
+                .title("From User to Mentor: Building Your First Mentor Profile")
+                .excerpt("Position your strengths, define your mentoring promise, and build profile credibility that attracts serious learners.")
+                .category(BlogCategory.MENTORING)
+                .audience(BlogAudience.FOR_MENTORS)
+                .author("Ha Do")
+                .authorRole("Mentor Success Lead")
+                .authorAvatar("https://i.pravatar.cc/120?img=45")
+                .coverImage("https://images.unsplash.com/photo-1517048676732-d65bc937f952?q=80&w=1600&auto=format&fit=crop")
+                .content("<p>Position your strengths...</p>")
+                .readTime("6 min read")
+                .featured(true)
+                .tags(Arrays.asList("mentor-mode", "profile"))
+                .build(),
+            BlogPost.builder()
+                .slug("how-to-set-goals-for-your-first-mentorship-session")
+                .title("How to Set Goals for Your First Mentorship Session")
+                .excerpt("Make the most out of your first meeting by preparing clear, actionable goals and understanding what you want to achieve.")
+                .category(BlogCategory.CAREER_GROWTH)
+                .audience(BlogAudience.FOR_LEARNERS)
+                .author("Alex Nguyen")
+                .authorRole("Senior Product Manager")
+                .authorAvatar("https://i.pravatar.cc/120?img=12")
+                .coverImage("https://images.unsplash.com/photo-1521737604893-d14cc237f11d?q=80&w=1600&auto=format&fit=crop")
+                .content("<p>Make the most out of your first meeting...</p>")
+                .readTime("5 min read")
+                .featured(true)
+                .tags(Arrays.asList("goals", "first-session"))
+                .build(),
+            BlogPost.builder()
+                .slug("transitioning-to-freelance-a-mentors-guide")
+                .title("Transitioning to Freelance: A Mentor's Guide")
+                .excerpt("Learn how to balance your full-time job while building a sustainable freelance business with guidance from experienced mentors.")
+                .category(BlogCategory.FREELANCE_JOBS)
+                .audience(BlogAudience.FOR_LEARNERS)
+                .author("Sarah Chen")
+                .authorRole("Freelance Consultant")
+                .authorAvatar("https://i.pravatar.cc/120?img=24")
+                .coverImage("https://images.unsplash.com/photo-1556761175-5973dc0f32e7?q=80&w=1600&auto=format&fit=crop")
+                .content("<p>Learn how to balance your full-time job...</p>")
+                .readTime("8 min read")
+                .featured(false)
+                .tags(Arrays.asList("freelance", "career-change"))
+                .build(),
+            BlogPost.builder()
+                .slug("the-importance-of-continuous-learning-in-tech")
+                .title("The Importance of Continuous Learning in Tech")
+                .excerpt("Why staying updated with the latest technologies is crucial for your career and how a mentor can help you navigate the landscape.")
+                .category(BlogCategory.TECHNOLOGY)
+                .audience(BlogAudience.CAREER_GROWTH)
+                .author("David Kim")
+                .authorRole("Tech Lead")
+                .authorAvatar("https://i.pravatar.cc/120?img=33")
+                .coverImage("https://images.unsplash.com/photo-1504384308090-c894fdcc538d?q=80&w=1600&auto=format&fit=crop")
+                .content("<p>Why staying updated with the latest technologies...</p>")
+                .readTime("6 min read")
+                .featured(false)
+                .tags(Arrays.asList("tech", "learning"))
+                .build()
+        );
+        blogPostRepository.saveAll(posts);
     }
 
     private record DemoUserSeed(

@@ -67,7 +67,7 @@ public enum ErrorCode {
     BANK_ACCOUNT_ALREADY_EXISTS(HttpStatus.CONFLICT, "Bank account already exists"),
     DEFAULT_BANK_ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "Default bank account not found"),
     WALLET_FROZEN(HttpStatus.FORBIDDEN, "Wallet is frozen"),
-    INSUFFICIENT_BALANCE(HttpStatus.BAD_REQUEST, "Số dư MXC không đủ để thực hiện giao dịch này. Vui lòng nạp thêm tiền."),
+    INSUFFICIENT_BALANCE(HttpStatus.BAD_REQUEST, "Not enough MXC to complete this transaction."),
     INVALID_TRANSACTION_AMOUNT(HttpStatus.BAD_REQUEST, "Invalid transaction amount"),
     TRANSACTION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "Transaction failed"),
     TRANSACTION_NOT_FOUND(HttpStatus.NOT_FOUND, "Transaction not found"),
@@ -131,7 +131,12 @@ public enum ErrorCode {
     // Onboarding
     ONBOARDING_INVALID_STEP(HttpStatus.BAD_REQUEST, "Invalid onboarding step or order"),
     ONBOARDING_NOT_READY(HttpStatus.BAD_REQUEST, "Onboarding flow is not ready to finalize"),
-    ONBOARDING_ALREADY_COMPLETED(HttpStatus.CONFLICT, "Onboarding has already been completed");
+    ONBOARDING_ALREADY_COMPLETED(HttpStatus.CONFLICT, "Onboarding has already been completed"),
+
+    // AI
+    AI_TASK_NOT_FOUND(HttpStatus.NOT_FOUND, "Task not found for AI explanation"),
+    AI_UNAUTHORIZED_ACCESS(HttpStatus.FORBIDDEN, "You do not have access to this task"),
+    AI_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI service is temporarily unavailable");
 
     private final HttpStatus status;
     private final String message;

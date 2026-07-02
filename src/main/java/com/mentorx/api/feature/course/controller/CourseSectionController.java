@@ -26,7 +26,7 @@ public class CourseSectionController {
     private final CourseSectionService sectionService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('MENTOR', 'INSTRUCTOR', 'ADMIN')")
     public ResponseEntity<CourseSectionResponse> createSection(@Valid @RequestBody CourseSectionCreateRequest request) {
         CourseSectionResponse response = sectionService.createSection(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -72,7 +72,7 @@ public class CourseSectionController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('MENTOR', 'INSTRUCTOR', 'ADMIN')")
     public ResponseEntity<CourseSectionResponse> updateSection(
             @PathVariable UUID id,
             @Valid @RequestBody CourseSectionUpdateRequest request) {
@@ -81,7 +81,7 @@ public class CourseSectionController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('MENTOR', 'INSTRUCTOR', 'ADMIN')")
     public ResponseEntity<Void> deleteSection(@PathVariable UUID id) {
         sectionService.deleteSection(id);
         return ResponseEntity.noContent().build();

@@ -11,6 +11,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -155,4 +157,9 @@ public class Job extends BaseEntity {
     @Column(name = "attachment_url", length = 500)
     @Builder.Default
     private List<String> attachments = new ArrayList<>();
+
+    @Basic(fetch = FetchType.LAZY)
+    @Column(name = "search_vector", insertable = false, updatable = false, columnDefinition = "tsvector")
+    @JdbcTypeCode(SqlTypes.VARBINARY)
+    private byte[] searchVector;
 }

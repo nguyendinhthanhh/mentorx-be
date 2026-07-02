@@ -8,27 +8,28 @@ package com.mentorx.api.common.enums;
  */
 public enum LessonType {
     /**
-     * Video lesson (recorded video content)
+     * Standard lesson. May include rich text, optional video, and optional downloadable resource.
      */
-    VIDEO,
-    
+    LESSON,
+
     /**
-     * Article/text-based lesson
+     * Standalone or course-attached downloadable document.
      */
-    ARTICLE,
+    DOCUMENT,
     
     /**
      * Quiz/assessment lesson
      */
     QUIZ,
-    
+
     /**
-     * Assignment/homework lesson
+     * Legacy values kept only so existing database rows can be read safely.
+     * New writes normalize these values back to LESSON.
      */
+    VIDEO,
+    ARTICLE,
+    TEXT,
+    DOWNLOADABLE,
     ASSIGNMENT,
-    
-    /**
-     * Live session/webinar lesson
-     */
     LIVE_SESSION
 }

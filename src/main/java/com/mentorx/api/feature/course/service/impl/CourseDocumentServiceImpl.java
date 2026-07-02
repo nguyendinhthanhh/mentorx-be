@@ -4,8 +4,10 @@ import com.mentorx.api.common.enums.CourseStatus;
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.feature.course.entity.Course;
+import com.mentorx.api.feature.course.entity.CourseDownloadAudit;
 import com.mentorx.api.feature.course.entity.CourseLesson;
 import com.mentorx.api.feature.course.repository.CourseEnrollmentRepository;
+import com.mentorx.api.feature.course.repository.CourseDownloadAuditRepository;
 import com.mentorx.api.feature.course.repository.CourseLessonRepository;
 import com.mentorx.api.feature.course.service.CourseDocumentPayload;
 import com.mentorx.api.feature.course.service.CourseDocumentService;
@@ -29,6 +31,7 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
@@ -43,6 +46,7 @@ public class CourseDocumentServiceImpl implements CourseDocumentService {
 
     private final CourseLessonRepository lessonRepository;
     private final CourseEnrollmentRepository enrollmentRepository;
+    private final CourseDownloadAuditRepository downloadAuditRepository;
     private final FileStorageProperties fileStorageProperties;
 
     @Override
@@ -50,15 +54,16 @@ public class CourseDocumentServiceImpl implements CourseDocumentService {
         CourseLesson lesson = requireLesson(lessonId);
         Course course = lesson.getSection().getCourse();
 
-        boolean isPaidCourse = course.getPriceMxc() != null && course.getPriceMxc().compareTo(BigDecimal.ZERO) > 0;
-        boolean isEnrolled = viewer != null && enrollmentRepository.existsByCourseIdAndStudentId(course.getId(), viewer.getId());
-        boolean previewOnly = isPaidCourse && !isEnrolled;
+        boolean hasFullAccess = hasFullAccess(course, viewer);
+        if (!hasFullAccess && !Boolean.TRUE.equals(lesson.getIsFreePreview())) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
 
-        return buildDocumentPayload(lesson, course, viewer, previewOnly);
+        return buildDocumentPayload(lesson, course, viewer, !hasFullAccess);
     }
 
     @Override
-    public CourseDocumentPayload getDownload(UUID lessonId, User viewer) {
+    public CourseDocumentPayload getDownload(UUID lessonId, User viewer, String ipAddress, String userAgent) {
         if (viewer == null) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
@@ -66,14 +71,21 @@ public class CourseDocumentServiceImpl implements CourseDocumentService {
         CourseLesson lesson = requireLesson(lessonId);
         Course course = lesson.getSection().getCourse();
 
-        boolean isPaidCourse = course.getPriceMxc() != null && course.getPriceMxc().compareTo(BigDecimal.ZERO) > 0;
-        boolean isEnrolled = enrollmentRepository.existsByCourseIdAndStudentId(course.getId(), viewer.getId());
-
-        if (isPaidCourse && !isEnrolled) {
+        if (!hasFullAccess(course, viewer)) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
-        return buildDocumentPayload(lesson, course, viewer, false);
+        CourseDocumentPayload payload = buildDocumentPayload(lesson, course, viewer, false);
+        downloadAuditRepository.save(CourseDownloadAudit.builder()
+                .course(course)
+                .lesson(lesson)
+                .user(viewer)
+                .fileUrl(lesson.getResourceUrl())
+                .ipAddress(ipAddress)
+                .userAgent(userAgent)
+                .downloadedAt(LocalDateTime.now())
+                .build());
+        return payload;
     }
 
     private CourseLesson requireLesson(UUID lessonId) {
@@ -90,6 +102,21 @@ public class CourseDocumentServiceImpl implements CourseDocumentService {
         }
 
         return lesson;
+    }
+
+    private boolean hasFullAccess(Course course, User viewer) {
+        if (viewer == null) {
+            return false;
+        }
+        if (course.getInstructor() != null && viewer.getId().equals(course.getInstructor().getId())) {
+            return true;
+        }
+        if (viewer.getUserRoles() != null && viewer.getUserRoles().stream()
+                .anyMatch(userRole -> userRole.getRole() != null
+                        && "ADMIN".equalsIgnoreCase(userRole.getRole().getRoleName()))) {
+            return true;
+        }
+        return enrollmentRepository.existsByCourseIdAndStudentId(course.getId(), viewer.getId());
     }
 
     private CourseDocumentPayload buildDocumentPayload(CourseLesson lesson, Course course, User viewer, boolean previewOnly) {
@@ -196,7 +223,7 @@ public class CourseDocumentServiceImpl implements CourseDocumentService {
         if (viewer == null) {
             return "MentorX Preview";
         }
-        return "MentorX • " + viewer.getEmail();
+        return "MentorX - " + viewer.getEmail() + " - " + LocalDateTime.now();
     }
 
     private String buildFileName(String courseTitle, String lessonTitle) {

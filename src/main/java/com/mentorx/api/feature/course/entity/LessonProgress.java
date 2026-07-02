@@ -37,4 +37,24 @@ public class LessonProgress {
     @Column(name = "watch_duration_sec")
     @Builder.Default
     private Integer watchDurationSec = 0;
+
+    @Column(name = "progress_percent", nullable = false)
+    @Builder.Default
+    private Integer progressPercent = 0;
+
+    @Column(name = "scroll_percent", nullable = false)
+    @Builder.Default
+    private Integer scrollPercent = 0;
+
+    @Column(name = "active_time_sec", nullable = false)
+    @Builder.Default
+    private Integer activeTimeSec = 0;
+
+    @Column(name = "last_position_sec", nullable = false)
+    @Builder.Default
+    private Integer lastPositionSec = 0;
+
+    @Column(name = "completed_by_rule", nullable = false)
+    @Builder.Default
+    private Boolean completedByRule = false;
 }

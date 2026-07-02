@@ -2,9 +2,13 @@ package com.mentorx.api.feature.review.service.impl;
 
 import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
+import com.mentorx.api.feature.course.entity.Course;
+import com.mentorx.api.feature.course.repository.CourseEnrollmentRepository;
+import com.mentorx.api.feature.course.repository.CourseRepository;
 import com.mentorx.api.feature.job.enums.ContractStatus;
 import com.mentorx.api.feature.job.repository.ContractRepository;
 import com.mentorx.api.feature.review.dto.request.ReviewCreateRequest;
+import com.mentorx.api.feature.review.dto.request.ReviewResponseRequest;
 import com.mentorx.api.feature.review.dto.request.ReviewUpdateRequest;
 import com.mentorx.api.feature.review.dto.response.ReviewResponse;
 import com.mentorx.api.feature.review.entity.Review;
@@ -14,11 +18,19 @@ import com.mentorx.api.feature.review.service.ReviewService;
 import com.mentorx.api.feature.user.entity.User;
 import com.mentorx.api.feature.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import com.mentorx.api.feature.review.entity.ReviewVote;
+import com.mentorx.api.feature.review.repository.ReviewVoteRepository;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -29,6 +41,9 @@ public class ReviewServiceImpl implements ReviewService {
     private final ReviewRepository reviewRepository;
     private final UserRepository userRepository;
     private final ContractRepository contractRepository;
+    private final CourseRepository courseRepository;
+    private final CourseEnrollmentRepository courseEnrollmentRepository;
+    private final ReviewVoteRepository reviewVoteRepository;
 
     @Override
     @Transactional
@@ -62,13 +77,18 @@ public class ReviewServiceImpl implements ReviewService {
         review.setLanguage(request.language());
         review.setContractId(request.contractId());
 
-        return toResponse(reviewRepository.save(review));
+        Review saved = reviewRepository.save(review);
+        syncCourseRatingIfNeeded(saved.getTargetType(), saved.getTargetId());
+        return toResponse(saved);
     }
 
     @Override
     @Transactional
-    public ReviewResponse updateReview(UUID reviewId, ReviewUpdateRequest request) {
+    public ReviewResponse updateReview(UUID currentUserId, UUID reviewId, ReviewUpdateRequest request) {
         Review review = findReview(reviewId);
+        if (!review.getReviewer().getId().equals(currentUserId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
         
         if (!review.canBeEdited()) {
             throw new AppException(ErrorCode.REVIEW_CANNOT_BE_EDITED);
@@ -88,6 +108,46 @@ public class ReviewServiceImpl implements ReviewService {
         if (request.isPublic() != null) review.setIsPublic(request.isPublic());
         if (request.language() != null) review.setLanguage(request.language());
 
+        Review saved = reviewRepository.save(review);
+        syncCourseRatingIfNeeded(saved.getTargetType(), saved.getTargetId());
+        return toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public ReviewResponse respondToReview(UUID currentUserId, UUID reviewId, ReviewResponseRequest request) {
+        Review review = findReview(reviewId);
+        
+        switch (review.getTargetType()) {
+            case COURSE:
+                Course course = courseRepository.findById(review.getTargetId())
+                        .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_FOUND));
+                if (!course.getInstructor().getId().equals(currentUserId)) {
+                    throw new AppException(ErrorCode.ACCESS_DENIED);
+                }
+                break;
+            case JOB_CONTRACT:
+                com.mentorx.api.feature.job.entity.Contract contract = contractRepository.findById(review.getTargetId())
+                        .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
+                if (!contract.getMentor().getId().equals(currentUserId) && !contract.getClient().getId().equals(currentUserId)) {
+                    throw new AppException(ErrorCode.ACCESS_DENIED);
+                }
+                if (review.getReviewer().getId().equals(currentUserId)) {
+                    throw new AppException(ErrorCode.ACCESS_DENIED);
+                }
+                break;
+            case MENTOR, CLIENT:
+                if (!review.getTargetId().equals(currentUserId)) {
+                    throw new AppException(ErrorCode.ACCESS_DENIED);
+                }
+                break;
+            default:
+                throw new AppException(ErrorCode.REVIEW_NOT_ALLOWED);
+        }
+
+        review.setResponseText(request.responseText().trim());
+        review.setResponseAt(LocalDateTime.now());
+        review.setResponseByUserId(currentUserId);
         return toResponse(reviewRepository.save(review));
     }
 
@@ -122,23 +182,64 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     @Transactional
-    public ReviewResponse voteHelpful(UUID reviewId, boolean isHelpful) {
+    public ReviewResponse voteHelpful(UUID currentUserId, UUID reviewId, boolean isHelpful) {
         Review review = findReview(reviewId);
-        if (isHelpful) {
-            review.setHelpfulCount(review.getHelpfulCount() + 1);
+        User user = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        Optional<ReviewVote> existingVoteOpt = reviewVoteRepository.findByReviewIdAndUserId(reviewId, currentUserId);
+
+        if (existingVoteOpt.isPresent()) {
+            ReviewVote existingVote = existingVoteOpt.get();
+            if (existingVote.getIsHelpful() == isHelpful) {
+                // User clicked the same vote button -> Toggle off (Unlike/Undislike)
+                reviewVoteRepository.delete(existingVote);
+                if (isHelpful) {
+                    review.setHelpfulCount(Math.max(0, review.getHelpfulCount() - 1));
+                } else {
+                    review.setNotHelpfulCount(Math.max(0, review.getNotHelpfulCount() - 1));
+                }
+            } else {
+                // User switched their vote
+                existingVote.setIsHelpful(isHelpful);
+                reviewVoteRepository.save(existingVote);
+                if (isHelpful) {
+                    review.setHelpfulCount(review.getHelpfulCount() + 1);
+                    review.setNotHelpfulCount(Math.max(0, review.getNotHelpfulCount() - 1));
+                } else {
+                    review.setNotHelpfulCount(review.getNotHelpfulCount() + 1);
+                    review.setHelpfulCount(Math.max(0, review.getHelpfulCount() - 1));
+                }
+            }
         } else {
-            review.setNotHelpfulCount(review.getNotHelpfulCount() + 1);
+            // New vote
+            ReviewVote newVote = ReviewVote.builder()
+                    .review(review)
+                    .user(user)
+                    .isHelpful(isHelpful)
+                    .build();
+            reviewVoteRepository.save(newVote);
+            if (isHelpful) {
+                review.setHelpfulCount(review.getHelpfulCount() + 1);
+            } else {
+                review.setNotHelpfulCount(review.getNotHelpfulCount() + 1);
+            }
         }
+
         return toResponse(reviewRepository.save(review));
     }
 
     @Override
     @Transactional
-    public void deleteReview(UUID reviewId) {
+    public void deleteReview(UUID currentUserId, UUID reviewId) {
         Review review = findReview(reviewId);
+        if (!review.getReviewer().getId().equals(currentUserId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
         review.setIsHidden(true);
         review.setHiddenReason("Deleted by user/admin");
-        reviewRepository.save(review);
+        Review saved = reviewRepository.save(review);
+        syncCourseRatingIfNeeded(saved.getTargetType(), saved.getTargetId());
     }
 
     private Review findReview(UUID reviewId) {
@@ -148,6 +249,9 @@ public class ReviewServiceImpl implements ReviewService {
 
     private void validateReviewEligibility(User reviewer, ReviewCreateRequest request) {
         if (request.targetType() != ReviewTargetType.MENTOR) {
+            if (request.targetType() == ReviewTargetType.COURSE) {
+                validateCourseReviewEligibility(reviewer, request.targetId());
+            }
             return;
         }
 
@@ -160,13 +264,70 @@ public class ReviewServiceImpl implements ReviewService {
         }
     }
 
+    private void validateCourseReviewEligibility(User reviewer, UUID courseId) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_FOUND));
+        if (course.getInstructor().getId().equals(reviewer.getId())) {
+            throw new AppException(ErrorCode.CANNOT_REVIEW_SELF);
+        }
+        if (!courseEnrollmentRepository.existsByCourseIdAndStudentId(courseId, reviewer.getId())) {
+            throw new AppException(ErrorCode.REVIEW_NOT_ALLOWED);
+        }
+    }
+
+    private void syncCourseRatingIfNeeded(ReviewTargetType targetType, UUID targetId) {
+        if (targetType != ReviewTargetType.COURSE) return;
+        courseRepository.findById(targetId).ifPresent(course -> {
+            Long total = reviewRepository.countPublicByTarget(ReviewTargetType.COURSE, targetId);
+            BigDecimal average = reviewRepository.averagePublicRatingByTarget(ReviewTargetType.COURSE, targetId);
+            course.setTotalReviews(total == null ? 0 : total.intValue());
+            course.setAverageRating(average == null ? BigDecimal.ZERO : average.setScale(2, RoundingMode.HALF_UP));
+            courseRepository.save(course);
+        });
+    }
+
+    private UUID getCurrentUserIdFromContext() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication.getName() == null || authentication.getName().equals("anonymousUser")) {
+            return null;
+        }
+        return userRepository.findByEmail(authentication.getName()).map(User::getId).orElse(null);
+    }
+
     private ReviewResponse toResponse(Review review) {
+        Boolean currentUserVote = null;
+        UUID currentUserId = getCurrentUserIdFromContext();
+        if (currentUserId != null) {
+            currentUserVote = reviewVoteRepository.findByReviewIdAndUserId(review.getId(), currentUserId)
+                    .map(ReviewVote::getIsHelpful)
+                    .orElse(null);
+        }
+
+        String targetTitle = "Unknown Target";
+        try {
+            switch (review.getTargetType()) {
+                case COURSE -> targetTitle = courseRepository.findById(review.getTargetId())
+                        .map(com.mentorx.api.feature.course.entity.Course::getTitle)
+                        .orElse("Unknown Course");
+                case JOB_CONTRACT -> targetTitle = contractRepository.findById(review.getTargetId())
+                        .map(c -> c.getJob().getTitle())
+                        .orElse("Unknown Contract");
+                case MENTOR, CLIENT -> targetTitle = userRepository.findById(review.getTargetId())
+                        .map(com.mentorx.api.feature.user.entity.User::getFullName)
+                        .orElse("Unknown User");
+                default -> targetTitle = "Unknown Target";
+            }
+        } catch (Exception e) {
+            targetTitle = "Information unavailable";
+        }
+
         return new ReviewResponse(
                 review.getId(),
                 review.getReviewer().getId(),
                 review.getReviewerDisplayName(),
                 review.getTargetType(),
                 review.getTargetId(),
+                targetTitle,
                 review.getOverallRating(),
                 review.getCommunicationRating(),
                 review.getQualityRating(),
@@ -199,7 +360,8 @@ public class ReviewServiceImpl implements ReviewService {
                 review.getHelpfulnessRatio(),
                 review.canBeEdited(),
                 review.getCreatedAt(),
-                review.getUpdatedAt()
+                review.getUpdatedAt(),
+                currentUserVote
         );
     }
 }

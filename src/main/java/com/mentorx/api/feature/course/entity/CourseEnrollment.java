@@ -48,9 +48,18 @@ public class CourseEnrollment {
     @Column(name = "certificate_url", columnDefinition = "TEXT")
     private String certificateUrl;
 
+    @Column(name = "certificate_code", length = 80, unique = true)
+    private String certificateCode;
+
+    @Column(name = "certificate_issued_at")
+    private LocalDateTime certificateIssuedAt;
+
     @CreatedDate
     @Column(name = "enrolled_at", nullable = false, updatable = false)
     private LocalDateTime enrolledAt;
+
+    @Column(name = "last_accessed_at")
+    private LocalDateTime lastAccessedAt;
 
     @Column(name = "completed_at")
     private LocalDateTime completedAt;

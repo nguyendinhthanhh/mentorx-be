@@ -4,6 +4,7 @@ import com.mentorx.api.common.exception.AppException;
 import com.mentorx.api.common.exception.ErrorCode;
 import com.mentorx.api.common.response.ApiResponse;
 import com.mentorx.api.feature.review.dto.request.ReviewCreateRequest;
+import com.mentorx.api.feature.review.dto.request.ReviewResponseRequest;
 import com.mentorx.api.feature.review.dto.request.ReviewUpdateRequest;
 import com.mentorx.api.feature.review.dto.response.ReviewResponse;
 import com.mentorx.api.feature.review.enums.ReviewTargetType;
@@ -40,8 +41,19 @@ public class ReviewController {
     @PutMapping("/{reviewId}")
     public ResponseEntity<ApiResponse<ReviewResponse>> update(
             @PathVariable UUID reviewId,
-            @Valid @RequestBody ReviewUpdateRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(reviewService.updateReview(reviewId, request)));
+            @Valid @RequestBody ReviewUpdateRequest request,
+            Authentication authentication) {
+        UUID currentUserId = resolveCurrentUser(authentication).getId();
+        return ResponseEntity.ok(ApiResponse.success(reviewService.updateReview(currentUserId, reviewId, request)));
+    }
+
+    @PutMapping("/{reviewId}/response")
+    public ResponseEntity<ApiResponse<ReviewResponse>> respond(
+            @PathVariable UUID reviewId,
+            @Valid @RequestBody ReviewResponseRequest request,
+            Authentication authentication) {
+        UUID currentUserId = resolveCurrentUser(authentication).getId();
+        return ResponseEntity.ok(ApiResponse.success(reviewService.respondToReview(currentUserId, reviewId, request)));
     }
 
     @GetMapping("/{reviewId}")
@@ -77,13 +89,16 @@ public class ReviewController {
     @PostMapping("/{reviewId}/vote")
     public ResponseEntity<ApiResponse<ReviewResponse>> vote(
             @PathVariable UUID reviewId,
-            @RequestParam boolean isHelpful) {
-        return ResponseEntity.ok(ApiResponse.success(reviewService.voteHelpful(reviewId, isHelpful)));
+            @RequestParam boolean isHelpful,
+            Authentication authentication) {
+        UUID currentUserId = resolveCurrentUser(authentication).getId();
+        return ResponseEntity.ok(ApiResponse.success(reviewService.voteHelpful(currentUserId, reviewId, isHelpful)));
     }
 
     @DeleteMapping("/{reviewId}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID reviewId) {
-        reviewService.deleteReview(reviewId);
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID reviewId, Authentication authentication) {
+        UUID currentUserId = resolveCurrentUser(authentication).getId();
+        reviewService.deleteReview(currentUserId, reviewId);
         return ResponseEntity.ok(ApiResponse.success("Review deleted", null));
     }
 

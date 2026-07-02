@@ -20,4 +20,9 @@ public class LessonProgressResponse {
     private Boolean isCompleted;
     private LocalDateTime completedAt;
     private Integer watchDurationSec;
+    private Integer progressPercent;
+    private Integer scrollPercent;
+    private Integer activeTimeSec;
+    private Integer lastPositionSec;
+    private Boolean completedByRule;
 }

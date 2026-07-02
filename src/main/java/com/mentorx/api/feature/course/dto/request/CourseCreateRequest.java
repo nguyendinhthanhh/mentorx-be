@@ -1,5 +1,6 @@
 package com.mentorx.api.feature.course.dto.request;
 
+import com.mentorx.api.common.enums.CourseProductType;
 import com.mentorx.api.common.enums.SupportedLanguage;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
@@ -8,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -37,11 +39,22 @@ public class CourseCreateRequest {
     @Size(min = 1, message = "At least one skill is required")
     private List<@Size(max = 120, message = "Skill must not exceed 120 characters") String> skills;
 
+    private List<Integer> skillIds;
+
     private String thumbnailUrl;
 
     @NotNull(message = "Price is required")
     @DecimalMin(value = "0.0", inclusive = true, message = "Price must be greater than or equal to 0")
+    @Digits(integer = 10, fraction = 0, message = "Price must be a full number")
     private BigDecimal priceMxc;
+
+    @DecimalMin(value = "0.0", inclusive = true, message = "Discount price must be greater than or equal to 0")
+    @Digits(integer = 10, fraction = 0, message = "Discount price must be a full number")
+    private BigDecimal discountPriceMxc;
+
+    private LocalDateTime discountStartAt;
+
+    private LocalDateTime discountEndAt;
 
     @NotNull(message = "Language is required")
     private SupportedLanguage language;
@@ -52,4 +65,6 @@ public class CourseCreateRequest {
     private Boolean isCertificate;
 
     private String previewVideoUrl;
+
+    private CourseProductType productType;
 }

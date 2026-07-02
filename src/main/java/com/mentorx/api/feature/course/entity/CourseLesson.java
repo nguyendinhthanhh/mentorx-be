@@ -141,14 +141,14 @@ public class CourseLesson extends BaseEntity {
      * Checks if this lesson is a video lesson
      */
     public boolean isVideoLesson() {
-        return LessonType.VIDEO.equals(this.lessonType);
+        return hasVideoContent();
     }
 
     /**
      * Checks if this lesson is an article
      */
     public boolean isArticle() {
-        return LessonType.ARTICLE.equals(this.lessonType);
+        return hasArticleContent();
     }
 
     /**
@@ -234,8 +234,11 @@ public class CourseLesson extends BaseEntity {
         }
         // Default estimates by type
         return switch (this.lessonType) {
+            case LESSON -> hasVideoContent() ? 15 : 10;
+            case DOCUMENT -> 5;
             case VIDEO -> 15;
-            case ARTICLE -> 10;
+            case ARTICLE, TEXT -> 10;
+            case DOWNLOADABLE -> 5;
             case QUIZ -> 20;
             case ASSIGNMENT -> 60;
             case LIVE_SESSION -> 90;

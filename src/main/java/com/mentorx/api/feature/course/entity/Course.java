@@ -1,6 +1,7 @@
 package com.mentorx.api.feature.course.entity;
 
 import com.mentorx.api.common.entity.BaseEntity;
+import com.mentorx.api.common.enums.CourseProductType;
 import com.mentorx.api.common.enums.CourseStatus;
 import com.mentorx.api.common.enums.SupportedLanguage;
 import com.mentorx.api.feature.user.entity.User;
@@ -47,6 +48,12 @@ public class Course extends BaseEntity {
     @Builder.Default
     private List<String> skills = new ArrayList<>();
 
+    @ElementCollection
+    @CollectionTable(name = "course_skill_ids", joinColumns = @JoinColumn(name = "course_id"))
+    @Column(name = "skill_id", nullable = false)
+    @Builder.Default
+    private List<Integer> skillIds = new ArrayList<>();
+
     @Column(nullable = false, length = 255)
     private String title;
 
@@ -66,7 +73,16 @@ public class Course extends BaseEntity {
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private CourseStatus status = CourseStatus.DRAFT;
+    private CourseStatus status = CourseStatus.PUBLISHED;
+
+    @Column(name = "discount_price_mxc", precision = 12, scale = 2)
+    private BigDecimal discountPriceMxc;
+
+    @Column(name = "discount_start_at")
+    private LocalDateTime discountStartAt;
+
+    @Column(name = "discount_end_at")
+    private LocalDateTime discountEndAt;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)
@@ -103,8 +119,16 @@ public class Course extends BaseEntity {
     @Column(name = "preview_video_url")
     private String previewVideoUrl;
 
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "product_type", nullable = false, length = 20)
+    private CourseProductType productType = CourseProductType.COURSE;
+
     @Column(name = "rejection_reason")
     private String rejectionReason;
+
+    @Column(name = "submitted_at")
+    private LocalDateTime submittedAt;
 
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
@@ -112,6 +136,9 @@ public class Course extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reviewed_by")
     private User reviewedBy;
+
+    @Column(name = "reviewed_at")
+    private LocalDateTime reviewedAt;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;

@@ -1,6 +1,7 @@
 package com.mentorx.api.feature.job.service.impl;
 
 import com.mentorx.api.common.enums.BudgetType;
+import com.mentorx.api.common.enums.JobSort;
 import com.mentorx.api.common.enums.JobStatus;
 import com.mentorx.api.common.enums.JobType;
 import com.mentorx.api.common.security.MentorModeAccessService;
@@ -22,6 +23,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -181,13 +183,113 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
-    public Page<JobResponse> getOpenJobs(JobType jobType, Integer categoryId, String skillKeyword, Pageable pageable) {
-        return jobRepository.findOpenWithAdvancedFilters(
-                jobType != null ? jobType.name() : null,
+    public Page<JobResponse> getOpenJobs(JobType jobType, Integer categoryId, String skillKeyword,
+                                         String experienceLevel, String keyword, BigDecimal budgetMin, BigDecimal budgetMax,
+                                         String budgetType, JobStatus status, JobSort sort, Pageable pageable) {
+        String jobTypeStr = jobType != null ? jobType.name() : null;
+        String skillNorm = normalizeText(skillKeyword);
+        String keywordNorm = normalizeText(keyword);
+        String budgetTypeStr = budgetType != null ? budgetType : null;
+        String statusStr = status != null ? status.name() : null;
+
+        if (sort == null) {
+            sort = JobSort.NEWEST;
+        }
+        if (sort == JobSort.RELEVANCE && keywordNorm == null) {
+            sort = JobSort.NEWEST;
+        }
+
+        Page<Object[]> result = switch (sort) {
+            case RELEVANCE -> jobRepository.findOpenRelevance(statusStr, jobTypeStr, categoryId, skillNorm, experienceLevel, keywordNorm, budgetMin, budgetMax, budgetTypeStr, pageable);
+            case BUDGET_DESC -> jobRepository.findOpenBudgetDesc(statusStr, jobTypeStr, categoryId, skillNorm, experienceLevel, keywordNorm, budgetMin, budgetMax, budgetTypeStr, pageable);
+            case BUDGET_ASC -> jobRepository.findOpenBudgetAsc(statusStr, jobTypeStr, categoryId, skillNorm, experienceLevel, keywordNorm, budgetMin, budgetMax, budgetTypeStr, pageable);
+            case POPULAR -> jobRepository.findOpenPopular(statusStr, jobTypeStr, categoryId, skillNorm, experienceLevel, keywordNorm, budgetMin, budgetMax, budgetTypeStr, pageable);
+            default -> jobRepository.findOpenWithAllFilters(statusStr, jobTypeStr, categoryId, skillNorm, experienceLevel, keywordNorm, budgetMin, budgetMax, budgetTypeStr, pageable);
+        };
+
+        return result.map(this::toResponseWithScore);
+    }
+
+    private JobResponse toResponseWithScore(Object[] row) {
+        UUID jobId = (UUID) row[0];
+        String title = (String) row[34];
+        String description = (String) row[17];
+        String jobTypeStr = (String) row[24];
+        JobType jobType = JobType.valueOf(jobTypeStr);
+        String statusStr = (String) row[30];
+        JobStatus status = JobStatus.valueOf(statusStr);
+        BigDecimal budgetMax = (BigDecimal) row[7];
+        BigDecimal budgetMin = (BigDecimal) row[8];
+        String budgetTypeStr = (String) row[9];
+        BudgetType budgetType = BudgetType.valueOf(budgetTypeStr);
+        BigDecimal hourlyRate = (BigDecimal) row[22];
+        Integer viewCount = (Integer) row[35];
+        Integer proposalCount = (Integer) row[27];
+        Boolean isFeatured = (Boolean) row[23];
+        java.sql.Timestamp createdAt = (java.sql.Timestamp) row[1];
+        java.sql.Timestamp updatedAt = (java.sql.Timestamp) row[2];
+        java.sql.Timestamp publishedAt = (java.sql.Timestamp) row[28];
+        java.sql.Timestamp closedAt = (java.sql.Timestamp) row[11];
+        java.sql.Timestamp deadlineAt = (java.sql.Timestamp) row[15];
+        java.sql.Timestamp startDate = (java.sql.Timestamp) row[29];
+        String statusReason = (String) row[31];
+        String attachmentUrl = (String) row[3];
+        Integer categoryId = (Integer) row[10];
+        String customCategoryName = (String) row[14];
+        java.math.BigDecimal estimatedHoursBig = (java.math.BigDecimal) row[18];
+        BigDecimal estimatedHours = estimatedHoursBig;
+        String experienceLevel = (String) row[21];
+        String currentLevel = (String) row[13];
+        String learningGoals = (String) row[25];
+        String successCriteria = (String) row[32];
+        String availabilityExpectation = (String) row[5];
+        String availabilityStartTime = (String) row[6];
+        String availabilityEndTime = (String) row[4];
+        String communicationPreference = (String) row[12];
+        UUID clientId = (UUID) row[37];
+        String clientName = (String) row[38];
+        Double score = null;
+        if (row.length > 39 && row[39] instanceof Number) {
+            score = ((Number) row[39]).doubleValue();
+        }
+        return new JobResponse(
+                jobId,
+                clientId,
+                clientName,
                 categoryId,
-                normalizeText(skillKeyword),
-                pageable
-        ).map(this::toResponse);
+                customCategoryName,
+                jobType,
+                title,
+                description,
+                new ArrayList<>(),
+                experienceLevel,
+                currentLevel,
+                learningGoals,
+                successCriteria,
+                availabilityExpectation,
+                availabilityStartTime,
+                availabilityEndTime,
+                communicationPreference,
+                budgetType,
+                budgetMin,
+                budgetMax,
+                hourlyRate,
+                estimatedHours,
+                startDate != null ? startDate.toLocalDateTime() : null,
+                deadlineAt != null ? deadlineAt.toLocalDateTime() : null,
+                status,
+                isFeatured != null && isFeatured,
+                viewCount,
+                proposalCount,
+                publishedAt != null ? publishedAt.toLocalDateTime() : null,
+                closedAt != null ? closedAt.toLocalDateTime() : null,
+                createdAt != null ? createdAt.toLocalDateTime() : null,
+                updatedAt != null ? updatedAt.toLocalDateTime() : null,
+                statusReason,
+                attachmentUrl,
+                new ArrayList<>(),
+                score
+        );
     }
 
     @Override
@@ -351,7 +453,8 @@ public class JobServiceImpl implements JobService {
                 job.getUpdatedAt(),
                 job.getStatusReason(),
                 job.getAttachmentUrl(),
-                job.getAttachments() != null ? new ArrayList<>(job.getAttachments()) : new ArrayList<>()
+                job.getAttachments() != null ? new ArrayList<>(job.getAttachments()) : new ArrayList<>(),
+                null
         );
     }
 

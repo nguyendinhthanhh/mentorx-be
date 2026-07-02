@@ -12,6 +12,7 @@ public record ReviewResponse(
         String reviewerName,
         ReviewTargetType targetType,
         UUID targetId,
+        String targetTitle,
         BigDecimal overallRating,
         BigDecimal communicationRating,
         BigDecimal qualityRating,
@@ -44,5 +45,6 @@ public record ReviewResponse(
         double helpfulnessRatio,
         boolean canBeEdited,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        Boolean currentUserVote
 ) {}

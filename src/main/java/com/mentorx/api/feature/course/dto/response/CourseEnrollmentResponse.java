@@ -24,6 +24,9 @@ public class CourseEnrollmentResponse {
     private BigDecimal progressPercent;
     private Boolean isCompleted;
     private String certificateUrl;
+    private String certificateCode;
+    private LocalDateTime certificateIssuedAt;
     private LocalDateTime enrolledAt;
+    private LocalDateTime lastAccessedAt;
     private LocalDateTime completedAt;
 }
